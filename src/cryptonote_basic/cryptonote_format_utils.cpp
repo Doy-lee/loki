@@ -498,6 +498,18 @@ namespace cryptonote
     return result;
   }
   //---------------------------------------------------------------
+  std::string get_i2p_hash_from_tx_extra(const std::vector<uint8_t>& tx_extra)
+  {
+    // parse
+    std::vector<tx_extra_field> tx_extra_fields;
+    parse_tx_extra(tx_extra, tx_extra_fields);
+    // find corresponding field
+    tx_extra_i2p_hash i2p_hash;
+    if (!find_tx_extra_field_by_type(tx_extra_fields, i2p_hash))
+      return "";
+    return i2p_hash.data;
+  }
+  //---------------------------------------------------------------
   bool remove_field_from_tx_extra(std::vector<uint8_t>& tx_extra, const std::type_info &type)
   {
     if (tx_extra.empty())

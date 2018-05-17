@@ -2013,6 +2013,9 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("transfer", boost::bind(&simple_wallet::transfer_new, this, _1),
                            tr("transfer [index=<N1>[,<N2>,...]] [<priority>] <address> <amount> [<payment_id>]"),
                            tr("Transfer <amount> to <address>. If the parameter \"index=<N1>[,<N2>,...]\" is specified, the wallet uses outputs received by addresses of those indices. If omitted, the wallet randomly chooses address indices to be used. In any case, it tries its best not to combine outputs across multiple addresses. <priority> is the priority of the transaction. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. Multiple payments can be made at once by adding <address_2> <amount_2> etcetera (before the payment ID, if it's included)"));
+  m_cmd_binder.set_handler("transfer_experiment", boost::bind(&simple_wallet::transfer_experiment, this, _1),
+                           tr("transfer_experiment"),
+                           tr("Transfer experiment, takes no arguments"));
   m_cmd_binder.set_handler("locked_transfer",
                            boost::bind(&simple_wallet::locked_transfer, this, _1),
                            tr("locked_transfer [index=<N1>[,<N2>,...]] [<priority>] <addr> <amount> <lockblocks> [<payment_id>]"),
@@ -4665,6 +4668,19 @@ bool simple_wallet::transfer(const std::vector<std::string> &args_)
 bool simple_wallet::transfer_new(const std::vector<std::string> &args_)
 {
   return transfer_main(TransferNew, args_);
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::transfer_experiment(const std::vector<std::string> &args_)
+{
+  tools::wallet2::pending_tx ptx;
+  ptx.tx.version = 3;
+  ptx.tx.unlock_time = 0;
+  try {
+    m_wallet->commit_tx(ptx);
+  } catch(const std::exception &e) {
+      handle_transfer_exception(std::current_exception(), m_trusted_daemon);
+  }
+  return true;
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::locked_transfer(const std::vector<std::string> &args_)
