@@ -174,7 +174,7 @@ namespace cryptonote
       fee = tx.rct_signatures.txnFee;
     }
 
-    if (!kept_by_block && !m_blockchain.check_fee(blob_size, fee))
+    if (tx.version != 3 && !kept_by_block && !m_blockchain.check_fee(blob_size, fee))
     {
       tvc.m_verifivation_failed = true;
       tvc.m_fee_too_low = true;
@@ -298,7 +298,7 @@ namespace cryptonote
       }
       tvc.m_added_to_pool = true;
 
-      if(meta.fee > 0 && !do_not_relay)
+      if((meta.fee > 0 || tx.version == 3) && !do_not_relay)
         tvc.m_should_be_relayed = true;
     }
 

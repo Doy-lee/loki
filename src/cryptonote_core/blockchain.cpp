@@ -99,10 +99,10 @@ static const struct {
   uint8_t threshold;
   time_t time;
 } testnet_hard_forks[] = {
-  // version 7 from the start of the blockchain, inhereted from Monero testnet
   { 7, 1, 0, 1512211236 },
+  { 8, 75, 0, 1526628233 },
 };
-static const uint64_t testnet_hard_fork_version_1_till = 624633;
+static const uint64_t testnet_hard_fork_version_1_till = 0;
 
 static const struct {
   uint8_t version;
@@ -718,7 +718,6 @@ difficulty_type Blockchain::get_difficulty_for_next_block()
   auto height = m_db->height();
 
   uint8_t version = get_current_hard_fork_version();
-  assert(version == 7);
   size_t difficulty_blocks_count = DIFFICULTY_BLOCKS_COUNT_V2;
 
   // ND: Speedup
@@ -2578,96 +2577,105 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
 
   crypto::hash tx_prefix_hash = get_transaction_prefix_hash(tx);
 
-  const uint8_t hf_version = m_hardfork->get_current_version();
+  const int hf_version = m_hardfork->get_current_version();
 
-  // from hard fork 2, we require mixin at least 2 unless one output cannot mix with 2 others
-  // if one output cannot mix with 2 others, we accept at most 1 output that can mix
-  if (hf_version >= 2)
+  size_t n_unmixable = 0, n_mixable = 0;
+  size_t mixin = std::numeric_limits<size_t>::max();
+  const size_t min_mixin = 9;
+  for (const auto& txin : tx.vin)
   {
-    size_t n_unmixable = 0, n_mixable = 0;
-    size_t mixin = std::numeric_limits<size_t>::max();
-    const size_t min_mixin = hf_version >= HF_VERSION_MIN_MIXIN_9 ? 9 : 2;
-    for (const auto& txin : tx.vin)
+    // non txin_to_key inputs will be rejected below
+    if (txin.type() == typeid(txin_to_key))
     {
-      // non txin_to_key inputs will be rejected below
-      if (txin.type() == typeid(txin_to_key))
+      const txin_to_key& in_to_key = boost::get<txin_to_key>(txin);
+      if (in_to_key.amount == 0)
       {
-        const txin_to_key& in_to_key = boost::get<txin_to_key>(txin);
-        if (in_to_key.amount == 0)
-        {
-          // always consider rct inputs mixable. Even if there's not enough rct
-          // inputs on the chain to mix with, this is going to be the case for
-          // just a few blocks right after the fork at most
-          ++n_mixable;
-        }
+        // always consider rct inputs mixable. Even if there's not enough rct
+        // inputs on the chain to mix with, this is going to be the case for
+        // just a few blocks right after the fork at most
+        ++n_mixable;
+      }
+      else
+      {
+        MDEBUG("Found unmixable output! This should never happen in Loki!");
+        uint64_t n_outputs = m_db->get_num_outputs(in_to_key.amount);
+        MDEBUG("output size " << print_money(in_to_key.amount) << ": " << n_outputs << " available");
+        // n_outputs includes the output we're considering
+        if (n_outputs <= min_mixin)
+          ++n_unmixable;
         else
+          ++n_mixable;
+      }
+      if (hf_version >= 8)
+      {
+        if (in_to_key.key_offsets.size() - 1 != min_mixin)
         {
-          MDEBUG("Found unmixable output! This should never happen in Loki!");
-          uint64_t n_outputs = m_db->get_num_outputs(in_to_key.amount);
-          MDEBUG("output size " << print_money(in_to_key.amount) << ": " << n_outputs << " available");
-          // n_outputs includes the output we're considering
-          if (n_outputs <= min_mixin)
-            ++n_unmixable;
-          else
-            ++n_mixable;
+          MERROR_VER("Tx " << get_transaction_hash(tx) << " has incorrect ring size (" << in_to_key.key_offsets.size() << ")");
+          tvc.m_low_mixin = true;
+          return false;
         }
+      }
+      else
+      {
+        // This branch can be removed after HF version 8 iff no transactions have more than 9 mixins at the time of the fork.
+
         if (in_to_key.key_offsets.size() - 1 < mixin)
           mixin = in_to_key.key_offsets.size() - 1;
       }
     }
+  }
 
-    if (mixin != min_mixin)
-    {
-      if (n_unmixable == 0)
-      {
-        MERROR_VER("Tx " << get_transaction_hash(tx) << " has incorrect ring size (" << (mixin + 1) << "), and no unmixable inputs");
-        tvc.m_low_mixin = true;
-        return false;
-      }
-      if (n_mixable > 1)
-      {
-        MERROR_VER("Tx " << get_transaction_hash(tx) << " has incorrect ring size (" << (mixin + 1) << "), and more than one mixable input with unmixable inputs");
-        tvc.m_low_mixin = true;
-        return false;
-      }
-    }
+  if (hf_version < 8 && mixin != min_mixin)
+  {
+    // This branch can be removed after HF version 8 iff no transactions have more than 9 mixins at the time of the fork.
 
-    // min/max tx version based on HF, and we accept v1 txes if having a non mixable
-    const size_t max_tx_version = (hf_version <= 3) ? 1 : 2;
-    if (tx.version > max_tx_version)
+    if (n_unmixable == 0)
     {
-      MERROR_VER("transaction version " << (unsigned)tx.version << " is higher than max accepted version " << max_tx_version);
-      tvc.m_verifivation_failed = true;
+      MERROR_VER("Tx " << get_transaction_hash(tx) << " has incorrect ring size (" << (mixin + 1) << "), and no unmixable inputs");
+      tvc.m_low_mixin = true;
       return false;
     }
-    const size_t min_tx_version = (n_unmixable > 0 ? 1 : (hf_version >= HF_VERSION_ENFORCE_RCT) ? 2 : 1);
-    if (tx.version < min_tx_version)
+    if (n_mixable > 1)
     {
-      MERROR_VER("transaction version " << (unsigned)tx.version << " is lower than min accepted version " << min_tx_version);
-      tvc.m_verifivation_failed = true;
+      MERROR_VER("Tx " << get_transaction_hash(tx) << " has incorrect ring size (" << (mixin + 1) << "), and more than one mixable input with unmixable inputs");
+      tvc.m_low_mixin = true;
       return false;
     }
   }
 
-  // from v7, sorted ins
-  if (hf_version >= 7) {
-    const crypto::key_image *last_key_image = NULL;
-    for (size_t n = 0; n < tx.vin.size(); ++n)
+  // min/max tx version based on HF, and we accept v1 txes if having a non mixable
+  const size_t max_tx_version = (hf_version <= 3) ? 1 : (hf_version >= 8 ? 3 : 2);
+  if (tx.version > max_tx_version)
+  {
+    MERROR_VER("transaction version " << (unsigned)tx.version << " is higher than max accepted version " << max_tx_version);
+    tvc.m_verifivation_failed = true;
+    return false;
+  }
+  const size_t min_tx_version = (n_unmixable > 0 ? 1 : (hf_version >= HF_VERSION_ENFORCE_RCT) ? 2 : 1);
+  if (tx.version < min_tx_version)
+  {
+    MERROR_VER("transaction version " << (unsigned)tx.version << " is lower than min accepted version " << min_tx_version);
+    tvc.m_verifivation_failed = true;
+    return false;
+  }
+
+  const crypto::key_image *last_key_image = NULL;
+  for (size_t n = 0; n < tx.vin.size(); ++n)
+  {
+    const txin_v &txin = tx.vin[n];
+    if (txin.type() == typeid(txin_to_key))
     {
-      const txin_v &txin = tx.vin[n];
-      if (txin.type() == typeid(txin_to_key))
+      const txin_to_key& in_to_key = boost::get<txin_to_key>(txin);
+      if (last_key_image && memcmp(&in_to_key.k_image, last_key_image, sizeof(*last_key_image)) >= 0)
       {
-        const txin_to_key& in_to_key = boost::get<txin_to_key>(txin);
-        if (last_key_image && memcmp(&in_to_key.k_image, last_key_image, sizeof(*last_key_image)) >= 0)
-        {
-          MERROR_VER("transaction has unsorted inputs");
-          tvc.m_verifivation_failed = true;
-          return false;
-        }
-        last_key_image = &in_to_key.k_image;
+        MERROR_VER("transaction has unsorted inputs");
+        tvc.m_verifivation_failed = true;
+        return false;
       }
+      last_key_image = &in_to_key.k_image;
     }
   }
+
   auto it = m_check_txin_table.find(tx_prefix_hash);
   if(it == m_check_txin_table.end())
   {
@@ -2790,7 +2798,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
       }
     }
   }
-  else
+  else if (tx.version == 2)
   {
     if (!expand_transaction_2(tx, tx_prefix_hash, pubkeys))
     {
@@ -2931,6 +2939,10 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
       MERROR_VER("Unsupported rct type: " << rv.type);
       return false;
     }
+  }
+  else // version == 3
+  {
+    // TODO: extract pubkey, check it is in the table, and check the signature.
   }
   return true;
 }
