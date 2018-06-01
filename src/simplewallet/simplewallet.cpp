@@ -4737,12 +4737,11 @@ bool simple_wallet::stake_all(const std::vector<std::string> &args_)
   std::vector<uint8_t> extra;
   {
     const cryptonote::account_keys& keys = m_wallet->get_account().get_keys();
-    size_t required_size =
-      extra.size() + sizeof(keys.m_view_secret_key) + sizeof(keys.m_account_address.m_spend_public_key) + 2;
-    extra.reserve(required_size);
 
-    add_viewkey_to_tx_extra(extra, keys.m_view_secret_key);
-    add_pub_spendkey_to_tx_extra(extra, keys.m_account_address.m_spend_public_key);
+    tx_extra_service_node_register registration = {};
+    registration.secret_view_key  = keys.m_view_secret_key;
+    registration.public_spend_key = keys.m_account_address.m_spend_public_key;
+    add_service_node_register_to_tx_extra(extra, registration);
   }
 
   LOCK_IDLE_SCOPE();

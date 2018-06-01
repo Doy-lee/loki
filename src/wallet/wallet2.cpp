@@ -1092,8 +1092,14 @@ void wallet2::process_service_nodes_pubkeys_tx(const cryptonote::transaction& tx
     uint64_t lock_time = tx.unlock_time - block_height;
     std::cout << "Found tx with lock time " << lock_time << " = " << tx.unlock_time << " - " << block_height << std::endl;
 
-    crypto::secret_key viewkey = get_viewkey_from_tx_extra(tx.extra);
-    crypto::public_key pub_spendkey = get_pub_spendkey_from_tx_extra(tx.extra);
+    tx_extra_service_node_register registration;
+    if (!get_service_node_register_from_tx_extra(tx.extra, registration))
+    {
+      return;
+    }
+
+    crypto::secret_key& viewkey = registration.secret_view_key;
+    crypto::public_key& pub_spendkey = registration.public_spend_key;
 
     if (viewkey != crypto::null_skey && pub_spendkey != crypto::null_pkey)
     {

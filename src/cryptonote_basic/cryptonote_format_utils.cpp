@@ -402,7 +402,7 @@ namespace cryptonote
   static void add_data_to_tx_extra(std::vector<uint8_t>& tx_extra, char const *data, size_t data_size, uint8_t tag)
   {
     size_t pos = tx_extra.size();
-    tx_extra.reserve(tx_extra.size() + sizeof(tag) + data_size);
+    tx_extra.resize(tx_extra.size() + sizeof(tag) + data_size);
     tx_extra[pos++] = tag;
     std::memcpy(&tx_extra[pos], data, data_size);
   }
@@ -472,55 +472,30 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------
-  void add_block_height_to_tx_extra(std::vector<uint8_t>& tx_extra, uint64_t block_height)
+  void add_service_node_deregister_to_tx_extra(std::vector<uint8_t>& tx_extra, const tx_extra_service_node_deregister& deregistration)
   {
-    add_data_to_tx_extra(tx_extra, reinterpret_cast<const char *>(&block_height), sizeof(block_height), TX_EXTRA_TAG_BLOCK_HEIGHT);
+    add_data_to_tx_extra(tx_extra, reinterpret_cast<const char*>(&deregistration), sizeof(deregistration), TX_EXTRA_TAG_SERVICE_NODE_DEREGISTER);
   }
   //---------------------------------------------------------------
-  void add_pub_spendkey_to_tx_extra(std::vector<uint8_t>& tx_extra, const crypto::public_key& tx_pub_key)
+  void add_service_node_register_to_tx_extra(std::vector<uint8_t>& tx_extra, const tx_extra_service_node_register& registration)
   {
-    add_data_to_tx_extra(tx_extra, reinterpret_cast<const char *>(&tx_pub_key), sizeof(tx_pub_key), TX_EXTRA_TAG_PUB_SPENDKEY);
+    add_data_to_tx_extra(tx_extra, reinterpret_cast<const char*>(&registration), sizeof(registration), TX_EXTRA_TAG_SERVICE_NODE_REGISTER);
   }
   //---------------------------------------------------------------
-  void add_viewkey_to_tx_extra(std::vector<uint8_t>& tx_extra, const crypto::secret_key& viewkey)
-  {
-    add_data_to_tx_extra(tx_extra, reinterpret_cast<const char*>(&viewkey), sizeof(&viewkey), TX_EXTRA_TAG_VIEWKEY);
-  }
-  //---------------------------------------------------------------
-  uint64_t get_block_height_from_tx_extra(const std::vector<uint8_t>& tx_extra)
+  bool get_service_node_register_from_tx_extra(const std::vector<uint8_t>& tx_extra, tx_extra_service_node_register &registration)
   {
     std::vector<tx_extra_field> tx_extra_fields;
     parse_tx_extra(tx_extra, tx_extra_fields);
-    tx_extra_block_height block_height;
-
-    if (!find_tx_extra_field_by_type(tx_extra_fields, block_height))
-      return 0;
-
-    return block_height.data;
+    bool result = find_tx_extra_field_by_type(tx_extra_fields, registration);
+    return result;
   }
   //---------------------------------------------------------------
-  crypto::public_key get_pub_spendkey_from_tx_extra(const std::vector<uint8_t>& tx_extra)
+  bool get_service_node_deregister_from_tx_extra(const std::vector<uint8_t>& tx_extra, tx_extra_service_node_deregister &deregistration)
   {
     std::vector<tx_extra_field> tx_extra_fields;
     parse_tx_extra(tx_extra, tx_extra_fields);
-    tx_extra_pub_spendkey pub_spendkey;
-
-    if (!find_tx_extra_field_by_type(tx_extra_fields, pub_spendkey))
-      return crypto::null_pkey;
-
-    return pub_spendkey.data;
-  }
-  //---------------------------------------------------------------
-  crypto::secret_key get_viewkey_from_tx_extra(const std::vector<uint8_t>& tx_extra)
-  {
-    std::vector<tx_extra_field> tx_extra_fields;
-    parse_tx_extra(tx_extra, tx_extra_fields);
-    tx_extra_viewkey viewkey;
-
-    if (!find_tx_extra_field_by_type(tx_extra_fields, viewkey))
-      return crypto::null_skey;
-
-    return viewkey.data;
+    bool result = find_tx_extra_field_by_type(tx_extra_fields, deregistration);
+    return result;
   }
   //---------------------------------------------------------------
   bool remove_field_from_tx_extra(std::vector<uint8_t>& tx_extra, const std::type_info &type)
