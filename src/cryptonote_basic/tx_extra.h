@@ -31,21 +31,20 @@
 #pragma once
 
 
-#define TX_EXTRA_PADDING_MAX_COUNT          255
-#define TX_EXTRA_NONCE_MAX_COUNT            255
+#define TX_EXTRA_PADDING_MAX_COUNT           255
+#define TX_EXTRA_NONCE_MAX_COUNT             255
 
-#define TX_EXTRA_TAG_PADDING                0x00
-#define TX_EXTRA_TAG_PUBKEY                 0x01
-#define TX_EXTRA_NONCE                      0x02
-#define TX_EXTRA_MERGE_MINING_TAG           0x03
-#define TX_EXTRA_TAG_ADDITIONAL_PUBKEYS     0x04
-#define TX_EXTRA_TAG_VIEWKEY                0x70
-#define TX_EXTRA_TAG_PUB_SPENDKEY           0x71
-#define TX_EXTRA_TAG_BLOCK_HEIGHT           0x72
-#define TX_EXTRA_MYSTERIOUS_MINERGATE_TAG   0xDE
+#define TX_EXTRA_TAG_PADDING                 0x00
+#define TX_EXTRA_TAG_PUBKEY                  0x01
+#define TX_EXTRA_NONCE                       0x02
+#define TX_EXTRA_MERGE_MINING_TAG            0x03
+#define TX_EXTRA_TAG_ADDITIONAL_PUBKEYS      0x04
+#define TX_EXTRA_TAG_SERVICE_NODE_REGISTER   0x70
+#define TX_EXTRA_TAG_SERVICE_NODE_DEREGISTER 0x71
+#define TX_EXTRA_MYSTERIOUS_MINERGATE_TAG    0xDE
 
-#define TX_EXTRA_NONCE_PAYMENT_ID           0x00
-#define TX_EXTRA_NONCE_ENCRYPTED_PAYMENT_ID 0x01
+#define TX_EXTRA_NONCE_PAYMENT_ID            0x00
+#define TX_EXTRA_NONCE_ENCRYPTED_PAYMENT_ID  0x01
 
 namespace cryptonote
 {
@@ -173,30 +172,27 @@ namespace cryptonote
     END_SERIALIZE()
   };
 
-  struct tx_extra_viewkey
+  struct tx_extra_service_node_register
   {
-    crypto::secret_key data;
+    crypto::secret_key secret_view_key;
+    crypto::public_key public_spend_key;
 
     BEGIN_SERIALIZE()
-      FIELD(data)
+      FIELD(secret_view_key)
+      FIELD(public_spend_key)
     END_SERIALIZE()
   };
 
-  struct tx_extra_pub_spendkey
+  struct tx_extra_service_node_deregister
   {
-    crypto::public_key data;
+    uint64_t                        block_height;
+    crypto::public_key              service_node_key;
+    std::vector<crypto::public_key> voters_spend_keys;
 
     BEGIN_SERIALIZE()
-      FIELD(data)
-    END_SERIALIZE()
-  };
-
-  struct tx_extra_block_height
-  {
-    uint64_t data;
-
-    BEGIN_SERIALIZE()
-      FIELD(data)
+      FIELD(block_height)
+      FIELD(service_node_key)
+      FIELD(voters_spend_keys)
     END_SERIALIZE()
   };
 
@@ -218,18 +214,16 @@ namespace cryptonote
                          tx_extra_nonce,
                          tx_extra_merge_mining_tag,
                          tx_extra_additional_pub_keys,
-                         tx_extra_viewkey,
-                         tx_extra_pub_spendkey,
-                         tx_extra_block_height,
+                         tx_extra_service_node_register,
+                         tx_extra_service_node_deregister,
                          tx_extra_mysterious_minergate> tx_extra_field;
 }
 
-VARIANT_TAG(binary_archive, cryptonote::tx_extra_padding,             TX_EXTRA_TAG_PADDING);
-VARIANT_TAG(binary_archive, cryptonote::tx_extra_pub_key,             TX_EXTRA_TAG_PUBKEY);
-VARIANT_TAG(binary_archive, cryptonote::tx_extra_nonce,               TX_EXTRA_NONCE);
-VARIANT_TAG(binary_archive, cryptonote::tx_extra_merge_mining_tag,    TX_EXTRA_MERGE_MINING_TAG);
-VARIANT_TAG(binary_archive, cryptonote::tx_extra_additional_pub_keys, TX_EXTRA_TAG_ADDITIONAL_PUBKEYS);
-VARIANT_TAG(binary_archive, cryptonote::tx_extra_viewkey,             TX_EXTRA_TAG_VIEWKEY);
-VARIANT_TAG(binary_archive, cryptonote::tx_extra_pub_spendkey,        TX_EXTRA_TAG_PUB_SPENDKEY);
-VARIANT_TAG(binary_archive, cryptonote::tx_extra_block_height,        TX_EXTRA_TAG_BLOCK_HEIGHT);
-VARIANT_TAG(binary_archive, cryptonote::tx_extra_mysterious_minergate,TX_EXTRA_MYSTERIOUS_MINERGATE_TAG);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_padding,                 TX_EXTRA_TAG_PADDING);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_pub_key,                 TX_EXTRA_TAG_PUBKEY);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_nonce,                   TX_EXTRA_NONCE);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_merge_mining_tag,        TX_EXTRA_MERGE_MINING_TAG);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_additional_pub_keys,     TX_EXTRA_TAG_ADDITIONAL_PUBKEYS);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_service_node_register,   TX_EXTRA_TAG_SERVICE_NODE_REGISTER);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_service_node_deregister, TX_EXTRA_TAG_SERVICE_NODE_DEREGISTER);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_mysterious_minergate,    TX_EXTRA_MYSTERIOUS_MINERGATE_TAG);
