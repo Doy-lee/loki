@@ -4734,23 +4734,18 @@ bool simple_wallet::stake_all(const std::vector<std::string> &args_)
   unlock_block = bc_height + locked_blocks;
 
   cryptonote::account_public_address address = m_wallet->get_address();
-
   std::vector<uint8_t> extra;
-
-  if (!add_viewkey_to_tx_extra(extra, m_wallet->get_account().get_keys().m_view_secret_key))
   {
-    fail_msg_writer() << tr("failed add view key to tx extra");
-    return true;
-  }
+    const cryptonote::account_keys& keys = m_wallet->get_account().get_keys();
+    size_t required_size =
+      extra.size() + sizeof(keys.m_view_secret_key) + sizeof(keys.m_account_address.m_spend_public_key) + 2;
+    extra.reserve(required_size);
 
-  if (!add_pub_spendkey_to_tx_extra(extra, m_wallet->get_account().get_keys().m_account_address.m_spend_public_key))
-  {
-    fail_msg_writer() << tr("failed add public spend key to tx extra");
-    return true;
+    add_viewkey_to_tx_extra(extra, keys.m_view_secret_key);
+    add_pub_spendkey_to_tx_extra(extra, keys.m_account_address.m_spend_public_key);
   }
 
   LOCK_IDLE_SCOPE();
-
   try
   {
     // figure out what tx will be necessary
@@ -4788,15 +4783,15 @@ bool simple_wallet::stake_all(const std::vector<std::string> &args_)
       return true;
     if (ptx_vector.size() > 1) {
       prompt << boost::format(tr("Staking %s for %u blocks in %llu transactions for a total fee of %s.  Is this okay?  (Y/Yes/N/No): ")) %
-        locked_blocks %
         print_money(total_sent) %
+        locked_blocks %
         ((unsigned long long)ptx_vector.size()) %
         print_money(total_fee);
     }
     else {
       prompt << boost::format(tr("Staking %s for %u blocks a total fee of %s.  Is this okay?  (Y/Yes/N/No): ")) %
-        locked_blocks %
         print_money(total_sent) %
+        locked_blocks %
         print_money(total_fee);
     }
     std::string accepted = input_line(prompt.str());
