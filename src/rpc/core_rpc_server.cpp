@@ -1987,16 +1987,15 @@ namespace cryptonote
       return r;
     }
 
-    std::array<std::string, 10> quorum_array;
-    r = m_core.get_quorum_list_for_height(req.height, quorum_array);
+    std::vector<crypto::public_key> quorum;
+    r = m_core.get_quorum_list_for_height(req.height, quorum);
     if (r)
     {
       res.status = CORE_RPC_STATUS_OK;
+      res.quorum.reserve(quorum.size());
 
-      // TODO: Not ideal to re-copy from std::array into std::vector, but there's no KV_SERIALIZE for arrays or primitive arrays[]
-      res.quorum_list.reserve(quorum_array.max_size());
-      for (auto it = quorum_array.begin(); it != quorum_array.end(); it++)
-        res.quorum_list.push_back(*it);
+      for (const auto &key : quorum)
+        res.quorum.push_back(epee::string_tools::pod_to_hex(key));
     }
     else
     {

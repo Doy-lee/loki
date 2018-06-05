@@ -2029,6 +2029,10 @@ simple_wallet::simple_wallet()
                            boost::bind(&simple_wallet::xx__deregister_service_node, this, _1),
                            tr("xx__deregister_service_node <node id>"),
                            tr("Submit a deregistration transaction for the given node id."));
+  m_cmd_binder.set_handler("xx__get_quorum",
+                           boost::bind(&simple_wallet::xx__get_quorum, this, _1),
+                           tr("xx__get_quorum <block height>"),
+                           tr("Get the quorum for the given height"));
   m_cmd_binder.set_handler("sweep_unmixable",
                            boost::bind(&simple_wallet::sweep_unmixable, this, _1),
                            tr("Deprecated"));
@@ -3644,7 +3648,7 @@ bool simple_wallet::start_mining(const std::vector<std::string>& args)
     fail_msg_writer() << tr("wallet is null");
     return true;
   }
-  COMMAND_RPC_START_MINING::request req = AUTO_VAL_INIT(req); 
+  COMMAND_RPC_START_MINING::request req = AUTO_VAL_INIT(req);
   req.miner_address = m_wallet->get_account().get_public_address_str(m_wallet->nettype());
 
   bool ok = true;
@@ -4941,7 +4945,7 @@ bool simple_wallet::xx__deregister_service_node(const std::vector<std::string> &
   std::vector<uint8_t> &extra = ptx.tx.extra;
   {
     std::string err;
-    uint64_t bc_height = get_daemon_blockchain_height(err);
+    uint64_t bc_height = std::max((get_daemon_blockchain_height(err) - 3), (uint64_t)0);
     if (!err.empty())
     {
       fail_msg_writer() << tr("failed to get blockchain height: ") << err;
@@ -4963,6 +4967,7 @@ bool simple_wallet::xx__deregister_service_node(const std::vector<std::string> &
     {
       const std::string xx__vote_keys_str[] =
       {
+#if 0
         "bfae23724257762880ec334b7f83cdda345ff677c34ef141e8ea5cbbe0f61f33",
         "04932a89171e0a33e3a079e5c61a7454a5bff9fd467ff81cbc18a5ee5ff37bab",
         "ea505c9ccf83d73654268562487a077423cde586fe5799113e93a8a0b46e9fe5",
@@ -4973,6 +4978,18 @@ bool simple_wallet::xx__deregister_service_node(const std::vector<std::string> &
         "b4aa98188bd958ad7dd10eb19b091ac25647c3b28255b6a02633f57ebf633c9f",
         "1e4c7a3e7e7dec98e9b5da2ba8d8ea013cb71115a22e926ba060dd8ca9084004",
         "23f2052a043c17f1e93558ff5fcf1a183c4139384c7d115b32a98d55081dc996",
+#else
+        "ab3a704dd71dacd1361155e668253ae70bca58cf790141c4174f47403696ffb3",
+        "ac7e0e825120d28575182c86e36c6f05666192f573e032f036871969009fa1c7",
+        "7123ae098051a459cf6fc2fdeccad6210136f6e55f8218439864a53501498dc6",
+        "ccacea809b1dbe1dc5021281662490b55db41d86dea0715b6b1322a7c344d641",
+        "160dc084804efa96129dcc846ea9aeb793e5b208dc947587f2aa5dda4634a877",
+        "7b10fa062ae91169166a32d29e585695cf9204375484252eda89d76ddeb5b163",
+        "ea505c9ccf83d73654268562487a077423cde586fe5799113e93a8a0b46e9fe5",
+        "f6b29bb886e2cf64de7b0887c84d821e96ec56f6e28903f4faa6fecf18b445dd",
+        "40b8be419aff1126a31a2cbb6702aced9960c075919dc2fe44efabdda973a7d1",
+        "4931ddac1a7981f0dd7259bee59281cf540ba6a9ef59a10ef9fe504214ff1f11",
+#endif
       };
 
       for (size_t i = 0; i < ARRAY_COUNT(xx__vote_keys_str); i++)
@@ -5003,6 +5020,49 @@ bool simple_wallet::xx__deregister_service_node(const std::vector<std::string> &
   catch (const std::exception &e)
   {
     handle_transfer_exception(std::current_exception(), m_trusted_daemon);
+  }
+
+  return true;
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::xx__get_quorum(const std::vector<std::string> &args_)
+{
+  // xx__get_quorum <block height>
+  if (!try_connect_to_daemon())
+    return true;
+
+  const int expect_num_args = 1;
+  if (args_.size() != expect_num_args)
+  {
+    fail_msg_writer() << tr("expected 1 argument (block height) received: ") << args_.size();
+    return true;
+  }
+
+  COMMAND_RPC_GET_QUORUM_LIST::request req = AUTO_VAL_INIT(req);
+  COMMAND_RPC_GET_QUORUM_LIST::response res;
+  try
+  {
+      req.height = boost::lexical_cast<uint64_t>(args_[0]);
+  }
+  catch(const boost::bad_lexical_cast &)
+  {
+    fail_msg_writer() << tr("bad block height parameter: ") << args_[0];
+    return true;
+  }
+
+  bool r = m_wallet->invoke_http_json("/get_quorum_list", req, res);
+  const std::string err = interpret_rpc_response(r, res.status);
+  if (err.empty())
+  {
+    for (size_t i = 0; i < res.quorum.size(); i++)
+    {
+      const std::string &entry = res.quorum[i];
+      message_writer() << "[" << i << "] " << entry;
+    }
+  }
+  else
+  {
+    fail_msg_writer() << tr("Failed to retrieve quorum: ") << err;
   }
 
   return true;

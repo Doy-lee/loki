@@ -780,7 +780,7 @@ namespace cryptonote
 
       * @return The list of service node's public keys
       */
-     bool get_quorum_list_for_height(uint64_t height, std::array<std::string, 10>& quorum_list) const;
+     bool get_quorum_list_for_height(uint64_t height, std::vector<crypto::public_key>& quorum) const;
 
    private:
 

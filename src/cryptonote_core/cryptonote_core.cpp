@@ -634,12 +634,11 @@ namespace cryptonote
     bad_semantics_txes_lock.unlock();
 
     int version = m_blockchain_storage.get_current_hard_fork_version();
-
     unsigned int max_tx_version = version == 1 ? 1 : version < 8 ? 2 : 3;
 
     if (tx.version == 0 || tx.version > max_tx_version)
     {
-      // v2 is the latest one we know
+      // v3 is the latest one we know
       tvc.m_verifivation_failed = true;
       return false;
     }
@@ -773,16 +772,48 @@ namespace cryptonote
     st_inf.top_block_id_str = epee::string_tools::pod_to_hex(m_blockchain_storage.get_tail_id());
     return true;
   }
+  //-----------------------------------------------------------------------------------------------
+  static bool deregistration_voters_match_quorum(const tx_extra_service_node_deregister &deregistration, const std::vector<crypto::public_key> &quorum)
+  {
+    // Validate that all signatures in the deregistration TX match the quorum for block height
+    {
+      bool size_is_same = deregistration.voters_spend_keys.size() == quorum.size();
+      CHECK_AND_ASSERT_MES(size_is_same, false, "Deregistration number of voters should be same: " << deregistration.voters_spend_keys.size() << ", does not match quorum size: " << quorum.size());
+    }
 
+    // TODO(doyle): This needs better performance as quorums will grow to large amounts
+    std::array<bool, 10> deregister_memoizer = {}, quorum_memoizer = {};
+    bool matched = false;
+    for (size_t i = 0; i < deregistration.voters_spend_keys.size(); i++, matched = false)
+    {
+      if (deregister_memoizer[i]) continue;
+      const crypto::public_key& deregister_entry = deregistration.voters_spend_keys[i];
+
+      for (size_t j = 0; j < quorum.size(); j++)
+      {
+        if (quorum_memoizer[j]) continue;
+        const crypto::public_key& quorum_entry = quorum[j];
+
+        if (std::memcmp(deregister_entry.data, quorum_entry.data, sizeof(deregister_entry.data)) == 0)
+        {
+          deregister_memoizer[i] = true;
+          quorum_memoizer[j] = true;
+          matched = true;
+        }
+      }
+
+      if (!matched)
+      {
+        MERROR_VER("TX version 3 could not match deregistration key to the entries in the quorum");
+        return false;
+      }
+    }
+
+    return true;
+  }
   //-----------------------------------------------------------------------------------------------
   bool core::check_tx_semantic(const transaction& tx, bool keeped_by_block) const
   {
-    if(tx.version <= 2 && !tx.vin.size())
-    {
-      MERROR_VER("tx with empty inputs, rejected for tx id= " << get_transaction_hash(tx));
-      return false;
-    }
-
     if(!check_inputs_types_supported(tx))
     {
       MERROR_VER("unsupported input types for tx id= " << get_transaction_hash(tx));
@@ -794,14 +825,6 @@ namespace cryptonote
       MERROR_VER("tx with invalid outputs, rejected for tx id= " << get_transaction_hash(tx));
       return false;
     }
-    if (tx.version > 1)
-    {
-      if (tx.rct_signatures.outPk.size() != tx.vout.size())
-      {
-        MERROR_VER("tx with mismatched vout/outPk count, rejected for tx id= " << get_transaction_hash(tx));
-        return false;
-      }
-    }
 
     if(!check_money_overflow(tx))
     {
@@ -809,27 +832,12 @@ namespace cryptonote
       return false;
     }
 
-    if (tx.version == 1)
-    {
-      uint64_t amount_in = 0;
-      get_inputs_money_amount(tx, amount_in);
-      uint64_t amount_out = get_outs_money_amount(tx);
-
-      if(amount_in <= amount_out)
-      {
-        MERROR_VER("tx with wrong amounts: ins " << amount_in << ", outs " << amount_out << ", rejected for tx id= " << get_transaction_hash(tx));
-        return false;
-      }
-    }
-    // for version > 1, ringct signatures check verifies amounts match
-
     if(!keeped_by_block && get_object_blobsize(tx) >= m_blockchain_storage.get_current_cumulative_blocksize_limit() - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE)
     {
       MERROR_VER("tx is too large " << get_object_blobsize(tx) << ", expected not bigger than " << m_blockchain_storage.get_current_cumulative_blocksize_limit() - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE);
       return false;
     }
 
-    //check if tx use different key images
     if(!check_tx_inputs_keyimages_diff(tx))
     {
       MERROR_VER("tx uses a single key image more than once");
@@ -848,39 +856,101 @@ namespace cryptonote
       return false;
     }
 
-    if (tx.version == 2)
+    if (tx.version == 1)
     {
-      const rct::rctSig &rv = tx.rct_signatures;
-      switch (rv.type) {
-        case rct::RCTTypeNull:
-          // coinbase should not come here, so we reject for all other types
-          MERROR_VER("Unexpected Null rctSig type");
-          return false;
-        case rct::RCTTypeSimple:
-        case rct::RCTTypeSimpleBulletproof:
-          if (!rct::verRctSimple(rv, true))
-          {
-            MERROR_VER("rct signature semantics check failed");
-            return false;
-          }
-          break;
-        case rct::RCTTypeFull:
-        case rct::RCTTypeFullBulletproof:
-          if (!rct::verRct(rv, true))
-          {
-            MERROR_VER("rct signature semantics check failed");
-            return false;
-          }
-          break;
-        default:
-          MERROR_VER("Unknown rct type: " << rv.type);
-          return false;
+      uint64_t amount_in = 0;
+      get_inputs_money_amount(tx, amount_in);
+      uint64_t amount_out = get_outs_money_amount(tx);
+
+      if(amount_in <= amount_out)
+      {
+        MERROR_VER("tx with wrong amounts: ins " << amount_in << ", outs " << amount_out << ", rejected for tx id= " << get_transaction_hash(tx));
+        return false;
       }
     }
 
-    if (tx.version == 3)
+    if(tx.version <= 2 && !tx.vin.size())
     {
-      // Check for some v3 stuff here maybe
+      MERROR_VER("tx with empty inputs, rejected for tx id= " << get_transaction_hash(tx));
+      return false;
+    }
+
+    if (tx.version >= 2) // for version >= 2, ringct signatures check verifies amounts match
+    {
+      if (tx.rct_signatures.outPk.size() != tx.vout.size())
+      {
+        MERROR_VER("tx with mismatched vout/outPk count, rejected for tx id= " << get_transaction_hash(tx));
+        return false;
+      }
+
+      if (tx.version == 2)
+      {
+        const rct::rctSig &rv = tx.rct_signatures;
+        switch (rv.type) {
+          case rct::RCTTypeNull:
+            // coinbase should not come here, so we reject for all other types
+            MERROR_VER("Unexpected Null rctSig type");
+            return false;
+          case rct::RCTTypeSimple:
+          case rct::RCTTypeSimpleBulletproof:
+            if (!rct::verRctSimple(rv, true))
+            {
+              MERROR_VER("rct signature semantics check failed");
+              return false;
+            }
+            break;
+          case rct::RCTTypeFull:
+          case rct::RCTTypeFullBulletproof:
+            if (!rct::verRct(rv, true))
+            {
+              MERROR_VER("rct signature semantics check failed");
+              return false;
+            }
+            break;
+          default:
+            MERROR_VER("Unknown rct type: " << rv.type);
+            return false;
+        }
+      }
+      else if (tx.version == 3)
+      {
+        // TODO(doyle): Version 3 should only be valid from the hardfork height
+        tx_extra_service_node_deregister deregistration;
+        if (!get_service_node_deregister_from_tx_extra(tx.extra, deregistration))
+        {
+          MERROR_VER("TX version 3 did not contain deregistration data");
+          return false;
+        }
+
+        // Check service node to deregister is valid
+        {
+          auto xx__is_service_node_registered = ([](const crypto::public_key &service_node_key) -> bool {
+            return true;
+          });
+
+          if (!xx__is_service_node_registered(deregistration.service_node_key))
+          {
+            MERROR_VER("TX version 3 trying to deregister a non-active node");
+            return false;
+          }
+        }
+
+        // Match deregistration voters to quorum
+        {
+          std::vector<crypto::public_key> quorum;
+          if (!get_quorum_list_for_height(deregistration.block_height, quorum))
+          {
+            MERROR_VER("TX version 3 could not get quorum for height: " << deregistration.block_height);
+            return false;
+          }
+
+          if (!deregistration_voters_match_quorum(deregistration, quorum))
+          {
+            MERROR_VER("TX version 3 trying to deregister a non-active node");
+            return false;
+          }
+        }
+      }
     }
 
     return true;
@@ -1570,11 +1640,10 @@ namespace cryptonote
     return si.available;
   }
   //-----------------------------------------------------------------------------------------------
-  static std::vector<std::string> xx__get_service_nodes_pub_keys_for_height(uint64_t height)
+  static std::vector<crypto::public_key> xx__get_service_nodes_pub_keys_for_height(uint64_t height)
   {
       (void)height; // TODO(doyle): Mock function needs to be implemented
 
-      std::vector<std::string> result;
       const char *XX__PUB_KEYS[] =
       {
         "cab4ae6148233461074c6bc4c72b8a53ee91d9cfbda5813c3422a3e2897b21e3",
@@ -1615,18 +1684,24 @@ namespace cryptonote
       };
 
       size_t const size = sizeof(XX__PUB_KEYS) / sizeof(XX__PUB_KEYS[0]);
+
+      std::vector<crypto::public_key> result;
       result.reserve(size);
 
       for (size_t i = 0; i < size; i++)
-        result.push_back(XX__PUB_KEYS[i]);
+      {
+        crypto::public_key key;
+        epee::string_tools::hex_to_pod(XX__PUB_KEYS[i], key);
+        result.push_back(key);
+      }
 
       return result;
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::get_quorum_list_for_height(uint64_t height, std::array<std::string, 10>& quorum_list) const
+  bool core::get_quorum_list_for_height(uint64_t height, std::vector<crypto::public_key>& quorum) const
   {
-    const std::vector<std::string> pub_keys   = xx__get_service_nodes_pub_keys_for_height(height);
-    const crypto::hash             block_hash = get_block_id_by_height(height);
+    const std::vector<crypto::public_key> pub_keys   = xx__get_service_nodes_pub_keys_for_height(height);
+    const crypto::hash                    block_hash = get_block_id_by_height(height);
 
     if (block_hash == crypto::null_hash)
     {
@@ -1637,27 +1712,31 @@ namespace cryptonote
     // Generate index mapping to pub_keys
     std::vector<size_t> pub_keys_indexes;
     {
-        pub_keys_indexes.reserve(pub_keys.size());
-        for (size_t i = 0; i < pub_keys.size(); i++) pub_keys_indexes.push_back(i);
+      pub_keys_indexes.reserve(pub_keys.size());
+      for (size_t i = 0; i < pub_keys.size(); i++) pub_keys_indexes.push_back(i);
     }
 
-    // Swap first 10 indexes randomly
+    // Swap first N (size of quorum) indexes randomly
     {
-        uint32_t seed = 0;
-        std::memcpy(&seed, block_hash.data, std::min(sizeof(seed), sizeof(block_hash.data)));
+      const int xx__quorum_size = 10;
+      quorum.resize(xx__quorum_size);
 
-        std::mt19937 mersenne_twister(seed);
-        std::uniform_int_distribution<size_t> rng(0, pub_keys.size() - 1);
+      // TODO(doyle): We should use more of the data from the hash
+      uint64_t seed = 0;
+      std::memcpy(&seed, block_hash.data, std::min(sizeof(seed), sizeof(block_hash.data)));
 
-        for (size_t i = 0; i < quorum_list.max_size(); i++)
-        {
-            size_t swap_index = rng(mersenne_twister);
-            std::swap(pub_keys_indexes[i], pub_keys_indexes[swap_index]);
-        }
+      std::mt19937_64 mersenne_twister(seed);
+      std::uniform_int_distribution<size_t> rng(0, pub_keys.size() - 1);
+
+      for (size_t i = 0; i < quorum.size(); i++)
+      {
+        size_t swap_index = rng(mersenne_twister);
+        std::swap(pub_keys_indexes[i], pub_keys_indexes[swap_index]);
+      }
     }
 
-    for (size_t i = 0; i < quorum_list.max_size(); i++)
-        quorum_list[i] = pub_keys[pub_keys_indexes[i]];
+    for (size_t i = 0; i < quorum.size(); i++)
+      quorum[i] = pub_keys[pub_keys_indexes[i]];
 
     return true;
   }

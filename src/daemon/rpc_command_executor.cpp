@@ -592,9 +592,9 @@ bool t_rpc_command_executor::print_quorum_list(uint64_t height)
     }
   }
 
-  for (size_t i = 0; i < res.quorum_list.size(); i++)
+  for (size_t i = 0; i < res.quorum.size(); i++)
   {
-    const std::string &entry = res.quorum_list[i];
+    const std::string &entry = res.quorum[i];
     tools::msg_writer() << "[" << i << "] " << entry;
   }
 
