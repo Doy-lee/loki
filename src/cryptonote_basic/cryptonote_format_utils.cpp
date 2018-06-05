@@ -474,7 +474,17 @@ namespace cryptonote
   //---------------------------------------------------------------
   void add_service_node_deregister_to_tx_extra(std::vector<uint8_t>& tx_extra, const tx_extra_service_node_deregister& deregistration)
   {
-    add_data_to_tx_extra(tx_extra, reinterpret_cast<const char*>(&deregistration), sizeof(deregistration), TX_EXTRA_TAG_SERVICE_NODE_DEREGISTER);
+    tx_extra_field field = tx_extra_service_node_deregister{deregistration.block_height, deregistration.service_node_key, deregistration.voters_spend_keys};
+
+    std::ostringstream oss;
+    binary_archive<true> ar(oss);
+    bool r = ::do_serialize(ar, field);
+    CHECK_AND_ASSERT_MES_NO_RET(r, "failed to serialize tx extra service node deregister");
+
+    std::string tx_extra_str = oss.str();
+    size_t pos = tx_extra.size();
+    tx_extra.resize(tx_extra.size() + tx_extra_str.size());
+    memcpy(&tx_extra[pos], tx_extra_str.data(), tx_extra_str.size());
   }
   //---------------------------------------------------------------
   void add_service_node_register_to_tx_extra(std::vector<uint8_t>& tx_extra, const tx_extra_service_node_register& registration)
@@ -496,18 +506,6 @@ namespace cryptonote
     parse_tx_extra(tx_extra, tx_extra_fields);
     bool result = find_tx_extra_field_by_type(tx_extra_fields, deregistration);
     return result;
-  }
-  //---------------------------------------------------------------
-  std::string get_i2p_hash_from_tx_extra(const std::vector<uint8_t>& tx_extra)
-  {
-    // parse
-    std::vector<tx_extra_field> tx_extra_fields;
-    parse_tx_extra(tx_extra, tx_extra_fields);
-    // find corresponding field
-    tx_extra_i2p_hash i2p_hash;
-    if (!find_tx_extra_field_by_type(tx_extra_fields, i2p_hash))
-      return "";
-    return i2p_hash.data;
   }
   //---------------------------------------------------------------
   bool remove_field_from_tx_extra(std::vector<uint8_t>& tx_extra, const std::type_info &type)

@@ -2013,9 +2013,6 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("transfer", boost::bind(&simple_wallet::transfer_new, this, _1),
                            tr("transfer [index=<N1>[,<N2>,...]] [<priority>] <address> <amount> [<payment_id>]"),
                            tr("Transfer <amount> to <address>. If the parameter \"index=<N1>[,<N2>,...]\" is specified, the wallet uses outputs received by addresses of those indices. If omitted, the wallet randomly chooses address indices to be used. In any case, it tries its best not to combine outputs across multiple addresses. <priority> is the priority of the transaction. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used. Multiple payments can be made at once by adding <address_2> <amount_2> etcetera (before the payment ID, if it's included)"));
-  m_cmd_binder.set_handler("transfer_experiment", boost::bind(&simple_wallet::transfer_experiment, this, _1),
-                           tr("transfer_experiment"),
-                           tr("Transfer experiment, takes no arguments"));
   m_cmd_binder.set_handler("locked_transfer",
                            boost::bind(&simple_wallet::locked_transfer, this, _1),
                            tr("locked_transfer [index=<N1>[,<N2>,...]] [<priority>] <addr> <amount> <lockblocks> [<payment_id>]"),
@@ -2028,6 +2025,10 @@ simple_wallet::simple_wallet()
                            boost::bind(&simple_wallet::stake_all, this, _1),
                            tr("stake_all [index=<N1>[,<N2>,...]] [<priority>] [lockblocks]"),
                            tr("Send all unlocked balance to the same address. Lock it for [lockblocks] (max. 1000000). If the parameter \"index<N1>[,<N2>,...]\" is specified, the wallet stakes outputs received by those address indices. <priority> is the priority of the stake. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used."));
+  m_cmd_binder.set_handler("xx__deregister_service_node",
+                           boost::bind(&simple_wallet::xx__deregister_service_node, this, _1),
+                           tr("xx__deregister_service_node <node id>"),
+                           tr("Submit a deregistration transaction for the given node id."));
   m_cmd_binder.set_handler("sweep_unmixable",
                            boost::bind(&simple_wallet::sweep_unmixable, this, _1),
                            tr("Deprecated"));
@@ -4670,19 +4671,6 @@ bool simple_wallet::transfer_new(const std::vector<std::string> &args_)
   return transfer_main(TransferNew, args_);
 }
 //----------------------------------------------------------------------------------------------------
-bool simple_wallet::transfer_experiment(const std::vector<std::string> &args_)
-{
-  tools::wallet2::pending_tx ptx;
-  ptx.tx.version = 3;
-  ptx.tx.unlock_time = 0;
-  try {
-    m_wallet->commit_tx(ptx);
-  } catch(const std::exception &e) {
-      handle_transfer_exception(std::current_exception(), m_trusted_daemon);
-  }
-  return true;
-}
-//----------------------------------------------------------------------------------------------------
 bool simple_wallet::locked_transfer(const std::vector<std::string> &args_)
 {
   return transfer_main(TransferLocked, args_);
@@ -4758,6 +4746,14 @@ bool simple_wallet::stake_all(const std::vector<std::string> &args_)
     registration.secret_view_key  = keys.m_view_secret_key;
     registration.public_spend_key = keys.m_account_address.m_spend_public_key;
     add_service_node_register_to_tx_extra(extra, registration);
+
+    // Verify getting data out of tx_extra works
+    {
+      tx_extra_service_node_register check = {};
+      assert(get_service_node_register_from_tx_extra(extra, check));
+      assert(check.secret_view_key == registration.secret_view_key);
+      assert(check.public_spend_key == registration.public_spend_key);
+    }
   }
 
   LOCK_IDLE_SCOPE();
@@ -4862,7 +4858,156 @@ bool simple_wallet::stake_all(const std::vector<std::string> &args_)
   return true;
 }
 //----------------------------------------------------------------------------------------------------
+static bool xx__parse_hex_byte(char const str[2], uint8_t *decoded_hex)
+{
+  char value[2] = {};
+  for (int i = 0; i < 2; i++)
+  {
+    value[i] = str[i];
 
+    int offset_to_value = -'0';
+    if (value[i] >= 'a' && value[i] <= 'f')
+    {
+      value[i] -= ('a' - 'A');
+    }
+
+    if (value[i] >= 'A' && value[i] <= 'F')
+    {
+      offset_to_value = -'A' + 10;
+    }
+
+    if (!(value[i] >= '0' && value[i] <= '9') &&
+        !(value[i] >= 'A' && value[i] <= 'F'))
+    {
+      return false;
+    }
+
+    value[i] += offset_to_value;
+  }
+
+  *decoded_hex = (value[0] * 16) + value[1];
+  return true;
+}
+//----------------------------------------------------------------------------------------------------
+static bool xx__hex_str_to_pub_key(const std::string &str, crypto::public_key &key)
+{
+  {
+    uint8_t result = 0;
+    assert(xx__parse_hex_byte("FF", &result) && result == 255);
+    assert(!xx__parse_hex_byte("0z", &result));
+  }
+
+  if (str.size() != 64)
+  {
+    fail_msg_writer() << tr("String has invalid length expected 64, received: ") << str.size();
+    return false;
+  }
+
+  for (size_t i = 0; i < str.size(); i += 2)
+  {
+    char    hex[2]      = {str[i + 0], str[i+1]};
+    uint8_t decoded_hex = 0;
+    if (!xx__parse_hex_byte(hex, &decoded_hex))
+    {
+      fail_msg_writer() << tr("Malformed hex character parsed: ") << hex;
+      return false;
+    }
+
+    key.data[i/2] = decoded_hex;
+  }
+
+  return true;
+}
+//----------------------------------------------------------------------------------------------------
+bool simple_wallet::xx__deregister_service_node(const std::vector<std::string> &args_)
+{
+  // xx__deregister_node <node id>
+
+  if (m_wallet->ask_password() && !get_and_verify_password()) { return true; }
+  if (!try_connect_to_daemon())
+    return true;
+
+  const int expect_num_args = 1;
+  if (args_.size() != expect_num_args)
+  {
+    fail_msg_writer() << tr("expected 1 argument (node id) received: ") << args_.size();
+    return true;
+  }
+
+  int args_index = 0;
+  tools::wallet2::pending_tx ptx;
+  ptx.tx.version     = 3;
+  ptx.tx.unlock_time = 0;
+  std::vector<uint8_t> &extra = ptx.tx.extra;
+  {
+    std::string err;
+    uint64_t bc_height = get_daemon_blockchain_height(err);
+    if (!err.empty())
+    {
+      fail_msg_writer() << tr("failed to get blockchain height: ") << err;
+      return true;
+    }
+
+    // TODO(doyle): Find the function that converts and validates a public key from a string.
+    crypto::public_key service_node_key = {};
+    {
+      const std::string& service_node_key_str = args_[args_index++];
+      if (!xx__hex_str_to_pub_key(service_node_key_str, service_node_key))
+      {
+        return true;
+      }
+    }
+
+#define ARRAY_COUNT(array) (sizeof(array) / sizeof(array[0]))
+    crypto::public_key xx__vote_keys[10] = {};
+    {
+      const std::string xx__vote_keys_str[] =
+      {
+        "bfae23724257762880ec334b7f83cdda345ff677c34ef141e8ea5cbbe0f61f33",
+        "04932a89171e0a33e3a079e5c61a7454a5bff9fd467ff81cbc18a5ee5ff37bab",
+        "ea505c9ccf83d73654268562487a077423cde586fe5799113e93a8a0b46e9fe5",
+        "4931ddac1a7981f0dd7259bee59281cf540ba6a9ef59a10ef9fe504214ff1f11",
+        "fa0fe218380fa8cc642fad13855789273f9283512dab99010374122c2df92dca",
+        "f6b29bb886e2cf64de7b0887c84d821e96ec56f6e28903f4faa6fecf18b445dd",
+        "7123ae098051a459cf6fc2fdeccad6210136f6e55f8218439864a53501498dc6",
+        "b4aa98188bd958ad7dd10eb19b091ac25647c3b28255b6a02633f57ebf633c9f",
+        "1e4c7a3e7e7dec98e9b5da2ba8d8ea013cb71115a22e926ba060dd8ca9084004",
+        "23f2052a043c17f1e93558ff5fcf1a183c4139384c7d115b32a98d55081dc996",
+      };
+
+      for (size_t i = 0; i < ARRAY_COUNT(xx__vote_keys_str); i++)
+      {
+        if (!xx__hex_str_to_pub_key(xx__vote_keys_str[i], xx__vote_keys[i]))
+        {
+          return false;
+        }
+      }
+    }
+
+    tx_extra_service_node_deregister deregistration = {};
+    deregistration.block_height      = bc_height;
+    deregistration.service_node_key  = service_node_key;
+    deregistration.voters_spend_keys.reserve(ARRAY_COUNT(xx__vote_keys));
+
+    for (size_t i = 0; i < ARRAY_COUNT(xx__vote_keys); i++)
+      deregistration.voters_spend_keys.push_back(xx__vote_keys[i]);
+
+    add_service_node_deregister_to_tx_extra(extra, deregistration);
+  }
+  assert(args_index == expect_num_args);
+
+  try
+  {
+    m_wallet->commit_tx(ptx);
+  }
+  catch (const std::exception &e)
+  {
+    handle_transfer_exception(std::current_exception(), m_trusted_daemon);
+  }
+
+  return true;
+}
+//----------------------------------------------------------------------------------------------------
 bool simple_wallet::sweep_unmixable(const std::vector<std::string> &args_)
 {
   if (m_wallet->ask_password() && !get_and_verify_password()) { return true; }
