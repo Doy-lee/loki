@@ -4862,67 +4862,6 @@ bool simple_wallet::stake_all(const std::vector<std::string> &args_)
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-static bool xx__parse_hex_byte(char const str[2], uint8_t *decoded_hex)
-{
-  char value[2] = {};
-  for (int i = 0; i < 2; i++)
-  {
-    value[i] = str[i];
-
-    int offset_to_value = -'0';
-    if (value[i] >= 'a' && value[i] <= 'f')
-    {
-      value[i] -= ('a' - 'A');
-    }
-
-    if (value[i] >= 'A' && value[i] <= 'F')
-    {
-      offset_to_value = -'A' + 10;
-    }
-
-    if (!(value[i] >= '0' && value[i] <= '9') &&
-        !(value[i] >= 'A' && value[i] <= 'F'))
-    {
-      return false;
-    }
-
-    value[i] += offset_to_value;
-  }
-
-  *decoded_hex = (value[0] * 16) + value[1];
-  return true;
-}
-//----------------------------------------------------------------------------------------------------
-static bool xx__hex_str_to_pub_key(const std::string &str, crypto::public_key &key)
-{
-  {
-    uint8_t result = 0;
-    assert(xx__parse_hex_byte("FF", &result) && result == 255);
-    assert(!xx__parse_hex_byte("0z", &result));
-  }
-
-  if (str.size() != 64)
-  {
-    fail_msg_writer() << tr("String has invalid length expected 64, received: ") << str.size();
-    return false;
-  }
-
-  for (size_t i = 0; i < str.size(); i += 2)
-  {
-    char    hex[2]      = {str[i + 0], str[i+1]};
-    uint8_t decoded_hex = 0;
-    if (!xx__parse_hex_byte(hex, &decoded_hex))
-    {
-      fail_msg_writer() << tr("Malformed hex character parsed: ") << hex;
-      return false;
-    }
-
-    key.data[i/2] = decoded_hex;
-  }
-
-  return true;
-}
-//----------------------------------------------------------------------------------------------------
 bool simple_wallet::xx__deregister_service_node(const std::vector<std::string> &args_)
 {
   // xx__deregister_node <node id>
@@ -4952,12 +4891,12 @@ bool simple_wallet::xx__deregister_service_node(const std::vector<std::string> &
       return true;
     }
 
-    // TODO(doyle): Find the function that converts and validates a public key from a string.
     crypto::public_key service_node_key = {};
     {
       const std::string& service_node_key_str = args_[args_index++];
-      if (!xx__hex_str_to_pub_key(service_node_key_str, service_node_key))
+      if (!epee::string_tools::hex_to_pod(service_node_key_str, service_node_key))
       {
+        fail_msg_writer() << tr("failed to parse service node key: ") << service_node_key_str;
         return true;
       }
     }
@@ -4994,9 +4933,9 @@ bool simple_wallet::xx__deregister_service_node(const std::vector<std::string> &
 
       for (size_t i = 0; i < ARRAY_COUNT(xx__vote_keys_str); i++)
       {
-        if (!xx__hex_str_to_pub_key(xx__vote_keys_str[i], xx__vote_keys[i]))
+        if (!epee::string_tools::hex_to_pod(xx__vote_keys_str[i], xx__vote_keys[i]))
         {
-          return false;
+          return true;
         }
       }
     }
