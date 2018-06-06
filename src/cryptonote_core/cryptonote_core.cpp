@@ -773,22 +773,22 @@ namespace cryptonote
     return true;
   }
   //-----------------------------------------------------------------------------------------------
-  static bool deregistration_voters_match_quorum(const tx_extra_service_node_deregister &deregistration, const std::vector<crypto::public_key> &quorum)
+  static bool validate_deregistration_with_quorum(const tx_extra_service_node_deregister &deregistration, const std::vector<crypto::public_key> &quorum)
   {
-    // Validate that all signatures in the deregistration TX match the quorum for block height
+    if (!(deregistration.voters_spend_keys.size() == 1 || deregistration.voters_spend_keys.size() == quorum.size()))
     {
-      bool size_is_same = deregistration.voters_spend_keys.size() == quorum.size();
-      CHECK_AND_ASSERT_MES(size_is_same, false, "Deregistration number of voters should be same: " << deregistration.voters_spend_keys.size() << ", does not match quorum size: " << quorum.size());
+      MERROR_VER("A full deregistration requires the number of voters to match: " << deregistration.voters_spend_keys.size() << ", which does not match quorum size: " << quorum.size());
+      MERROR_VER("A partial deregistration must only have one vote associated.");
+      return false;
     }
 
     // TODO(doyle): This needs better performance as quorums will grow to large amounts
-    std::array<bool, 10> deregister_memoizer = {}, quorum_memoizer = {};
     bool matched = false;
+    std::vector<int> quorum_memoizer(quorum.size(), 0);
+
     for (size_t i = 0; i < deregistration.voters_spend_keys.size(); i++, matched = false)
     {
-      if (deregister_memoizer[i]) continue;
       const crypto::public_key& deregister_entry = deregistration.voters_spend_keys[i];
-
       for (size_t j = 0; j < quorum.size(); j++)
       {
         if (quorum_memoizer[j]) continue;
@@ -796,9 +796,9 @@ namespace cryptonote
 
         if (std::memcmp(deregister_entry.data, quorum_entry.data, sizeof(deregister_entry.data)) == 0)
         {
-          deregister_memoizer[i] = true;
           quorum_memoizer[j] = true;
           matched = true;
+          break;
         }
       }
 
@@ -944,7 +944,7 @@ namespace cryptonote
             return false;
           }
 
-          if (!deregistration_voters_match_quorum(deregistration, quorum))
+          if (!validate_deregistration_with_quorum(deregistration, quorum))
           {
             MERROR_VER("TX version 3 trying to deregister a non-active node");
             return false;

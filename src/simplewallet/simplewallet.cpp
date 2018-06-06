@@ -2027,7 +2027,7 @@ simple_wallet::simple_wallet()
                            tr("Send all unlocked balance to the same address. Lock it for [lockblocks] (max. 1000000). If the parameter \"index<N1>[,<N2>,...]\" is specified, the wallet stakes outputs received by those address indices. <priority> is the priority of the stake. The higher the priority, the higher the transaction fee. Valid values in priority order (from lowest to highest) are: unimportant, normal, elevated, priority. If omitted, the default value (see the command \"set priority\") is used."));
   m_cmd_binder.set_handler("xx__deregister_service_node",
                            boost::bind(&simple_wallet::xx__deregister_service_node, this, _1),
-                           tr("xx__deregister_service_node <node id>"),
+                           tr("xx__deregister_service_node [partial] <node id>"),
                            tr("Submit a deregistration transaction for the given node id."));
   m_cmd_binder.set_handler("xx__get_quorum",
                            boost::bind(&simple_wallet::xx__get_quorum, this, _1),
@@ -4864,93 +4864,103 @@ bool simple_wallet::stake_all(const std::vector<std::string> &args_)
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::xx__deregister_service_node(const std::vector<std::string> &args_)
 {
-  // xx__deregister_node <node id>
+  // xx__deregister_node [partial] <node id>
 
   if (m_wallet->ask_password() && !get_and_verify_password()) { return true; }
   if (!try_connect_to_daemon())
     return true;
 
-  const int expect_num_args = 1;
-  if (args_.size() != expect_num_args)
+  enum Mode
   {
-    fail_msg_writer() << tr("expected 1 argument (node id) received: ") << args_.size();
+    Mode_Partial,
+    Mode_Full,
+  };
+
+  Mode mode;
+  if      (args_.size() == 1) mode = Mode_Full;
+  else if (args_.size() == 2) mode = Mode_Partial;
+  else
+  {
+    fail_msg_writer() << "expected 1 or 2 arguments, received: " << args_.size();
     return true;
   }
 
-  int args_index = 0;
   tools::wallet2::pending_tx ptx;
-  ptx.tx.version     = 3;
-  ptx.tx.unlock_time = 0;
-  std::vector<uint8_t> &extra = ptx.tx.extra;
   {
-    std::string err;
-    uint64_t bc_height = std::max((get_daemon_blockchain_height(err) - 3), (uint64_t)0);
-    if (!err.empty())
+    ptx.tx.version     = 3;
+    ptx.tx.unlock_time = 0;
+    tx_extra_service_node_deregister deregistration = {};
+
+    std::vector<uint8_t> &extra = ptx.tx.extra;
     {
-      fail_msg_writer() << tr("failed to get blockchain height: ") << err;
-      return true;
+      std::string err;
+      uint64_t bc_height = std::max((get_daemon_blockchain_height(err) - 3), (uint64_t)0);
+      if (!err.empty())
+      {
+        fail_msg_writer() << tr("failed to get blockchain height: ") << err;
+        return true;
+      }
+
+      deregistration.block_height = bc_height;
+#define ARRAY_COUNT(array) (sizeof(array) / sizeof(array[0]))
     }
 
-    crypto::public_key service_node_key = {};
+    const std::string xx__vote_keys_str[] = // for height 43 on personal offline chain
     {
-      const std::string& service_node_key_str = args_[args_index++];
+      "bfae23724257762880ec334b7f83cdda345ff677c34ef141e8ea5cbbe0f61f33",
+      "ac7e0e825120d28575182c86e36c6f05666192f573e032f036871969009fa1c7",
+      "cab4ae6148233461074c6bc4c72b8a53ee91d9cfbda5813c3422a3e2897b21e3",
+      "cd3beb0621b26f0b16cda9c759601997cc054c3e673fa9d91dd1ceb1542a2eec",
+      "fa0fe218380fa8cc642fad13855789273f9283512dab99010374122c2df92dca",
+      "2dd94991268ee71b2356e8d748477a29ddf1aef8a9c329a0279753c599f38c23",
+      "b4aa98188bd958ad7dd10eb19b091ac25647c3b28255b6a02633f57ebf633c9f",
+      "f7d7c629a96063ed85e2126029e9406b176a45b4876eb22d979ce32eed5ac5d1",
+      "1e4c7a3e7e7dec98e9b5da2ba8d8ea013cb71115a22e926ba060dd8ca9084004",
+      "40b8be419aff1126a31a2cbb6702aced9960c075919dc2fe44efabdda973a7d1",
+    };
+
+    crypto::public_key service_node_key = {};
+    if (mode == Mode_Partial)
+    {
+        const std::string& service_node_key_str = args_[1];
+        if (!epee::string_tools::hex_to_pod(service_node_key_str, service_node_key))
+        {
+          fail_msg_writer() << tr("failed to parse service node key: ") << service_node_key_str;
+          return true;
+        }
+
+        static int xx__vote_keys_str_index = 0;
+        const std::string &vote_key_str =
+          xx__vote_keys_str[xx__vote_keys_str_index++ % ARRAY_COUNT(xx__vote_keys_str)];
+
+        crypto::public_key vote_key = {};
+        if (!epee::string_tools::hex_to_pod(vote_key_str, vote_key))
+          return false;
+
+        deregistration.voters_spend_keys.push_back(vote_key);
+    }
+    else
+    {
+      const std::string& service_node_key_str = args_[0];
       if (!epee::string_tools::hex_to_pod(service_node_key_str, service_node_key))
       {
         fail_msg_writer() << tr("failed to parse service node key: ") << service_node_key_str;
         return true;
       }
-    }
 
-#define ARRAY_COUNT(array) (sizeof(array) / sizeof(array[0]))
-    crypto::public_key xx__vote_keys[10] = {};
-    {
-      const std::string xx__vote_keys_str[] =
-      {
-#if 0
-        "bfae23724257762880ec334b7f83cdda345ff677c34ef141e8ea5cbbe0f61f33",
-        "04932a89171e0a33e3a079e5c61a7454a5bff9fd467ff81cbc18a5ee5ff37bab",
-        "ea505c9ccf83d73654268562487a077423cde586fe5799113e93a8a0b46e9fe5",
-        "4931ddac1a7981f0dd7259bee59281cf540ba6a9ef59a10ef9fe504214ff1f11",
-        "fa0fe218380fa8cc642fad13855789273f9283512dab99010374122c2df92dca",
-        "f6b29bb886e2cf64de7b0887c84d821e96ec56f6e28903f4faa6fecf18b445dd",
-        "7123ae098051a459cf6fc2fdeccad6210136f6e55f8218439864a53501498dc6",
-        "b4aa98188bd958ad7dd10eb19b091ac25647c3b28255b6a02633f57ebf633c9f",
-        "1e4c7a3e7e7dec98e9b5da2ba8d8ea013cb71115a22e926ba060dd8ca9084004",
-        "23f2052a043c17f1e93558ff5fcf1a183c4139384c7d115b32a98d55081dc996",
-#else
-        "ab3a704dd71dacd1361155e668253ae70bca58cf790141c4174f47403696ffb3",
-        "ac7e0e825120d28575182c86e36c6f05666192f573e032f036871969009fa1c7",
-        "7123ae098051a459cf6fc2fdeccad6210136f6e55f8218439864a53501498dc6",
-        "ccacea809b1dbe1dc5021281662490b55db41d86dea0715b6b1322a7c344d641",
-        "160dc084804efa96129dcc846ea9aeb793e5b208dc947587f2aa5dda4634a877",
-        "7b10fa062ae91169166a32d29e585695cf9204375484252eda89d76ddeb5b163",
-        "ea505c9ccf83d73654268562487a077423cde586fe5799113e93a8a0b46e9fe5",
-        "f6b29bb886e2cf64de7b0887c84d821e96ec56f6e28903f4faa6fecf18b445dd",
-        "40b8be419aff1126a31a2cbb6702aced9960c075919dc2fe44efabdda973a7d1",
-        "4931ddac1a7981f0dd7259bee59281cf540ba6a9ef59a10ef9fe504214ff1f11",
-#endif
-      };
-
+      deregistration.voters_spend_keys.resize(ARRAY_COUNT(xx__vote_keys_str));
       for (size_t i = 0; i < ARRAY_COUNT(xx__vote_keys_str); i++)
       {
-        if (!epee::string_tools::hex_to_pod(xx__vote_keys_str[i], xx__vote_keys[i]))
+        if (!epee::string_tools::hex_to_pod(xx__vote_keys_str[i], deregistration.voters_spend_keys[i]))
         {
           return true;
         }
       }
     }
 
-    tx_extra_service_node_deregister deregistration = {};
-    deregistration.block_height      = bc_height;
     deregistration.service_node_key  = service_node_key;
-    deregistration.voters_spend_keys.reserve(ARRAY_COUNT(xx__vote_keys));
-
-    for (size_t i = 0; i < ARRAY_COUNT(xx__vote_keys); i++)
-      deregistration.voters_spend_keys.push_back(xx__vote_keys[i]);
-
     add_service_node_deregister_to_tx_extra(extra, deregistration);
   }
-  assert(args_index == expect_num_args);
 
   try
   {
