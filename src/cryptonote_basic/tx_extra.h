@@ -172,6 +172,15 @@ namespace cryptonote
     END_SERIALIZE()
   };
 
+  struct tx_extra_mysterious_minergate
+  {
+    std::string data;
+
+    BEGIN_SERIALIZE()
+      FIELD(data)
+    END_SERIALIZE()
+  };
+
   struct tx_extra_service_node_register
   {
     crypto::secret_key secret_view_key;
@@ -185,25 +194,22 @@ namespace cryptonote
 
   struct tx_extra_service_node_deregister
   {
-    uint64_t                        block_height;
-    crypto::public_key              service_node_key;
-    std::vector<crypto::public_key> voters_spend_keys;
+    // TODO: We don't use crypto::signatures because template overrides on serialization for sigs
+    // don't encode size. So the receiving end must be able to anticipate how many signatures
+    // there are and preallocate. This is possibly doable when we finalize quorum sizes
+    struct signature_pod { char data[sizeof(crypto::signature)]; };
+
+    uint64_t                   block_height;
+    crypto::public_key         service_node_key;
+    std::vector<signature_pod> voters_signatures;
 
     BEGIN_SERIALIZE()
       FIELD(block_height)
       FIELD(service_node_key)
-      FIELD(voters_spend_keys)
+      FIELD(voters_signatures)
     END_SERIALIZE()
   };
 
-  struct tx_extra_mysterious_minergate
-  {
-    std::string data;
-
-    BEGIN_SERIALIZE()
-      FIELD(data)
-    END_SERIALIZE()
-  };
 
   // tx_extra_field format, except tx_extra_padding and tx_extra_pub_key:
   //   varint tag;
@@ -214,16 +220,19 @@ namespace cryptonote
                          tx_extra_nonce,
                          tx_extra_merge_mining_tag,
                          tx_extra_additional_pub_keys,
+                         tx_extra_mysterious_minergate,
                          tx_extra_service_node_register,
-                         tx_extra_service_node_deregister,
-                         tx_extra_mysterious_minergate> tx_extra_field;
+                         tx_extra_service_node_deregister> tx_extra_field;
 }
+
+BLOB_SERIALIZER(cryptonote::tx_extra_service_node_deregister::signature_pod);
+// VARIANT_TAG(binary_archive, cryptonote::tx_extra_service_node_deregister::signature_pod, "signature_pod");
 
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_padding,                 TX_EXTRA_TAG_PADDING);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_pub_key,                 TX_EXTRA_TAG_PUBKEY);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_nonce,                   TX_EXTRA_NONCE);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_merge_mining_tag,        TX_EXTRA_MERGE_MINING_TAG);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_additional_pub_keys,     TX_EXTRA_TAG_ADDITIONAL_PUBKEYS);
+VARIANT_TAG(binary_archive, cryptonote::tx_extra_mysterious_minergate,    TX_EXTRA_MYSTERIOUS_MINERGATE_TAG);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_service_node_register,   TX_EXTRA_TAG_SERVICE_NODE_REGISTER);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_service_node_deregister, TX_EXTRA_TAG_SERVICE_NODE_DEREGISTER);
-VARIANT_TAG(binary_archive, cryptonote::tx_extra_mysterious_minergate,    TX_EXTRA_MYSTERIOUS_MINERGATE_TAG);

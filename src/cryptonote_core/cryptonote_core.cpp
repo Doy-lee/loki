@@ -775,29 +775,40 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   static bool validate_deregistration_with_quorum(const tx_extra_service_node_deregister &deregistration, const std::vector<crypto::public_key> &quorum)
   {
-    if (!(deregistration.voters_spend_keys.size() == 1 || deregistration.voters_spend_keys.size() == quorum.size()))
+    if (!(deregistration.voters_signatures.size() == 1 || deregistration.voters_signatures.size() == quorum.size()))
     {
-      MERROR_VER("A full deregistration requires the number of voters to match: " << deregistration.voters_spend_keys.size() << ", which does not match quorum size: " << quorum.size());
+      MERROR_VER("A full deregistration requires the number of voters to match: " << deregistration.voters_signatures.size() << ", which does not match quorum size: " << quorum.size());
       MERROR_VER("A partial deregistration must only have one vote associated.");
       return false;
     }
 
     // TODO(doyle): This needs better performance as quorums will grow to large amounts
-    bool matched = false;
-    std::vector<int> quorum_memoizer(quorum.size(), 0);
-
-    for (size_t i = 0; i < deregistration.voters_spend_keys.size(); i++, matched = false)
+    std::vector<crypto::hash> quorum_hashes  (quorum.size());
     {
-      const crypto::public_key& deregister_entry = deregistration.voters_spend_keys[i];
+      for (size_t i = 0; i < quorum.size(); i++)
+      {
+        const crypto::public_key& key = quorum[i];
+        crypto::cn_fast_hash(key.data, sizeof(key.data), quorum_hashes[i]);
+      }
+    }
+
+    std::vector<int> quorum_memoizer(quorum.size(), 0);
+    bool matched = false;
+    for (size_t i = 0; i < deregistration.voters_signatures.size(); i++, matched = false)
+    {
+      auto *signature
+        = reinterpret_cast<const crypto::signature *>(&deregistration.voters_signatures[i]);
+
       for (size_t j = 0; j < quorum.size(); j++)
       {
         if (quorum_memoizer[j]) continue;
-        const crypto::public_key& quorum_entry = quorum[j];
+        const crypto::public_key& public_spend_key = quorum[j];
+        const crypto::hash& hash  = quorum_hashes[i];
 
-        if (std::memcmp(deregister_entry.data, quorum_entry.data, sizeof(deregister_entry.data)) == 0)
+        if (crypto::check_signature(hash, public_spend_key, *signature))
         {
           quorum_memoizer[j] = true;
-          matched = true;
+          matched            = true;
           break;
         }
       }
@@ -1644,55 +1655,122 @@ namespace cryptonote
   {
       (void)height; // TODO(doyle): Mock function needs to be implemented
 
-      const char *XX__PUB_KEYS[] =
+      const char *xx__secret_spend_keys_str[] =
       {
-        "cab4ae6148233461074c6bc4c72b8a53ee91d9cfbda5813c3422a3e2897b21e3",
-        "bfae23724257762880ec334b7f83cdda345ff677c34ef141e8ea5cbbe0f61f33",
-        "04932a89171e0a33e3a079e5c61a7454a5bff9fd467ff81cbc18a5ee5ff37bab",
-        "ea505c9ccf83d73654268562487a077423cde586fe5799113e93a8a0b46e9fe5",
-        "4931ddac1a7981f0dd7259bee59281cf540ba6a9ef59a10ef9fe504214ff1f11",
-        "fa0fe218380fa8cc642fad13855789273f9283512dab99010374122c2df92dca",
-        "f6b29bb886e2cf64de7b0887c84d821e96ec56f6e28903f4faa6fecf18b445dd",
-        "7123ae098051a459cf6fc2fdeccad6210136f6e55f8218439864a53501498dc6",
-        "b4aa98188bd958ad7dd10eb19b091ac25647c3b28255b6a02633f57ebf633c9f",
-        "1e4c7a3e7e7dec98e9b5da2ba8d8ea013cb71115a22e926ba060dd8ca9084004",
-        "23f2052a043c17f1e93558ff5fcf1a183c4139384c7d115b32a98d55081dc996",
-        "742db561f88c64e696cec912b8ad4faea78aac871d3d340b664ec63463664113",
-        "28630fa9cc33c0b8a518894becce01b8f0b4eb9f234e2780404dc751ae9d1d99",
-        "ccacea809b1dbe1dc5021281662490b55db41d86dea0715b6b1322a7c344d641",
-        "cd3beb0621b26f0b16cda9c759601997cc054c3e673fa9d91dd1ceb1542a2eec",
-        "40b8be419aff1126a31a2cbb6702aced9960c075919dc2fe44efabdda973a7d1",
-        "42237ef07f9f7570d31dd19fa1141b8ec0b23f9c976a744381452c0d2ea24b98",
-        "0a583ae027590cf6f21a76d6fb7b582d904cd3661fa59a00b1d8bf780e0b8748",
-        "8a60f7a39c88dc8b425a72988d577ec0f198bcecc31162c12b8f696cce441622",
-        "160dc084804efa96129dcc846ea9aeb793e5b208dc947587f2aa5dda4634a877",
-        "cb92e9e8ce31522eeb731b9d069ca4fb327df0f5c1df81c32e45cad5cffdc0f0",
-        "ac7e0e825120d28575182c86e36c6f05666192f573e032f036871969009fa1c7",
-        "89555379367ec70306a00b0460b468c0973987ed6c8084ddac3cf51c505280cd",
-        "7dc31ac32a88bce95808b07cfa27eaad30ebc319c64719a8b63ceacd0542060e",
-        "96bbc02ce1cb673cec7dc649e6ff111d116fcb1660a06a39d09755fd3ba8e133",
-        "7b10fa062ae91169166a32d29e585695cf9204375484252eda89d76ddeb5b163",
-        "65e318c3dac1013de3cdc47e097deca020fe18f12b4c496f7f63935bc99bc2ea",
-        "b34dc0a57f68f1049733e0f610f29ef70f72e5cc237edfc7844cc7b06645066a",
-        "2dd94991268ee71b2356e8d748477a29ddf1aef8a9c329a0279753c599f38c23",
-        "ab3a704dd71dacd1361155e668253ae70bca58cf790141c4174f47403696ffb3",
-        "ceb1256e951a434d2a274be8d33a4773f797207121f774897c43ba258c1f7026",
-        "8502b21a22da7494130f689b58b91fcd48a17071c5554b6c9ec11863caf2e179",
-        "bb25528e6278ddfc0fd91752b9d73d98f01acef361783528b0e6d6d7116c5261",
-        "f7d7c629a96063ed85e2126029e9406b176a45b4876eb22d979ce32eed5ac5d1",
-        "2e7c51924bf910b4fe5ed9d89a9bfe40222fe91cb70dc660bc2e21a8318241e7",
+        "42d0681beffac7e34f85dfc3b8fefd9ffb60854205f6068705c89eef43800903",
+        "51256e8711c7d1ac06ac141f723aef280b98d46012d3a81a18c8dd8ce5f9a304",
+        "66cba8ff989c3096fbfeb1dc505c982d4580566a6b22c50dc291906b3647ea04",
+        "c4a6129b6846369f0161da99e71c9f39bf50d640aaaa3fe297819f1d269b3a0b",
+        "165401ad072f5b2629766870d2de49cda6d09d97ba7bc2f7d820bb7ed8073f00",
+        "f5fad9c4e9587826a882bd309aa4f2d1943a6ae916cf4f9971a833578eba360e",
+        "e26a4d4386392d9a758e011ef9e29ae8fea5a1ab809a0fd4768674da2e36600e",
+        "b5e8af1114fbc006823e6e025b99fe2f25f409d69d8ae74b35103621c00fca0c",
+        "fe007f06f5eac4919ffefb45b358475fdfe541837f73d1f76118d44b42b10a01",
+        "0da5ef9cf7c85d7d3d0464d0a80e1447a45e90c6664246d91a4691875ad33605",
+        "49a57a4709d5cb8fb9fad3f1c4d93087eec78bc8e6a05e257ce50e71d049260b",
+        "9aa18f77f49d22bb294cd3d32a652824882e5b71ffe1e13008d8fbe9ba16970c",
+        "4a7f7bffd936f5b5dc4f0cdac1da52363a6dbd8d6ee5295f0a991f2592500e07",
+        "118b5a3270358532e68bc69d097bd3c46d8c01a2183ee949d130e22f3e4a1604",
+        "627cea57ea2215b31477e40b3dbf275b2b8e527b41ad66282321c9c1d34a0c06",
+        "70c4ca12d1c12d617e000b2a90def96089497819b3da4a278506285c59c62905",
+        "e395f75700e3288ea62b1734bf229ed56f40eb891b6e33a231ac1e1366502208",
+        "9e6cd8667ef8f0e2b527678da80af2d34eb942da8877b1d21c3872e8f3e6b605",
+        "e86dc61f76023c370feb9d086b3369dce764058ff4523c9c1d1a44957910f809",
+        "d17c568d4e6662c67920b618436435a837241a8ccafad6684016f4371b4d6d07",
+        "97c416757a07054d505e7ef2ebebc920e19f2a88b05dd0c58d39de5b9bf10405",
+        "be5a0079f52509be69afadabd58a969fb439772ddf58ff3fedc3e6d9acbd0807",
+        "cf43ebaacecc33591ddbd985ee7a637de665a275099d0777c84b358408a50d00",
+        "6aa670f687da3026a836faecaaa2178442414e89dba8559600977ced60bda009",
+        "2ad782d57e3d5e500cf9025ec981c4212c76662fb6a98fa1726438246dbb1602",
+        "82a3b1d1ce260680a7ffe485f383fbd423d93e3f64232ef1c8ee40f05465540e",
+        "627b6b28e2b89d1d28a6084fc8adf1f1859d299fd4507332a0bd410ace67860d",
+        "a4092b42c1e8b08c86a7b6ed0719a25715d0fa3119464a7d400a414761d89e08",
+        "3f47aee16a97cbfb8129ae211ff28ad89ffc0435545ae036414e52e2fa05060e",
+        "691c003ce323c82404ee15405cdbc70e80763685fa5c46eda8c49205d735e60c",
+        "df5c271474a07df63e2247f98f425a95136b5aae1fbd610fc1135c803185c503",
+        "ad98c0a4ac23c3df8568480d55078970a1db42067f0ee32ac94f030f1df8f601",
+        "ca09d289d9b5eff9ae78cdbbc17a374e66481d510bb6b4231466c5237a267a0b",
+        "fee16aaeba4145e3dca7f3f8cc617609c16e1312a7c007dbdcec3a597ced5402",
+        "238a7696ac0a36391b9910ad7626585fc229af593fa22701c8b4c8b18990b901",
+        "9d3d4d20e35b7845df650fba04eb24602e142b89614462a780bc104d7defbd09",
+        "729cd68e3b0a8326c2cbd98a1eece2c2af3f9aa92a71f41e2a140a7ffc6d220e",
+        "cc99a1d53daaf60f4bec5c211047be10219cf414d7fe78b84a893dc970164d0a",
+        "5704870bd6ab0ceff4ef50053396bd539ef1d54fe4e95ad6eec06d272acf360e",
+        "0e62022d8f704d4f54f448fe31bcce7c4ea975a7a534b7036af87741f4a29700",
+        "eedfff5f46958b1340044c13853d5dcf9cd7bf7f2c0b7fc9bcf507b2b29fdb0d",
+        "a2e9c539b646957637897a93b7253e62955815c466474849287cf0b7270e6c00",
+        "9627273e472b68e6f8c7a228146e65cc7da97e85a3bf9d0a10306d7ed8da2602",
+        "efb04b20f01b9295f8066f84b90a795a0eda9ae714c8ca9be123eac678025d01",
+        "6a622ec2c0210357c347b54d2b0fb846ef5894a1f2ae117817ae6effc8b1800d",
+        "e31919c7f3596e625a98eb2407108c3760cffb5d0975c5354509752519316d08",
+        "5e053ac6e0f7725b1238798f5d5a09047db89f0aaf9c87e6d265bdce97360203",
+        "cfe967061830fa5277b8c7432ff9c2ef80159a1c201c63627cb88bf3ecd97f0b",
+        "a69c06422128e7ab55f38795b700af760a1bc7d5a08386d0c5f6f7e4a0367606",
+        "669b4227c299d9b615af5ea636b062c16fa2b1b12ebfe9a3d21c01ece7cd7207",
+        "fd3c1b477688cee1affe423772a5d20c2b6c99f1dc836f082d67f030ddf5330e",
+        "739ad42ba90d3f6ad7bf58d6471f9dc3a3a70c335497d27eb84866360396b70f",
+        "7ede7663967b311665d0dd4b93bb4eb6e0dbddbc1dd4f45d0d0668fdc1bf9602",
+        "eb52bf69cd99e55bf4b6a6c150108a7f9262b96c43e349e429f573bddc3cab03",
+        "56374dbe767e0bc5bb36c9b320884bb2b14978903964ca196054c4b63d76ab02",
+        "2d3a6bc00151bec3f6802db502c4994eef16df5224fe9004dccedb6542990b04",
+        "25291317fb6b7004086036d4c2afb93d17357b8927c05a86abf507c7066a3900",
+        "368e6263aec214dfed4f9cda9d61dd6ad5354df89ede955d5bf11aacb608be08",
+        "267ebbf081917b31073e4d24cf979db4761c1aab5972bc6f3fc14027b33d220a",
+        "f4e1c1221ecb5fe301ed9a6852a8bf32be8a171f4bf4eaf77fea6aa698cf6a08",
+        "2f11eab4c3c7625f1102b8af46bec768f70085bb3b358fc5e3d5c124c1a6960a",
+        "9e9e42e1a8cdf9329389ea727e091bd33de97bc39fd18d355a0e6c58346b6d07",
+        "3ae8b143ff3cb1c06b6623e0d4bb542ed4c777703b07e9c6c69a707297f51708",
+        "dd4486a5cc44ca4d1f8fb452f387727682eacd68fdf342fae72af4d7dbd48f06",
+        "b16e9260836c8a19b4bc082abbf096f184c24528f213b0cd137897914949ce0b",
+        "e139ea1f4d2f86d4b3fc30962769a0bc961205ec6a65bb31117d034561ceee03",
+        "fb5c840ad686c9ec2256f75ebbc9fcece5f2dfa8f02bfac587e56b052a687709",
+        "e1c199e70a77a7141e5be996ab887b6eaf865166b2d5b77a23581903dd211b0d",
+        "9813c6e6ea9a20a0ce9ceb9c3c153471bd54497ca5cf30348b791a7b2fc24f05",
+        "d2731a9f2c4406a3ed0507ae5b390ddef234c59f7d0eaa52e7f56e0c43770206",
+        "b61c77620ff596a7fa4f7562491bc3a77056acdfbe148507a8ebfab070b3c60a",
+        "b44172f3e97b65c55fc8b89dba70d5b1fe4d947e5877cb6fbc402a36500b910d",
+        "7566074ceb7da410088d0e40e10314831d2bf2ef2c347605ac00b9b5c1f22d07",
+        "aa34be55d15a3e9b8715dfa5dbb09c40beefe21c12eee541893b13998e95a901",
+        "13ead1a2c33c1db4814d55f015d177ad64fbf2481bdd24f5a709b92108f26f0b",
+        "7082548d52798708301b8b7235950d4c1a92804ae56ae449ca6a88abe30f3707",
+        "277f6f333a80796f352c39fba1a5da2e1b1c090c38170aa2d70f3127909dc009",
+        "664726ebc833a5bf99057247d067451fe5ceef71b73db8636829a9dcb737fe01",
+        "1300421958cfcf97fecccca4293abdc51d1032fadd09c41b84cd0a19615ef205",
+        "cd994d117edc22e7eb6cd285681852026423cafcacc52f05d0e1b71f1bf99202",
+        "8026fb72b2af35229a84f14badffbdd898d490c0c469d0c445322d2a07ee260d",
+        "2b7be54ace38dee69733a5cea14de60de61aa7504ba93d7a4591a53ef7947005",
+        "8816aa86e4e4d94f4785ef873810876bec9cba5488be17f653c1384e5d539f04",
+        "a92aeb6be2833ba4acc81985df8038da898998c243ad61bd2e91b58468d15708",
+        "9c14135fd4f93836b91348f051ce655d89b127dd25f9747fb903f7781c052302",
+        "9c85976687edb01c63bfe10b5bd5da5542e3f91484be66969c50aea01d2d2402",
+        "3a0aed78125f6a33a6ca342a33b3b0b8bd4f9fa9fed62058ac553af6080eb604",
+        "58857677e6619e89e3d7688a83eafdce0a93c9e0b6ff1baaadc7ad2229d2bf01",
+        "16c0b921ef146f0edb0a3617a222657ef3dfcaa855de0ff2b20fd35efe210d01",
+        "18c7f0a125f35fc2bf9b066ea44a428c7613c05eb08c21f06d151e4d2a0abc03",
+        "92f639ea36294071df576a5df3a6477617361543754440f2f036146d2f77130a",
+        "d672c81f36f51b20ba2c1fae33a0b10f06615bc1464d84904a3d749a6a9b2c0e",
+        "6439873d731d24fc1737e28914ed7b2dd919520699323f3c86a6a94827c13201",
+        "52261c788b9dd1982f2615848577f403611563f891400c43c21cfe8534ab2f09",
+        "64334da023fbb0cdeaeed9205c5cea14647c37c6d1178c5401795f12e7540708",
+        "eb6c797d2a135edf704d03053e71a0b734de22e157806db4726e9a3fa6de9401",
+        "3f41c8c2312302deb89669c8d59776173b0265ee058ebbcaa3ef55e82a474f03",
+        "fe09c62ed7e4b100a10cf4eb6be1f17acd6b7dbf64d15bb956a48a36f915e704",
+        "5b41d546ccd37e0b44bbd2f9cfe093fb3833f2b808c50b18aa8d4015193c5805",
+        "ec7a3e53f86bd14c756f852ab4772a6dda38f88b4f2bca702a7c4b2dae857f0c",
       };
 
-      size_t const size = sizeof(XX__PUB_KEYS) / sizeof(XX__PUB_KEYS[0]);
-
+      size_t const size = sizeof(xx__secret_spend_keys_str) / sizeof(xx__secret_spend_keys_str[0]);
       std::vector<crypto::public_key> result;
       result.reserve(size);
 
       for (size_t i = 0; i < size; i++)
       {
-        crypto::public_key key;
-        epee::string_tools::hex_to_pod(XX__PUB_KEYS[i], key);
-        result.push_back(key);
+        crypto::secret_key secret_key;
+        assert(epee::string_tools::hex_to_pod(xx__secret_spend_keys_str[i], secret_key));
+
+        crypto::public_key public_key;
+        assert(crypto::secret_key_to_public_key(secret_key, public_key));
+        result.push_back(public_key);
       }
 
       return result;
@@ -1717,10 +1795,10 @@ namespace cryptonote
     }
 
     // Swap first N (size of quorum) indexes randomly
+    const int xx__quorum_size = 10;
+    quorum.resize(xx__quorum_size);
+    if (0)
     {
-      const int xx__quorum_size = 10;
-      quorum.resize(xx__quorum_size);
-
       // TODO(doyle): We should use more of the data from the hash
       uint64_t seed = 0;
       std::memcpy(&seed, block_hash.data, std::min(sizeof(seed), sizeof(block_hash.data)));
