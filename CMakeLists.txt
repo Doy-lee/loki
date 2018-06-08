@@ -617,7 +617,6 @@ else()
   if(NOT MINGW AND WARNINGS_AS_ERRORS)
     set(WARNINGS_AS_ERRORS_FLAG "-Werror")
   endif()
-
   if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
     if(ARM)
       set(WARNINGS "${WARNINGS} -Wno-error=inline-asm")
