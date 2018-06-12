@@ -759,6 +759,69 @@ namespace cryptonote
     post_notify<NOTIFY_NEW_FLUFFY_BLOCK>(fluffy_response, context);    
     return 1;        
   }
+  //------------------------------------------------------------------------------------------------------------------------  
+  template<class t_core>
+  int t_cryptonote_protocol_handler<t_core>::handle_notify_service_node_partial_deregister(int command, NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER::request& new_deregister, cryptonote_connection_context& context)
+  {
+    MLOG_P2P_MESSAGE("Received NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER");
+
+    std::vector<crypto::public_key> quorum;
+    if (!m_core.get_quorum_list_for_height(new_deregister.block_height, quorum))
+    {
+      LOG_ERROR_CCONTEXT("Could not get quorum for height: " << new_deregister.block_height << ", unable to verify partial deregistration");
+      return 1;
+    }
+
+    if (new_deregister.voter_quorum_index >= quorum.size())
+    {
+      LOG_ERROR_CCONTEXT("Service node partial deregister's voter quorum index is invalid: " << new_deregister.voter_quorum_index << ", value must be between [0, " << quorum.size() << "]");
+      return 1;
+    }
+
+    if (new_deregister.deregister_node_quorum_index >= quorum.size())
+    {
+      LOG_ERROR_CCONTEXT("Service node partial deregister's node index is invalid: " << new_deregister.deregister_node_quorum_index << ", value must be between [0, " << quorum.size() << "]");
+      return 1;
+    }
+
+    crypto::hash hash;
+    const crypto::public_key &voter_public_spend_key = quorum[new_deregister.voter_quorum_index];
+    crypto::cn_fast_hash(voter_public_spend_key.data, sizeof(voter_public_spend_key.data), hash);
+
+    if (crypto::check_signature(hash, voter_public_spend_key, new_deregister.voter_signature))
+    {
+      bool new_deregister_is_unique = true;
+      for (const auto &existing_deregister : m_service_node_state.partial_deregisters)
+      {
+        if (existing_deregister.block_height       == new_deregister.block_height &&
+            existing_deregister.voter_quorum_index == new_deregister.voter_quorum_index)
+        {
+          new_deregister_is_unique = false;
+          break;
+        }
+      }
+
+      if (new_deregister_is_unique)
+      {
+        m_service_node_state.partial_deregisters.push_back(new_deregister);
+      }
+    }
+
+    // TODO(doyle): Need to test this on a clean chain again make sure hardfork rules kick in properly.
+    // TODO(doyle): We need to prune the list.
+
+#if 0
+    if(context.m_state != cryptonote_connection_context::state_normal)
+      return 1;
+
+    if(!is_synchronized()) // can happen if a peer connection goes to normal but another thread still hasn't finished adding queued blocks
+    {
+      LOG_DEBUG_CC(context, "Received new block while syncing, ignored");
+      return 1;
+    }
+#endif
+    return 1;
+  }
   //------------------------------------------------------------------------------------------------------------------------
   template<class t_core>
   int t_cryptonote_protocol_handler<t_core>::handle_notify_new_transactions(int command, NOTIFY_NEW_TRANSACTIONS::request& arg, cryptonote_connection_context& context)
@@ -1709,6 +1772,13 @@ skip:
     for(auto tx_blob_it = arg.txs.begin(); tx_blob_it!=arg.txs.end(); ++tx_blob_it)
       m_core.on_transaction_relayed(*tx_blob_it);
     return relay_post_notify<NOTIFY_NEW_TRANSACTIONS>(arg, exclude_context);
+  }
+  //------------------------------------------------------------------------------------------------------------------------
+  template<class t_core>
+  bool t_cryptonote_protocol_handler<t_core>::relay_service_node_partial_deregister(NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER::request& arg, cryptonote_connection_context& exclude_context)
+  {
+    bool result = relay_post_notify<NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER>(arg, exclude_context);
+    return result;
   }
   //------------------------------------------------------------------------------------------------------------------------
   template<class t_core>

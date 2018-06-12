@@ -803,7 +803,7 @@ namespace cryptonote
       {
         if (quorum_memoizer[j]) continue;
         const crypto::public_key& public_spend_key = quorum[j];
-        const crypto::hash& hash  = quorum_hashes[i];
+        const crypto::hash& hash  = quorum_hashes[j];
 
         if (crypto::check_signature(hash, public_spend_key, *signature))
         {

@@ -70,6 +70,11 @@ namespace cryptonote
 			virtual double estimate_one_block_size() noexcept; // for estimating size of blocks to download
 	};
 
+  struct service_node_state
+  {
+    std::vector<NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER::request> partial_deregisters;
+  };
+
   template<class t_core>
   class t_cryptonote_protocol_handler:  public i_cryptonote_protocol, cryptonote_protocol_handler_base
   { 
@@ -90,6 +95,7 @@ namespace cryptonote
       HANDLE_NOTIFY_T2(NOTIFY_RESPONSE_CHAIN_ENTRY, &cryptonote_protocol_handler::handle_response_chain_entry)
       HANDLE_NOTIFY_T2(NOTIFY_NEW_FLUFFY_BLOCK, &cryptonote_protocol_handler::handle_notify_new_fluffy_block)			
       HANDLE_NOTIFY_T2(NOTIFY_REQUEST_FLUFFY_MISSING_TX, &cryptonote_protocol_handler::handle_request_fluffy_missing_tx)						
+      HANDLE_NOTIFY_T2(NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER, &cryptonote_protocol_handler::handle_notify_service_node_partial_deregister)						
     END_INVOKE_MAP2()
 
     bool on_idle();
@@ -119,10 +125,12 @@ namespace cryptonote
     int handle_response_chain_entry(int command, NOTIFY_RESPONSE_CHAIN_ENTRY::request& arg, cryptonote_connection_context& context);
     int handle_notify_new_fluffy_block(int command, NOTIFY_NEW_FLUFFY_BLOCK::request& arg, cryptonote_connection_context& context);
     int handle_request_fluffy_missing_tx(int command, NOTIFY_REQUEST_FLUFFY_MISSING_TX::request& arg, cryptonote_connection_context& context);
+    int handle_notify_service_node_partial_deregister(int command, NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER::request& arg, cryptonote_connection_context& context);
 		
     //----------------- i_bc_protocol_layout ---------------------------------------
     virtual bool relay_block(NOTIFY_NEW_BLOCK::request& arg, cryptonote_connection_context& exclude_context);
     virtual bool relay_transactions(NOTIFY_NEW_TRANSACTIONS::request& arg, cryptonote_connection_context& exclude_context);
+    virtual bool relay_service_node_partial_deregister(NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER::request& arg, cryptonote_connection_context& exclude_context);
     //----------------------------------------------------------------------------------
     //bool get_payload_sync_data(HANDSHAKE_DATA::request& hshd, cryptonote_connection_context& context);
     bool request_missing_objects(cryptonote_connection_context& context, bool check_having_blocks, bool force_next_span = false);
@@ -147,6 +155,8 @@ namespace cryptonote
     boost::mutex m_buffer_mutex;
     double get_avg_block_size();
     boost::circular_buffer<size_t> m_avg_buffer = boost::circular_buffer<size_t>(10);
+
+    service_node_state m_service_node_state;
 
     template<class t_parameter>
       bool post_notify(typename t_parameter::request& arg, cryptonote_connection_context& context)
