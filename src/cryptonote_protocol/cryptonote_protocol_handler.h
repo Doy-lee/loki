@@ -36,6 +36,7 @@
 
 #include <boost/program_options/variables_map.hpp>
 #include <string>
+#include <unordered_map>
 
 #include "math_helper.h"
 #include "storages/levin_abstract_invoke2.h"
@@ -70,9 +71,33 @@ namespace cryptonote
 			virtual double estimate_one_block_size() noexcept; // for estimating size of blocks to download
 	};
 
+  // TODO(doyle): Complexity analysis here as well, determine the upper and
+  // lower bounds of what numbers we expect.
+
+  // std::vector<Block Height Entries> partial_deregisters
+  // My assumption is that the block heights we keep votes around for
+  // is going to be very small and short lived < 10 entries ~ 20mins worth of
+  // blocks, avg block time 120s. So linearly scanning for a block height is
+  // effective with low code complexity/computation and memory usage.
+
+  // std::unordered_map<Node Index, std::Vector<Votes>> service_node_votes
+  // In each block height we have our quorum 10 SNodes querying 1% of the
+  // network. Assuming a very generous 50,000 node network, 1% of nodes is 500,
+  // with each needing 10 votes to kick off the network, so 500 entries in the
+  // map with 10 votes each.
+  // As opposed to (500 nodes * 10 votes) = 5000 votes to sort and search if in
+  // a vector per block height.
+
   struct service_node_state
   {
-    std::vector<NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER::request> partial_deregisters;
+    struct partial_deregister_at_height
+    {
+      using service_node_index = uint32_t; // index in service node list
+      std::unordered_map<service_node_index, std::vector<NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER::request>> service_node;
+      uint64_t block_height;
+    };
+
+    std::vector<partial_deregister_at_height> partial_deregisters;
   };
 
   template<class t_core>

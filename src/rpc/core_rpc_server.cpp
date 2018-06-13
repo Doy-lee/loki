@@ -973,6 +973,9 @@ namespace cryptonote
 
         assert(crypto::secret_key_to_public_key(xx__secret_view_keys[i] , xx__public_view_keys[i]));
         assert(crypto::secret_key_to_public_key(xx__secret_spend_keys[i], xx__public_spend_keys[i]));
+
+        auto tmp = epee::string_tools::pod_to_hex(xx__public_spend_keys[i]);
+        printf("[%zu]: %s\n", i, tmp.c_str());
       }
 
       cryptonote_connection_context fake_context = AUTO_VAL_INIT(fake_context);

@@ -788,13 +788,47 @@ namespace cryptonote
     const crypto::public_key &voter_public_spend_key = quorum[new_deregister.voter_quorum_index];
     crypto::cn_fast_hash(voter_public_spend_key.data, sizeof(voter_public_spend_key.data), hash);
 
+    // TODO(doyle): Need to test this on a clean chain again make sure hardfork
+    // rules kick in properly.
+    // TODO(doyle): We need to prune the list.
+
+    // TODO(doyle): Complexity analysis for the number of service nodes we
+    // expect to eventually have running tests. We know there's going to be
+    // a reasonable upper bound of service nodes that will be on the network,
+    // but what is that number?
     if (crypto::check_signature(hash, voter_public_spend_key, new_deregister.voter_signature))
     {
-      bool new_deregister_is_unique = true;
-      for (const auto &existing_deregister : m_service_node_state.partial_deregisters)
+      service_node_state &state    = m_service_node_state;
+      uint64_t target_block_height = new_deregister.block_height;
+
+      // Make/get the partial deregisters this node knows about for block height specified in the new_deregister
+      service_node_state::partial_deregister_at_height *block_height_deregisters = nullptr;
       {
-        if (existing_deregister.block_height       == new_deregister.block_height &&
-            existing_deregister.voter_quorum_index == new_deregister.voter_quorum_index)
+        for (auto &entry : state.partial_deregisters)
+        {
+          if (entry.block_height == target_block_height)
+          {
+            block_height_deregisters = &entry;
+            break;
+          }
+        }
+
+        if (!block_height_deregisters)
+        {
+          state.partial_deregisters.resize(state.partial_deregisters.size() + 1);
+          block_height_deregisters = &state.partial_deregisters.back();
+          block_height_deregisters->block_height = target_block_height;
+        }
+      }
+
+      uint32_t node_to_deregister_index = new_deregister.deregister_node_quorum_index;
+      std::vector<NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER::request> &node_deregisters
+        = block_height_deregisters->service_node[node_to_deregister_index];
+
+      bool new_deregister_is_unique = true;
+      for (const auto &existing_deregister : node_deregisters)
+      {
+        if (existing_deregister.voter_quorum_index == new_deregister.voter_quorum_index)
         {
           new_deregister_is_unique = false;
           break;
@@ -803,12 +837,15 @@ namespace cryptonote
 
       if (new_deregister_is_unique)
       {
-        m_service_node_state.partial_deregisters.push_back(new_deregister);
+        node_deregisters.push_back(new_deregister);
+        if (node_deregisters.size() == quorum.size())
+        {
+          // TODO(doyle): construct full deregister tx
+          block_height_deregisters->service_node.erase(node_to_deregister_index);
+        }
       }
     }
 
-    // TODO(doyle): Need to test this on a clean chain again make sure hardfork rules kick in properly.
-    // TODO(doyle): We need to prune the list.
 
 #if 0
     if(context.m_state != cryptonote_connection_context::state_normal)
