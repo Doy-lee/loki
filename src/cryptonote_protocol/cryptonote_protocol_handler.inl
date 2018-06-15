@@ -761,106 +761,6 @@ namespace cryptonote
   }
   //------------------------------------------------------------------------------------------------------------------------  
   template<class t_core>
-  int t_cryptonote_protocol_handler<t_core>::handle_notify_service_node_partial_deregister(int command, NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER::request& new_deregister, cryptonote_connection_context& context)
-  {
-    MLOG_P2P_MESSAGE("Received NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER");
-
-    std::vector<crypto::public_key> quorum;
-    if (!m_core.get_quorum_list_for_height(new_deregister.block_height, quorum))
-    {
-      LOG_ERROR_CCONTEXT("Could not get quorum for height: " << new_deregister.block_height << ", unable to verify partial deregistration");
-      return 1;
-    }
-
-    if (new_deregister.voter_quorum_index >= quorum.size())
-    {
-      LOG_ERROR_CCONTEXT("Service node partial deregister's voter quorum index is invalid: " << new_deregister.voter_quorum_index << ", value must be between [0, " << quorum.size() << "]");
-      return 1;
-    }
-
-    if (new_deregister.deregister_node_quorum_index >= quorum.size())
-    {
-      LOG_ERROR_CCONTEXT("Service node partial deregister's node index is invalid: " << new_deregister.deregister_node_quorum_index << ", value must be between [0, " << quorum.size() << "]");
-      return 1;
-    }
-
-    crypto::hash hash;
-    const crypto::public_key &voter_public_spend_key = quorum[new_deregister.voter_quorum_index];
-    crypto::cn_fast_hash(voter_public_spend_key.data, sizeof(voter_public_spend_key.data), hash);
-
-    // TODO(doyle): Need to test this on a clean chain again make sure hardfork
-    // rules kick in properly.
-    // TODO(doyle): We need to prune the list.
-
-    // TODO(doyle): Complexity analysis for the number of service nodes we
-    // expect to eventually have running tests. We know there's going to be
-    // a reasonable upper bound of service nodes that will be on the network,
-    // but what is that number?
-    if (crypto::check_signature(hash, voter_public_spend_key, new_deregister.voter_signature))
-    {
-      service_node_state &state    = m_service_node_state;
-      uint64_t target_block_height = new_deregister.block_height;
-
-      // Make/get the partial deregisters this node knows about for block height specified in the new_deregister
-      service_node_state::partial_deregister_at_height *block_height_deregisters = nullptr;
-      {
-        for (auto &entry : state.partial_deregisters)
-        {
-          if (entry.block_height == target_block_height)
-          {
-            block_height_deregisters = &entry;
-            break;
-          }
-        }
-
-        if (!block_height_deregisters)
-        {
-          state.partial_deregisters.resize(state.partial_deregisters.size() + 1);
-          block_height_deregisters = &state.partial_deregisters.back();
-          block_height_deregisters->block_height = target_block_height;
-        }
-      }
-
-      uint32_t node_to_deregister_index = new_deregister.deregister_node_quorum_index;
-      std::vector<NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER::request> &node_deregisters
-        = block_height_deregisters->service_node[node_to_deregister_index];
-
-      bool new_deregister_is_unique = true;
-      for (const auto &existing_deregister : node_deregisters)
-      {
-        if (existing_deregister.voter_quorum_index == new_deregister.voter_quorum_index)
-        {
-          new_deregister_is_unique = false;
-          break;
-        }
-      }
-
-      if (new_deregister_is_unique)
-      {
-        node_deregisters.push_back(new_deregister);
-        if (node_deregisters.size() == quorum.size())
-        {
-          // TODO(doyle): construct full deregister tx
-          block_height_deregisters->service_node.erase(node_to_deregister_index);
-        }
-      }
-    }
-
-
-#if 0
-    if(context.m_state != cryptonote_connection_context::state_normal)
-      return 1;
-
-    if(!is_synchronized()) // can happen if a peer connection goes to normal but another thread still hasn't finished adding queued blocks
-    {
-      LOG_DEBUG_CC(context, "Received new block while syncing, ignored");
-      return 1;
-    }
-#endif
-    return 1;
-  }
-  //------------------------------------------------------------------------------------------------------------------------
-  template<class t_core>
   int t_cryptonote_protocol_handler<t_core>::handle_notify_new_transactions(int command, NOTIFY_NEW_TRANSACTIONS::request& arg, cryptonote_connection_context& context)
   {
     MLOG_P2P_MESSAGE("Received NOTIFY_NEW_TRANSACTIONS (" << arg.txs.size() << " txes)");
@@ -1809,13 +1709,6 @@ skip:
     for(auto tx_blob_it = arg.txs.begin(); tx_blob_it!=arg.txs.end(); ++tx_blob_it)
       m_core.on_transaction_relayed(*tx_blob_it);
     return relay_post_notify<NOTIFY_NEW_TRANSACTIONS>(arg, exclude_context);
-  }
-  //------------------------------------------------------------------------------------------------------------------------
-  template<class t_core>
-  bool t_cryptonote_protocol_handler<t_core>::relay_service_node_partial_deregister(NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER::request& arg, cryptonote_connection_context& exclude_context)
-  {
-    bool result = relay_post_notify<NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER>(arg, exclude_context);
-    return result;
   }
   //------------------------------------------------------------------------------------------------------------------------
   template<class t_core>

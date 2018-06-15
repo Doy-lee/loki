@@ -280,28 +280,5 @@ namespace cryptonote
       END_KV_SERIALIZE_MAP()
     };
   }; 
-
-  /************************************************************************/
-  /*                                                                      */
-  /************************************************************************/
-  struct NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER
-  {
-    const static int ID = BC_COMMANDS_POOL_BASE + 10;
-
-    struct request
-    {
-      uint64_t          block_height;
-      uint32_t          deregister_node_quorum_index;
-      uint32_t          voter_quorum_index;
-      crypto::signature voter_signature;
-
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(block_height)
-        KV_SERIALIZE(deregister_node_quorum_index)
-        KV_SERIALIZE(voter_quorum_index)
-        KV_SERIALIZE_VAL_POD_AS_BLOB(voter_signature)
-      END_KV_SERIALIZE_MAP()
-    };
-  }; 
     
 }

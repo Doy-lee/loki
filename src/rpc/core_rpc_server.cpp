@@ -806,6 +806,7 @@ namespace cryptonote
     NOTIFY_NEW_TRANSACTIONS::request r;
     r.txs.push_back(tx_blob);
     m_core.get_protocol()->relay_transactions(r, fake_context);
+
     //TODO: make sure that tx has reached other nodes here, probably wait to receive reflections from other nodes
     res.status = CORE_RPC_STATUS_OK;
     return true;
@@ -927,76 +928,6 @@ namespace cryptonote
             entry.adr.as<epee::net_utils::ipv4_network_address>().port(), entry.last_seen);
       else
         res.gray_list.emplace_back(entry.id, entry.adr.str(), entry.last_seen);
-    }
-
-    {
-      printf("Bootstrapping: %s: to relay service node partial deregister data!\n", __FUNCTION__);
-
-      const char *xx__secret_spend_keys_str[] =
-      {
-        "42d0681beffac7e34f85dfc3b8fefd9ffb60854205f6068705c89eef43800903",
-        "51256e8711c7d1ac06ac141f723aef280b98d46012d3a81a18c8dd8ce5f9a304",
-        "66cba8ff989c3096fbfeb1dc505c982d4580566a6b22c50dc291906b3647ea04",
-        "c4a6129b6846369f0161da99e71c9f39bf50d640aaaa3fe297819f1d269b3a0b",
-        "165401ad072f5b2629766870d2de49cda6d09d97ba7bc2f7d820bb7ed8073f00",
-        "f5fad9c4e9587826a882bd309aa4f2d1943a6ae916cf4f9971a833578eba360e",
-        "e26a4d4386392d9a758e011ef9e29ae8fea5a1ab809a0fd4768674da2e36600e",
-        "b5e8af1114fbc006823e6e025b99fe2f25f409d69d8ae74b35103621c00fca0c",
-        "fe007f06f5eac4919ffefb45b358475fdfe541837f73d1f76118d44b42b10a01",
-        "0da5ef9cf7c85d7d3d0464d0a80e1447a45e90c6664246d91a4691875ad33605",
-      };
-
-      const char *xx__secret_view_keys_str[] =
-      {
-        "737fec2ac72cf4875ece19bd84b4a86a8657fc8814814503d030432ea35fad07",
-        "2792f853846086f6583e71f2a9c1b981714d63e8190639c7d589ecb286250303",
-        "f585351851b784413443d56a3d815646b8ca1dbd8a077a132909032a21aba00d",
-        "f9d176b0372d2d2593f4e4bcc65add9cc28b8112db470ff47aa9ed841322d80b",
-        "c714ce94216173ff9c876b9c82faa4bdac34ea7532282342866aeb97d46e5f01",
-        "ad35f5bc4bdb981d98fff19f0f2aae136968236db259ddf90ef0600e9248c101",
-        "f96ddb40442d9706eb4f4d7ae3e27ddacf83bbc48db020bba1d1bc38bf453508",
-        "28d5d9c3417a4fb37f3ae836475dce828a3678d2e94d210b5451586141759802",
-        "e061f3f8556c25d876d346da36f44d0661d9fc4c51c1482c5ce3c282d0c97105",
-        "cc1957406f4c883ea1169186f9159ff8fb8c456dd93d541713439171ec81a902",
-      };
-
-#define ARRAY_COUNT(array) (sizeof(array) / sizeof(array[0]))
-      crypto::secret_key xx__secret_view_keys [ARRAY_COUNT(xx__secret_view_keys_str)]  = {};
-      crypto::secret_key xx__secret_spend_keys[ARRAY_COUNT(xx__secret_spend_keys_str)] = {};
-      crypto::public_key xx__public_view_keys [ARRAY_COUNT(xx__secret_view_keys_str)]  = {};
-      crypto::public_key xx__public_spend_keys[ARRAY_COUNT(xx__secret_spend_keys_str)] = {};
-
-      for (size_t i = 0; i < ARRAY_COUNT(xx__secret_view_keys_str); i++)
-      {
-        assert(epee::string_tools::hex_to_pod  (xx__secret_view_keys_str[i] , xx__secret_view_keys[i]));
-        assert(epee::string_tools::hex_to_pod  (xx__secret_spend_keys_str[i], xx__secret_spend_keys[i]));
-
-        assert(crypto::secret_key_to_public_key(xx__secret_view_keys[i] , xx__public_view_keys[i]));
-        assert(crypto::secret_key_to_public_key(xx__secret_spend_keys[i], xx__public_spend_keys[i]));
-
-        auto tmp = epee::string_tools::pod_to_hex(xx__public_spend_keys[i]);
-        printf("[%zu]: %s\n", i, tmp.c_str());
-      }
-
-      cryptonote_connection_context fake_context = AUTO_VAL_INIT(fake_context);
-      for (size_t i = 0; i < ARRAY_COUNT(xx__secret_spend_keys); i++)
-      {
-        NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER::request deregister;
-        deregister.block_height                 = 32;
-        deregister.deregister_node_quorum_index = 0; /*from xx__public_spend_keys*/;
-        deregister.voter_quorum_index           = i; /*from xx__public_spend_keys*/
-
-        // Generate signature
-        {
-          const crypto::public_key &public_spend_key = xx__public_spend_keys[i];
-          const crypto::secret_key &secret_spend_key = xx__secret_spend_keys[i];
-
-          crypto::hash hash;
-          crypto::cn_fast_hash      (public_spend_key.data, sizeof(public_spend_key.data), hash);
-          crypto::generate_signature(hash, public_spend_key, secret_spend_key, deregister.voter_signature);
-        }
-        m_core.get_protocol()->relay_service_node_partial_deregister(deregister, fake_context);
-      }
     }
 
     res.status = CORE_RPC_STATUS_OK;
@@ -2071,6 +2002,18 @@ namespace cryptonote
     {
       res.status = "Block height is too height";
     }
+
+    return r;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool core_rpc_server::on_submit_deregister_vote(const COMMAND_RPC_SEND_DEREGISTER_VOTE::request& req, COMMAND_RPC_SEND_DEREGISTER_VOTE::response &resp)
+  {
+    PERF_TIMER(on_submit_deregister_vote);
+
+    // TODO(doyle): Better error reporting
+    bool r = m_core.add_deregister_vote(req.vote);
+    if (r) resp.status = CORE_RPC_STATUS_OK;
+    else   resp.status = "Vote was not unique/had invalid parameters, not added to partial deregistration pool.";
 
     return r;
   }

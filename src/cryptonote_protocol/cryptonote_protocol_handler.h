@@ -71,35 +71,6 @@ namespace cryptonote
 			virtual double estimate_one_block_size() noexcept; // for estimating size of blocks to download
 	};
 
-  // TODO(doyle): Complexity analysis here as well, determine the upper and
-  // lower bounds of what numbers we expect.
-
-  // std::vector<Block Height Entries> partial_deregisters
-  // My assumption is that the block heights we keep votes around for
-  // is going to be very small and short lived < 10 entries ~ 20mins worth of
-  // blocks, avg block time 120s. So linearly scanning for a block height is
-  // effective with low code complexity/computation and memory usage.
-
-  // std::unordered_map<Node Index, std::Vector<Votes>> service_node_votes
-  // In each block height we have our quorum 10 SNodes querying 1% of the
-  // network. Assuming a very generous 50,000 node network, 1% of nodes is 500,
-  // with each needing 10 votes to kick off the network, so 500 entries in the
-  // map with 10 votes each.
-  // As opposed to (500 nodes * 10 votes) = 5000 votes to sort and search if in
-  // a vector per block height.
-
-  struct service_node_state
-  {
-    struct partial_deregister_at_height
-    {
-      using service_node_index = uint32_t; // index in service node list
-      std::unordered_map<service_node_index, std::vector<NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER::request>> service_node;
-      uint64_t block_height;
-    };
-
-    std::vector<partial_deregister_at_height> partial_deregisters;
-  };
-
   template<class t_core>
   class t_cryptonote_protocol_handler:  public i_cryptonote_protocol, cryptonote_protocol_handler_base
   { 
@@ -120,7 +91,6 @@ namespace cryptonote
       HANDLE_NOTIFY_T2(NOTIFY_RESPONSE_CHAIN_ENTRY, &cryptonote_protocol_handler::handle_response_chain_entry)
       HANDLE_NOTIFY_T2(NOTIFY_NEW_FLUFFY_BLOCK, &cryptonote_protocol_handler::handle_notify_new_fluffy_block)			
       HANDLE_NOTIFY_T2(NOTIFY_REQUEST_FLUFFY_MISSING_TX, &cryptonote_protocol_handler::handle_request_fluffy_missing_tx)						
-      HANDLE_NOTIFY_T2(NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER, &cryptonote_protocol_handler::handle_notify_service_node_partial_deregister)						
     END_INVOKE_MAP2()
 
     bool on_idle();
@@ -150,12 +120,10 @@ namespace cryptonote
     int handle_response_chain_entry(int command, NOTIFY_RESPONSE_CHAIN_ENTRY::request& arg, cryptonote_connection_context& context);
     int handle_notify_new_fluffy_block(int command, NOTIFY_NEW_FLUFFY_BLOCK::request& arg, cryptonote_connection_context& context);
     int handle_request_fluffy_missing_tx(int command, NOTIFY_REQUEST_FLUFFY_MISSING_TX::request& arg, cryptonote_connection_context& context);
-    int handle_notify_service_node_partial_deregister(int command, NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER::request& arg, cryptonote_connection_context& context);
 		
     //----------------- i_bc_protocol_layout ---------------------------------------
     virtual bool relay_block(NOTIFY_NEW_BLOCK::request& arg, cryptonote_connection_context& exclude_context);
     virtual bool relay_transactions(NOTIFY_NEW_TRANSACTIONS::request& arg, cryptonote_connection_context& exclude_context);
-    virtual bool relay_service_node_partial_deregister(NOTIFY_SERVICE_NODE_PARTIAL_DEREGISTER::request& arg, cryptonote_connection_context& exclude_context);
     //----------------------------------------------------------------------------------
     //bool get_payload_sync_data(HANDSHAKE_DATA::request& hshd, cryptonote_connection_context& context);
     bool request_missing_objects(cryptonote_connection_context& context, bool check_having_blocks, bool force_next_span = false);
@@ -180,8 +148,6 @@ namespace cryptonote
     boost::mutex m_buffer_mutex;
     double get_avg_block_size();
     boost::circular_buffer<size_t> m_avg_buffer = boost::circular_buffer<size_t>(10);
-
-    service_node_state m_service_node_state;
 
     template<class t_parameter>
       bool post_notify(typename t_parameter::request& arg, cryptonote_connection_context& context)

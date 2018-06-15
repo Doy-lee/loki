@@ -41,6 +41,7 @@
 #include "common/download.h"
 #include "common/threadpool.h"
 #include "common/command_line.h"
+#include "service_node_deregister.h"
 #include "tx_pool.h"
 #include "blockchain.h"
 #include "cryptonote_basic/miner.h"
@@ -777,10 +778,30 @@ namespace cryptonote
       * @brief Get the deterministic list of service node's public keys for quorum testing
       *
       * @param height Block height to deterministically recreate the quorum list from
+      * @param quorum The quorum entries are put into this param
 
-      * @return The list of service node's public keys
+      * @return Whether the list could be made
       */
      bool get_quorum_list_for_height(uint64_t height, std::vector<crypto::public_key>& quorum) const;
+
+     /**
+      * @brief Get the size of the deterministic list of service node's public keys for quorum testing
+      *
+      * @param height Block height to deterministically get the size from
+      * @param quorum_size The size of the list is put into this param
+
+      * @return Whether the list size could be determined
+      */
+     bool get_quorum_list_size_for_height(uint64_t block_height, uint32_t &quorum_size) const;
+
+     /**
+      * @brief Add a vote to deregister a service node from network
+      *
+      * @param vote The vote for deregistering a service node.
+
+      * @return Whether the vote was added to the partial deregister pool
+      */
+     bool add_deregister_vote(const loki::service_node_deregister::vote& vote);
 
    private:
 
@@ -952,6 +973,7 @@ namespace cryptonote
 
      uint64_t m_test_drop_download_height = 0; //!< height under which to drop incoming blocks, if doing so
 
+     loki::deregister_vote_pool m_deregister_vote_pool;
      tx_memory_pool m_mempool; //!< transaction pool instance
      Blockchain m_blockchain_storage; //!< Blockchain instance
 

@@ -114,7 +114,7 @@ namespace cryptonote
     CRITICAL_REGION_LOCAL(m_transactions_lock);
 
     PERF_TIMER(add_tx);
-    if (tx.version == 0)
+    if (tx.version == transaction::version_0)
     {
       // v0 never accepted
       LOG_PRINT_L1("transaction version 0 is invalid");
@@ -142,7 +142,7 @@ namespace cryptonote
     // fee per kilobyte, size rounded up.
     uint64_t fee;
 
-    if (tx.version == 1)
+    if (tx.version == transaction::version_1)
     {
       uint64_t inputs_amount = 0;
       if(!get_inputs_money_amount(tx, inputs_amount))
@@ -174,7 +174,7 @@ namespace cryptonote
       fee = tx.rct_signatures.txnFee;
     }
 
-    if (tx.version != 3 && !kept_by_block && !m_blockchain.check_fee(blob_size, fee))
+    if (!kept_by_block && !m_blockchain.check_fee(blob_size, fee) && tx.version != transaction::version_3_deregister_tx)
     {
       tvc.m_verifivation_failed = true;
       tvc.m_fee_too_low = true;

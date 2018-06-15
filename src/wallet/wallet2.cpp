@@ -47,6 +47,7 @@ using namespace epee;
 #include "rpc/core_rpc_server_commands_defs.h"
 #include "misc_language.h"
 #include "cryptonote_basic/cryptonote_basic_impl.h"
+#include "cryptonote_core/service_node_deregister.h"
 #include "multisig/multisig.h"
 #include "common/boost_serialization_helper.h"
 #include "common/command_line.h"
@@ -4662,6 +4663,28 @@ crypto::hash wallet2::get_payment_id(const pending_tx &ptx) const
 }
 
 //----------------------------------------------------------------------------------------------------
+void wallet2::commit_deregister_vote(loki::service_node_deregister::vote& vote)
+{
+  if (m_light_wallet)
+  {
+    LOG_PRINT_L1("Deregister vote can not be sent in a light wallet.");
+  }
+  else
+  {
+    COMMAND_RPC_SEND_DEREGISTER_VOTE::request req;
+    req.vote = vote;
+
+    COMMAND_RPC_SEND_DEREGISTER_VOTE::response resp;
+
+    m_daemon_rpc_mutex.lock();
+    bool r = epee::net_utils::invoke_http_json("/submit_deregister_vote", req, resp, m_http_client, rpc_timeout);
+    m_daemon_rpc_mutex.unlock();
+
+    THROW_WALLET_EXCEPTION_IF(!r, error::no_connection_to_daemon, "submit_deregister_vote");
+    THROW_WALLET_EXCEPTION_IF(resp.status == CORE_RPC_STATUS_BUSY, error::daemon_busy, "submit_deregister_vote");
+  }
+}
+//----------------------------------------------------------------------------------------------------
 // take a pending tx and actually send it to the daemon
 void wallet2::commit_tx(pending_tx& ptx)
 {
@@ -4701,6 +4724,7 @@ void wallet2::commit_tx(pending_tx& ptx)
           "Bad output index in selected transfers: " + boost::lexical_cast<std::string>(idx));
     }
   }
+
   crypto::hash txid;
 
   txid = get_transaction_hash(ptx.tx);

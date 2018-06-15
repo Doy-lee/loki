@@ -1877,6 +1877,5 @@ namespace wallet_rpc
       END_KV_SERIALIZE_MAP()
     };
   };
-
 }
 }

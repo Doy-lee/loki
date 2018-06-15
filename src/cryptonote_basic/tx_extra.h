@@ -198,18 +198,22 @@ namespace cryptonote
     // don't encode size. So the receiving end must be able to anticipate how many signatures
     // there are and preallocate. This is possibly doable when we finalize quorum sizes
     struct signature_pod { char data[sizeof(crypto::signature)]; };
+    struct vote
+    {
+      signature_pod signature;
+      uint32_t      voters_quorum_index;
+    };
 
-    uint64_t                   block_height;
-    crypto::public_key         service_node_key;
-    std::vector<signature_pod> voters_signatures;
+    uint64_t          block_height;
+    uint32_t          service_node_index;
+    std::vector<vote> votes;
 
     BEGIN_SERIALIZE()
       FIELD(block_height)
-      FIELD(service_node_key)
-      FIELD(voters_signatures)
+      FIELD(service_node_index)
+      FIELD(votes)
     END_SERIALIZE()
   };
-
 
   // tx_extra_field format, except tx_extra_padding and tx_extra_pub_key:
   //   varint tag;
@@ -225,8 +229,7 @@ namespace cryptonote
                          tx_extra_service_node_deregister> tx_extra_field;
 }
 
-BLOB_SERIALIZER(cryptonote::tx_extra_service_node_deregister::signature_pod);
-// VARIANT_TAG(binary_archive, cryptonote::tx_extra_service_node_deregister::signature_pod, "signature_pod");
+BLOB_SERIALIZER(cryptonote::tx_extra_service_node_deregister::vote);
 
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_padding,                 TX_EXTRA_TAG_PADDING);
 VARIANT_TAG(binary_archive, cryptonote::tx_extra_pub_key,                 TX_EXTRA_TAG_PUBKEY);

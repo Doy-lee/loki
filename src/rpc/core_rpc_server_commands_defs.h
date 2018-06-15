@@ -33,6 +33,7 @@
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_basic/difficulty.h"
 #include "crypto/hash.h"
+#include "cryptonote_core/service_node_deregister.h"
 
 namespace cryptonote
 {
@@ -49,7 +50,7 @@ namespace cryptonote
 // advance which version they will stop working with
 // Don't go over 32767 for any of these
 #define CORE_RPC_VERSION_MAJOR 1
-#define CORE_RPC_VERSION_MINOR 20
+#define CORE_RPC_VERSION_MINOR 1
 #define MAKE_CORE_RPC_VERSION(major,minor) (((major)<<16)|(minor))
 #define CORE_RPC_VERSION MAKE_CORE_RPC_VERSION(CORE_RPC_VERSION_MAJOR, CORE_RPC_VERSION_MINOR)
 
@@ -2285,6 +2286,26 @@ namespace cryptonote
         KV_SERIALIZE(untrusted)
       END_KV_SERIALIZE_MAP()
     };
+  };
+
+  struct COMMAND_RPC_SEND_DEREGISTER_VOTE
+  {
+      struct request
+      {
+        loki::service_node_deregister::vote vote;
+
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE_VAL_POD_AS_BLOB(vote)
+        END_KV_SERIALIZE_MAP()
+      };
+
+      struct response
+      {
+        std::string status;
+        BEGIN_KV_SERIALIZE_MAP()
+          KV_SERIALIZE(status)
+        END_KV_SERIALIZE_MAP()
+      };
   };
 
 }
