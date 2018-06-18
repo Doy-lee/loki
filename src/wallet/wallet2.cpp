@@ -4682,6 +4682,7 @@ void wallet2::commit_deregister_vote(loki::service_node_deregister::vote& vote)
 
     THROW_WALLET_EXCEPTION_IF(!r, error::no_connection_to_daemon, "submit_deregister_vote");
     THROW_WALLET_EXCEPTION_IF(resp.status == CORE_RPC_STATUS_BUSY, error::daemon_busy, "submit_deregister_vote");
+    THROW_WALLET_EXCEPTION_IF(resp.status != CORE_RPC_STATUS_OK, error::vote_rejected, resp.status, resp.reason);
   }
 }
 //----------------------------------------------------------------------------------------------------

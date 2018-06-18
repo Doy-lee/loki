@@ -2008,14 +2008,52 @@ namespace cryptonote
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_submit_deregister_vote(const COMMAND_RPC_SEND_DEREGISTER_VOTE::request& req, COMMAND_RPC_SEND_DEREGISTER_VOTE::response &resp)
   {
+    // TODO(doyle): When is on_relay_tx called, because that is another trigger point for sending data over p2p
     PERF_TIMER(on_submit_deregister_vote);
 
-    // TODO(doyle): Better error reporting
-    bool r = m_core.add_deregister_vote(req.vote);
-    if (r) resp.status = CORE_RPC_STATUS_OK;
-    else   resp.status = "Vote was not unique/had invalid parameters, not added to partial deregistration pool.";
+    vote_verification_context vvc = {};
+    if(!m_core.add_deregister_vote(req.vote, vvc))
+    {
+      resp.status = "Failed";
+      resp.reason = "";
 
-    return r;
+      if ((resp.invalid_block_height = vvc.m_invalid_block_height))
+        add_reason(resp.reason, "could not get quorum for block height");
+
+      if ((resp.voters_quorum_index_out_of_bounds = vvc.m_voters_quorum_index_out_of_bounds))
+        add_reason(resp.reason, "quorum index was not in bounds of quorum");
+
+      if ((resp.service_node_index_out_of_bounds = vvc.m_service_node_index_out_of_bounds))
+        add_reason(resp.reason, "service node index was not in bounds of the service node list");
+
+      if ((resp.signature_not_valid = vvc.m_signature_not_valid))
+        add_reason(resp.reason, "signature could not be verified with the voter's key");
+
+      const std::string punctuation = resp.reason.empty() ? "" : ": ";
+
+      if (vvc.m_verification_failed)
+      {
+        LOG_PRINT_L0("[on_submit_deregister_vote]: deregister vote verification failed" << punctuation << resp.reason);
+      }
+      else
+      {
+        LOG_PRINT_L0("[on_submit_deregister_vote]: Failed to process deregister vote" << punctuation << resp.reason);
+      }
+
+      return true;
+    }
+
+    if (vvc.m_added_to_pool)
+    {
+      NOTIFY_NEW_DEREGISTER_VOTE::request r;
+      r.votes.push_back(req.vote);
+
+      cryptonote_connection_context fake_context = AUTO_VAL_INIT(fake_context);
+      m_core.get_protocol()->relay_deregister_vote(r, fake_context);
+    }
+
+    resp.status = CORE_RPC_STATUS_OK;
+    return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_relay_tx(const COMMAND_RPC_RELAY_TX::request& req, COMMAND_RPC_RELAY_TX::response& res, epee::json_rpc::error& error_resp)

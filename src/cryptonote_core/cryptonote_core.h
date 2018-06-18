@@ -210,6 +210,10 @@ namespace cryptonote
       */
      virtual void on_transaction_relayed(const cryptonote::blobdata& tx);
 
+     /**
+      * @brief mark the deregister vote as having been relayed in the vote pool
+      */
+     virtual void set_deregister_vote_relayed(const std::vector<loki::service_node_deregister::vote>& votes);
 
      /**
       * @brief gets the miner instance
@@ -801,7 +805,7 @@ namespace cryptonote
 
       * @return Whether the vote was added to the partial deregister pool
       */
-     bool add_deregister_vote(const loki::service_node_deregister::vote& vote);
+     bool add_deregister_vote(const loki::service_node_deregister::vote& vote, vote_verification_context &vvc);
 
    private:
 
@@ -956,6 +960,13 @@ namespace cryptonote
      bool relay_txpool_transactions();
 
      /**
+      * @brief attempt to relay the pooled deregister votes
+      *
+      * @return true, necessary for binding this function to a periodic invoker
+      */
+     bool relay_deregister_vote();
+
+     /**
       * @brief checks DNS versions
       *
       * @return true on success, false otherwise
@@ -992,6 +1003,7 @@ namespace cryptonote
      epee::math_helper::once_a_time_seconds<60*60*12, false> m_store_blockchain_interval; //!< interval for manual storing of Blockchain, if enabled
      epee::math_helper::once_a_time_seconds<60*60*2, true> m_fork_moaner; //!< interval for checking HardFork status
      epee::math_helper::once_a_time_seconds<60*2, false> m_txpool_auto_relayer; //!< interval for checking re-relaying txpool transactions
+     epee::math_helper::once_a_time_seconds<60*2, false> m_deregisters_auto_relayer; //!< interval for checking re-relaying deregister votes
      epee::math_helper::once_a_time_seconds<60*60*12, true> m_check_updates_interval; //!< interval for checking for new versions
      epee::math_helper::once_a_time_seconds<60*10, true> m_check_disk_space_interval; //!< interval for checking for disk space
 

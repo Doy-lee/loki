@@ -33,12 +33,13 @@
 
 #include "crypto/crypto.h"
 #include "cryptonote_basic/cryptonote_basic.h"
-#include "string_tools.h" // TODO(doyle): Temporary
+
 #include "math_helper.h"
+#include "syncobj.h"
 
 namespace cryptonote
 {
-  struct tx_verification_context;
+  struct vote_verification_context;
   class Blockchain;
 };
 
@@ -87,23 +88,39 @@ namespace loki
     crypto::hash make_unsigned_vote_hash(const cryptonote::tx_extra_service_node_deregister& deregister);
     crypto::hash make_unsigned_vote_hash(const vote& v);
 
-    bool verify(const cryptonote::tx_extra_service_node_deregister& deregister, const std::vector<crypto::public_key> &quorum);
-    bool verify(const vote& v, const std::vector<crypto::public_key> &quorum);
+    bool verify(const cryptonote::tx_extra_service_node_deregister& deregister,
+                cryptonote::vote_verification_context& vvc,
+                const std::vector<crypto::public_key> &quorum);
+
+    bool verify(const vote& v, cryptonote::vote_verification_context &vvc,
+                const std::vector<crypto::public_key> &quorum);
   };
 
+  // TODO(doyle): We need to a scheme to remove dead votes, see tx_memory_pool::on_idle
   class deregister_vote_pool
   {
     public:
-      bool add_vote              (const service_node_deregister::vote& new_vote, const std::vector<crypto::public_key> &quorum);
+      /**
+       *  @return true if vote is valid, false if validation failed.
+       */
+      bool add_vote              (const service_node_deregister::vote& new_vote,
+                                  cryptonote::vote_verification_context& vvc,
+                                  const std::vector<crypto::public_key>& quorum);
+
       void xx__print_service_node() const;
-      void set_relayed           (const service_node_deregister::vote& vote);
-      void relay_vote            ();
+      void set_relayed           (const std::vector<service_node_deregister::vote>& votes);
+
+      std::vector<service_node_deregister::vote> get_relayable_votes() const;
 
     private:
-      struct pool_entry
+      class pool_entry
       {
-        uint64_t time_last_sent_p2p;
-        std::vector<service_node_deregister::vote> votes;
+        public:
+          pool_entry(uint64_t time_last_sent_p2p, service_node_deregister::vote vote)
+            : m_time_last_sent_p2p(time_last_sent_p2p), m_vote(vote) {}
+
+          uint64_t m_time_last_sent_p2p;
+          service_node_deregister::vote m_vote;
       };
 
       struct pool_group
@@ -111,11 +128,11 @@ namespace loki
         using service_node_index = uint32_t;
 
         uint64_t block_height;
-        std::unordered_map<service_node_index, pool_entry> service_node;
+        std::unordered_map<service_node_index, std::vector<pool_entry>> service_node;
       };
 
-      epee::math_helper::once_a_time_seconds<60*2, false> m_deregisters_auto_relayer;
       std::vector<pool_group> m_deregisters;
+      mutable epee::critical_section m_lock;
   };
 
 }; // namespace loki

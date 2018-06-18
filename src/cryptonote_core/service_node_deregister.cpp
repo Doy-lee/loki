@@ -29,12 +29,19 @@
 #include "service_node_deregister.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_basic/verification_context.h"
+#include "cryptonote_basic/connection_context.h"
+#include "cryptonote_protocol/cryptonote_protocol_defs.h"
 #include "cryptonote_core/blockchain.h"
+
 #include "misc_log_ex.h"
+#include "string_tools.h"
 
 #include <random>
 #include <string>
 #include <vector>
+
+#undef LOKI_DEFAULT_LOG_CATEGORY
+#define LOKI_DEFAULT_LOG_CATEGORY "service_nodes"
 
 namespace loki
 {
@@ -504,95 +511,63 @@ namespace loki
     return result;
   }
 
-  crypto::hash service_node_deregister::make_unsigned_vote_hash(const cryptonote::tx_extra_service_node_deregister& deregister)
+  static inline crypto::hash make_hash_from(uint32_t block_height, uint32_t service_node_index)
   {
-    const int buf_size = sizeof(deregister.block_height) + sizeof(deregister.service_node_index);
+    const int buf_size = sizeof(block_height) + sizeof(service_node_index);
     char buf[buf_size];
 
     const copy_region regions[] =
     {
-      { reinterpret_cast<void const *>(&deregister.block_height),       sizeof(deregister.block_height)},
-      { reinterpret_cast<void const *>(&deregister.service_node_index), sizeof(deregister.service_node_index)},
+      { reinterpret_cast<void const *>(&block_height),       sizeof(block_height)},
+      { reinterpret_cast<void const *>(&service_node_index), sizeof(service_node_index)},
     };
     const int num_regions = sizeof(regions)/sizeof(regions[0]);
     crypto::hash result = hash_region_to_buf(buf, buf_size, regions, num_regions);
+    return result;
+  }
+
+  crypto::hash service_node_deregister::make_unsigned_vote_hash(const cryptonote::tx_extra_service_node_deregister& deregister)
+  {
+    crypto::hash result = make_hash_from(deregister.block_height, deregister.service_node_index);
     return result;
   }
 
   crypto::hash service_node_deregister::make_unsigned_vote_hash(const vote& v)
   {
-    const int buf_size = sizeof(v.block_height) + sizeof(v.service_node_index);
-    char buf[buf_size];
-
-    const copy_region regions[] =
-    {
-      { reinterpret_cast<void const *>(&v.block_height),       sizeof(v.block_height)},
-      { reinterpret_cast<void const *>(&v.service_node_index), sizeof(v.service_node_index)},
-    };
-    const int num_regions = sizeof(regions)/sizeof(regions[0]);
-
-    crypto::hash result = hash_region_to_buf(buf, buf_size, regions, num_regions);
+    crypto::hash result = make_hash_from(v.block_height, v.service_node_index);
     return result;
   }
 
-  static bool xx__is_service_node_registered (uint64_t block_height, uint32_t service_node_index)
+  static bool xx__is_service_node_registered(uint64_t block_height, uint32_t service_node_index)
   {
     // TODO(doyle): Check service_node_index is in list bounds
     // MERROR_VER("TX version deregister_tx specifies invalid service node index: " << deregister.service_node_index << ", value must be between [0, " << quorum.size() << "]");
     return true;
   }
 
-  bool service_node_deregister::verify(const cryptonote::tx_extra_service_node_deregister& deregister, const std::vector<crypto::public_key> &quorum)
+  struct vote_internal
   {
-    const crypto::hash hash = make_unsigned_vote_hash(deregister);
-    if (!xx__is_service_node_registered(deregister.block_height, deregister.service_node_index))
-    {
-      // TODO(doyle): Update the log print to print out the correct bounds
-      LOG_PRINT_L1("Service node index to deregister in partial deregister was out of bounds: " << deregister.service_node_index << ", expected to be in range of: [0, ]");
-      return false;
-    }
+    uint64_t                       block_height;
+    uint32_t                       service_node_index;
+    service_node_deregister::vote *votes;
+    size_t                         num_votes;
+  };
 
-    for (const cryptonote::tx_extra_service_node_deregister::vote& vote : deregister.votes)
-    {
-      if (vote.voters_quorum_index >= quorum.size())
-      {
-        LOG_PRINT_L1("Voter in partial deregister's index was out of bounds:  " << vote.voters_quorum_index << ", expected to be in range of: [0, " << quorum.size() << "]");
-        return false;
-      }
-
-      const auto* signature                      = reinterpret_cast<const crypto::signature *>(&vote.signature);
-      const crypto::public_key& public_spend_key = quorum[vote.voters_quorum_index];
-      if (!crypto::check_signature(hash, public_spend_key, *signature))
-      {
-        const std::string public_spend_key_str = epee::string_tools::pod_to_hex(public_spend_key);
-        LOG_PRINT_L1("Signature in deregister could not be verified against the voters public spend key: " << public_spend_key_str);
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  bool service_node_deregister::verify(const vote& v, const std::vector<crypto::public_key> &quorum)
+  static bool verify_vote(const crypto::hash &hash, uint32_t voters_quorum_index,
+                          const crypto::signature &signature, const std::vector<crypto::public_key>& quorum,
+                          cryptonote::vote_verification_context &vvc)
   {
-    if (v.voters_quorum_index >= quorum.size())
+    if (voters_quorum_index >= quorum.size())
     {
-      LOG_PRINT_L1("Voter in partial deregister's index was out of bounds:  " << v.voters_quorum_index << ", expected to be in range of: [0, " << quorum.size() << "]");
+      vvc.m_voters_quorum_index_out_of_bounds = true;
+      LOG_PRINT_L1("Voter's index in deregister vote was out of bounds:  " << voters_quorum_index << ", expected to be in range of: [0, " << quorum.size() << "]");
       return false;
     }
 
-    if (!xx__is_service_node_registered(v.block_height, v.service_node_index))
-    {
-      // TODO(doyle): Update the log print to print out the correct bounds
-      LOG_PRINT_L1("Service node index to deregister in partial deregister was out of bounds: " << v.service_node_index << ", expected to be in range of: [0, ]");
-      return false;
-    }
-
-    const crypto::signature&  signature        = v.signature;
-    const crypto::public_key& public_spend_key = quorum[v.voters_quorum_index];
-    const crypto::hash        hash             = make_unsigned_vote_hash(v);
+    const crypto::public_key& public_spend_key = quorum[voters_quorum_index];
     if (!crypto::check_signature(hash, public_spend_key, signature))
     {
+      vvc.m_signature_not_valid = true;
       const std::string public_spend_key_str = epee::string_tools::pod_to_hex(public_spend_key);
       LOG_PRINT_L1("Signature in deregister could not be verified against the voters public spend key: " << public_spend_key_str);
       return false;
@@ -601,8 +576,65 @@ namespace loki
     return true;
   }
 
+  bool service_node_deregister::verify(const cryptonote::tx_extra_service_node_deregister& deregister, 
+                                       cryptonote::vote_verification_context &vvc,
+                                       const std::vector<crypto::public_key> &quorum)
+  {
+    if (xx__is_service_node_registered(deregister.block_height, deregister.service_node_index))
+    {
+      bool all_votes_verified = true;
+      const crypto::hash hash = make_unsigned_vote_hash(deregister);
+      for (const cryptonote::tx_extra_service_node_deregister::vote& vote : deregister.votes)
+      {
+        const auto* signature = reinterpret_cast<const crypto::signature *>(&vote.signature);
+        if (!verify_vote(hash, vote.voters_quorum_index, *signature, quorum, vvc))
+        {
+          all_votes_verified = false;
+          break;
+        }
+      }
+
+      if (all_votes_verified)
+      {
+        return true;
+      }
+    }
+    else
+    {
+      // TODO(doyle): Update the log print to print out the correct bounds
+      vvc.m_service_node_index_out_of_bounds = true;
+      LOG_PRINT_L1("Service node index to deregister in partial deregister was out of bounds: " << deregister.service_node_index << ", expected to be in range of: [0, ]");
+    }
+
+    vvc.m_verification_failed = true;
+    return false;
+  }
+
+  bool service_node_deregister::verify(const vote& v, cryptonote::vote_verification_context &vvc,
+                                       const std::vector<crypto::public_key> &quorum)
+  {
+    if (xx__is_service_node_registered(v.block_height, v.service_node_index))
+    {
+      const crypto::hash hash = make_unsigned_vote_hash(v);
+      if (verify_vote(hash, v.voters_quorum_index, v.signature, quorum, vvc))
+      {
+        return true;
+      }
+    }
+    else
+    {
+      // TODO(doyle): Update the log print to print out the correct bounds
+      vvc.m_service_node_index_out_of_bounds = true;
+      LOG_PRINT_L1("Service node index to deregister in partial deregister was out of bounds: " << v.service_node_index << ", expected to be in range of: [0, ]");
+    }
+
+    vvc.m_verification_failed = true;
+    return false;
+  }
+
   void deregister_vote_pool::xx__print_service_node() const
   {
+    CRITICAL_REGION_LOCAL(m_lock);
     printf("\nReceived new deregister vote, current state is: \n");
     for (auto const &deregister_at_height : m_deregisters)
     {
@@ -615,67 +647,90 @@ namespace loki
         printf("    ");
         printf("snode_quorum_index[%d]:\n", it->first);
 
-        auto vote_list = it->second.votes;
+        const auto &vote_list = it->second;
         for (size_t i = 0; i < vote_list.size(); i++)
         {
-          auto const &vote      = vote_list[i];
-          const std::string sig = epee::string_tools::pod_to_hex(vote.signature);
+          auto const &pool_entry      = vote_list[i];
+          const std::string sig = epee::string_tools::pod_to_hex(pool_entry.m_vote.signature);
 
           printf("    ");
           printf("    ");
           printf("    ");
-          printf("[%zu]: %s (index %d in quorum)\n", i, sig.c_str(), vote.voters_quorum_index);
+          printf("[%zu][P2P Last Sent: %zu]: %s (index %d in quorum)\n", i, pool_entry.m_time_last_sent_p2p, sig.c_str(), pool_entry.m_vote.voters_quorum_index);
         }
       }
     }
   }
 
-  void deregister_vote_pool::set_relayed(const service_node_deregister::vote& find_vote)
+  void deregister_vote_pool::set_relayed(const std::vector<service_node_deregister::vote>& votes)
   {
+    CRITICAL_REGION_LOCAL(m_lock);
     const time_t now = time(NULL);
-    for (pool_group &deregisters_for : m_deregisters)
+
+    for (const service_node_deregister::vote &find_vote : votes)
     {
-      if (deregisters_for.block_height == find_vote.block_height)
+      for (pool_group &deregisters_for : m_deregisters)
       {
-        pool_entry &entry = deregisters_for.service_node[find_vote.service_node_index];
-        for (const auto &vote : entry.votes)
+        if (deregisters_for.block_height == find_vote.block_height)
         {
-          if (vote.voters_quorum_index == find_vote.voters_quorum_index)
+          std::vector<pool_entry> &entries = deregisters_for.service_node[find_vote.service_node_index];
+          for (auto &entry : entries)
           {
-            entry.time_last_sent_p2p = now;
-            break;
+            service_node_deregister::vote &vote = entry.m_vote;
+            if (vote.voters_quorum_index == find_vote.voters_quorum_index)
+            {
+              entry.m_time_last_sent_p2p = now;
+              break;
+            }
           }
+          break;
         }
       }
     }
   }
 
-  void deregister_vote_pool::relay_vote()
+  std::vector<service_node_deregister::vote> deregister_vote_pool::get_relayable_votes() const
   {
-    std::list<std::pair<crypto::hash, cryptonote::blobdata>> txs;
+    CRITICAL_REGION_LOCAL(m_lock);
+    const cryptonote::cryptonote_connection_context fake_context = AUTO_VAL_INIT(fake_context);
 
-    const time_t now = time(NULL);
-    for (pool_group &deregisters_for : m_deregisters)
+    // TODO(doyle): A better threshold value that follows suite with transaction relay time back-off
+    const time_t now       = time(NULL);
+    const time_t threshold = 60 * 2;
+
+    std::vector<service_node_deregister::vote> result;
+    for (const pool_group &deregisters_for : m_deregisters)
     {
       for (auto it = deregisters_for.service_node.begin();
            it != deregisters_for.service_node.end();
            it++)
       {
-        pool_entry &entry = it->second;
-        entry.time_last_sent_p2p = now;
-        // TODO(doyle): Push this transaction through P2P
+        const std::vector<pool_entry> &entries = it->second;
+        for (const auto &entry : entries)
+        {
+          const time_t last_sent = now - entry.m_time_last_sent_p2p;
+          if (last_sent > threshold)
+          {
+            result.push_back(entry.m_vote);
+          }
+        }
       }
     }
+
+    return result;
   }
 
-  bool deregister_vote_pool::add_vote(const service_node_deregister::vote &new_vote, const std::vector<crypto::public_key> &quorum)
+  bool deregister_vote_pool::add_vote(const service_node_deregister::vote& new_vote,
+                                      cryptonote::vote_verification_context& vvc,
+                                      const std::vector<crypto::public_key>& quorum)
   {
-    if (!service_node_deregister::verify(new_vote, quorum))
+    if (!service_node_deregister::verify(new_vote, vvc, quorum))
     {
       LOG_PRINT_L1("Verification failed for deregister vote");
       return false;
     }
 
+    CRITICAL_REGION_LOCAL(m_lock);
     pool_group *deregisters_for = nullptr;
     {
       for (auto &deregister_group : m_deregisters)
@@ -695,25 +750,27 @@ namespace loki
       }
     }
 
-    bool new_deregister_is_unique                         = true;
-    const uint32_t deregister_index                       = new_vote.service_node_index;
-    std::vector<service_node_deregister::vote> &vote_list = deregisters_for->service_node[deregister_index].votes;
+    bool new_deregister_is_unique             = true;
+    const uint32_t deregister_index           = new_vote.service_node_index;
+    std::vector<pool_entry> &deregister_votes = deregisters_for->service_node[deregister_index];
 
-    for (const auto &vote : vote_list)
+    for (const auto &entry : deregister_votes)
     {
-      if (vote.voters_quorum_index == new_vote.voters_quorum_index)
+      if (entry.m_vote.voters_quorum_index == new_vote.voters_quorum_index)
       {
         new_deregister_is_unique = false;
         break;
       }
     }
 
+    time_t now = time(NULL);
     if (new_deregister_is_unique)
     {
-      vote_list.push_back(new_vote);
-
+      vvc.m_added_to_pool = true;
+      deregister_votes.emplace_back(pool_entry(0, new_vote));
       xx__print_service_node();
-      if (vote_list.size() == quorum.size())
+
+      if (deregister_votes.size() == quorum.size())
       {
         // TODO(doyle): construct full deregister tx
 
@@ -724,7 +781,7 @@ namespace loki
       }
     }
 
-    return new_deregister_is_unique;
+    return true;
   }
 
 }; // loki

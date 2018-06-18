@@ -4864,6 +4864,7 @@ bool simple_wallet::stake_all(const std::vector<std::string> &args_)
   return true;
 }
 //----------------------------------------------------------------------------------------------------
+#include <stdlib.h>
 bool simple_wallet::xx__deregister_service_node(const std::vector<std::string> &args_)
 {
   // TODO: This should be an internal function that the wallet rpc can invoke
@@ -4890,11 +4891,7 @@ bool simple_wallet::xx__deregister_service_node(const std::vector<std::string> &
   {
     is_partial_cmd = true;
     service_node_key_str_arg_index = 1;
-
-#define XX__SEND_10_VOTES 1
-#if defined(XX__SEND_10_VOTES)
-    num_votes = 10;
-#endif
+    num_votes = 1;
   }
   else
   {
@@ -4968,13 +4965,15 @@ bool simple_wallet::xx__deregister_service_node(const std::vector<std::string> &
     }
 
     // Generate signatures
+    srand(time(NULL));
     for (int i = 0; i < num_votes; i++)
     {
-      const crypto::public_key &public_spend_key = loki::xx__service_node::public_spend_keys[i];
-      const crypto::secret_key &secret_spend_key = loki::xx__service_node::secret_spend_keys[i];
+      size_t index = rand() % 10;
+      const crypto::public_key &public_spend_key = loki::xx__service_node::public_spend_keys[index];
+      const crypto::secret_key &secret_spend_key = loki::xx__service_node::secret_spend_keys[index];
 
       tx_extra_service_node_deregister::vote *vote = &deregister.votes[i];
-      vote->voters_quorum_index = i;
+      vote->voters_quorum_index = index;
 
       crypto::hash hash = loki::service_node_deregister::make_unsigned_vote_hash(deregister);
       auto *signature = reinterpret_cast<crypto::signature *>(&vote->signature);

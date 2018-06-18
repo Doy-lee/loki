@@ -1051,7 +1051,7 @@ namespace cryptonote
         return false;
       }
 
-      if (!loki::service_node_deregister::verify(deregister, quorum))
+      if (!loki::service_node_deregister::verify(deregister, tvc.m_vote_ctx, quorum))
       {
         tvc.m_verifivation_failed = true;
         LOG_PRINT_L1("tx " << tx_hash << ": version 3 deregister_tx signed votes do not validate with the spend keys in the quorum.");
@@ -1107,6 +1107,24 @@ namespace cryptonote
 
     txs.push_back(std::make_pair(tx_hash, std::move(tx_blob)));
     m_mempool.set_relayed(txs);
+  }
+  //-----------------------------------------------------------------------------------------------
+  void core::set_deregister_vote_relayed(const std::vector<loki::service_node_deregister::vote>& votes)
+  {
+    m_deregister_vote_pool.set_relayed(votes);
+  }
+  //-----------------------------------------------------------------------------------------------
+  bool core::relay_deregister_vote()
+  {
+    NOTIFY_NEW_DEREGISTER_VOTE::request req;
+    req.votes = m_deregister_vote_pool.get_relayable_votes();
+    if (!req.votes.empty())
+    {
+      cryptonote_connection_context fake_context = AUTO_VAL_INIT(fake_context);
+      get_protocol()->relay_deregister_vote(req, fake_context);
+    }
+
+    return true;
   }
   //-----------------------------------------------------------------------------------------------
   bool core::get_block_template(block& b, const account_public_address& adr, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce)
@@ -1422,6 +1440,7 @@ namespace cryptonote
 
     m_fork_moaner.do_call(boost::bind(&core::check_fork_time, this));
     m_txpool_auto_relayer.do_call(boost::bind(&core::relay_txpool_transactions, this));
+    m_deregisters_auto_relayer.do_call(boost::bind(&core::relay_deregister_vote, this));
     m_check_updates_interval.do_call(boost::bind(&core::check_updates, this));
     m_check_disk_space_interval.do_call(boost::bind(&core::check_disk_space, this));
     m_miner.on_idle();
@@ -1697,16 +1716,18 @@ namespace cryptonote
     return true;
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::add_deregister_vote(const loki::service_node_deregister::vote& vote)
+  bool core::add_deregister_vote(const loki::service_node_deregister::vote& vote, vote_verification_context &vvc)
   {
     std::vector<crypto::public_key> quorum;
     if (!get_quorum_list_for_height(vote.block_height, quorum))
     {
+      vvc.m_verification_failed  = true;
+      vvc.m_invalid_block_height = true;
       LOG_ERROR("Could not get quorum for height: " << vote.block_height);
       return false;
     }
 
-    bool result = m_deregister_vote_pool.add_vote(vote, quorum);
+    bool result = m_deregister_vote_pool.add_vote(vote, vvc, quorum);
     return result;
   }
   //-----------------------------------------------------------------------------------------------

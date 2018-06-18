@@ -31,6 +31,7 @@
 #pragma once
 #include "cryptonote_protocol/cryptonote_protocol_defs.h"
 #include "cryptonote_basic/cryptonote_basic.h"
+#include "cryptonote_basic/verification_context.h"
 #include "cryptonote_basic/difficulty.h"
 #include "crypto/hash.h"
 #include "cryptonote_core/service_node_deregister.h"
@@ -2302,8 +2303,20 @@ namespace cryptonote
       struct response
       {
         std::string status;
+        std::string reason;
+
+        bool invalid_block_height;
+        bool voters_quorum_index_out_of_bounds;
+        bool service_node_index_out_of_bounds;
+        bool signature_not_valid;
+
         BEGIN_KV_SERIALIZE_MAP()
           KV_SERIALIZE(status)
+          KV_SERIALIZE(reason)
+          KV_SERIALIZE(invalid_block_height)
+          KV_SERIALIZE(voters_quorum_index_out_of_bounds)
+          KV_SERIALIZE(service_node_index_out_of_bounds)
+          KV_SERIALIZE(signature_not_valid)
         END_KV_SERIALIZE_MAP()
       };
   };
