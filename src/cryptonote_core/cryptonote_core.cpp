@@ -1668,8 +1668,8 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::get_quorum_list_for_height(uint64_t height, std::vector<crypto::public_key>& quorum) const
   {
-    const std::vector<crypto::public_key> pub_keys   = xx__get_service_nodes_pub_keys_for_height(height);
-    const crypto::hash                    block_hash = get_block_id_by_height(height);
+    const std::vector<crypto::public_key> pub_keys = xx__get_service_nodes_pub_keys_for_height(height);
+    const crypto::hash  block_hash = get_block_id_by_height(height);
 
     if (block_hash == crypto::null_hash)
     {
@@ -1684,8 +1684,6 @@ namespace cryptonote
       for (size_t i = 0; i < pub_keys.size(); i++) pub_keys_indexes.push_back(i);
     }
 
-    // Swap first N (size of quorum) indexes randomly
-
     uint32_t xx__quorum_size;
     if (!get_quorum_list_size_for_height(height, xx__quorum_size))
     {
@@ -1693,6 +1691,7 @@ namespace cryptonote
       return false;
     }
 
+    // Shuffle indexes and pull out from quorum
     quorum.resize(xx__quorum_size);
     if (0) // TODO(doyle): Temp. For debugging with deterministic lists
     {
@@ -1701,13 +1700,7 @@ namespace cryptonote
       std::memcpy(&seed, block_hash.data, std::min(sizeof(seed), sizeof(block_hash.data)));
 
       std::mt19937_64 mersenne_twister(seed);
-      std::uniform_int_distribution<size_t> rng(0, pub_keys.size() - 1);
-
-      for (size_t i = 0; i < quorum.size(); i++)
-      {
-        size_t swap_index = rng(mersenne_twister);
-        std::swap(pub_keys_indexes[i], pub_keys_indexes[swap_index]);
-      }
+      std::shuffle(pub_keys_indexes.begin(), pub_keys_indexes.end(), mersenne_twister);
     }
 
     for (size_t i = 0; i < quorum.size(); i++)

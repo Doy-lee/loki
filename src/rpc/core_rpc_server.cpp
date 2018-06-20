@@ -2000,7 +2000,8 @@ namespace cryptonote
     }
     else
     {
-      res.status = "Block height is too height";
+      res.status  = "Block height: " + req.height;
+      res.status += ", returned null hash or failed to derive quorum list";
     }
 
     return r;
