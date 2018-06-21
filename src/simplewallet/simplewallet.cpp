@@ -4912,7 +4912,8 @@ bool simple_wallet::xx__deregister_service_node(const std::vector<std::string> &
         fail_msg_writer() << tr("failed to get blockchain height: ") << err;
         return true;
       }
-      deregister.block_height = bc_height;
+      /* deregister.block_height = bc_height; */
+      deregister.block_height = 20;
     }
 
     const std::string& service_node_key_str = args_[service_node_key_str_arg_index];

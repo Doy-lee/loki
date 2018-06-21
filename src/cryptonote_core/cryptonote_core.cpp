@@ -1299,8 +1299,14 @@ namespace cryptonote
       return false;
     }
     add_new_block(b, bvc);
-    if(update_miner_blocktemplate && bvc.m_added_to_main_chain)
-       update_miner_block_template();
+
+    if (bvc.m_added_to_main_chain)
+    {
+      m_deregister_vote_pool.remove_expired_votes(get_current_blockchain_height());
+
+      if(update_miner_blocktemplate)
+         update_miner_block_template();
+    }
     return true;
 
     CATCH_ENTRY_L0("core::handle_incoming_block()", false);
@@ -1720,7 +1726,24 @@ namespace cryptonote
       return false;
     }
 
-    bool result = m_deregister_vote_pool.add_vote(vote, vvc, quorum);
+    cryptonote::transaction deregister_tx;
+    bool result = m_deregister_vote_pool.add_vote(vote, vvc, quorum, deregister_tx);
+    if (result && vvc.m_full_tx_deregister_made)
+    {
+      tx_verification_context tvc;
+      blobdata const tx_blob = tx_to_blob(deregister_tx);
+
+      handle_incoming_tx(tx_blob, tvc, false /*keeped_by_block*/, false /*relayed*/, false /*do_not_relay*/);
+      if (!tvc.m_verifivation_failed)
+      {
+        // TODO(doyle): logging
+      }
+      else
+      {
+        printf("Full deregister tx submitted for block height (%zu) snode (%d)\n", vote.block_height, vote.service_node_index);
+      }
+    }
+
     return result;
   }
   //-----------------------------------------------------------------------------------------------

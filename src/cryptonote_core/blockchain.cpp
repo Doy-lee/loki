@@ -100,9 +100,9 @@ static const struct {
   time_t time;
 } testnet_hard_forks[] = {
   { 7, 1, 0, 1512211236 },
-  { 8, 45, 0, 1526628233 },
+  { 8, 45, 0, 1526628233 }, // TODO(doyle): Remove this, i think
 };
-static const uint64_t testnet_hard_fork_version_1_till = 0;
+static const uint64_t testnet_hard_fork_version_1_till = 45;
 
 static const struct {
   uint8_t version;
@@ -981,7 +981,24 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std:
   std::vector<difficulty_type> cumulative_difficulties;
   uint8_t version = get_current_hard_fork_version();
   size_t difficulty_blocks_count;
-  assert(version==7);
+
+  if (m_nettype == TESTNET)
+  {
+    size_t size = sizeof(testnet_hard_forks)/sizeof(testnet_hard_forks[0]) - 1;
+    for (size_t i = size; i > 0; i--)
+    {
+      if (bei.height >= testnet_hard_forks[i].height)
+      {
+        assert(version==testnet_hard_forks[i].version);
+        break;
+      }
+    }
+  }
+  else
+  {
+    assert(version==7); // TODO(doyle): Verify what this does, I just changed it so it works for now
+  }
+
   difficulty_blocks_count = DIFFICULTY_BLOCKS_COUNT_V2;
 
   // if the alt chain isn't long enough to calculate the difficulty target

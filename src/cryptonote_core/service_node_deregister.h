@@ -100,19 +100,6 @@ namespace loki
   class deregister_vote_pool
   {
     public:
-      /**
-       *  @return true if vote is valid, false if validation failed.
-       */
-      bool add_vote              (const service_node_deregister::vote& new_vote,
-                                  cryptonote::vote_verification_context& vvc,
-                                  const std::vector<crypto::public_key>& quorum);
-
-      void xx__print_service_node() const;
-      void set_relayed           (const std::vector<service_node_deregister::vote>& votes);
-
-      std::vector<service_node_deregister::vote> get_relayable_votes() const;
-
-    private:
       class pool_entry
       {
         public:
@@ -126,11 +113,24 @@ namespace loki
       struct pool_group
       {
         using service_node_index = uint32_t;
-
         uint64_t block_height;
+        time_t   time_group_created;
         std::unordered_map<service_node_index, std::vector<pool_entry>> service_node;
       };
 
+      /**
+       *  @return True if vote was valid and in the pool already or just added (check vote verfication for specific case).
+       */
+      bool add_vote(const service_node_deregister::vote& new_vote, cryptonote::vote_verification_context& vvc,
+                    const std::vector<crypto::public_key>& quorum, cryptonote::transaction &tx);
+
+      // TODO(doyle): Review relay behaviour and all the cases when it should be triggered
+      void xx__print_service_node() const;
+      void set_relayed           (const std::vector<service_node_deregister::vote>& votes);
+      void remove_expired_votes  (uint64_t height);
+      std::vector<service_node_deregister::vote> get_relayable_votes() const;
+
+    private:
       std::vector<pool_group> m_deregisters;
       mutable epee::critical_section m_lock;
   };
