@@ -36,6 +36,8 @@
 using namespace epee;
 
 #include <unordered_set>
+#include <random>
+
 #include "cryptonote_core.h"
 #include "common/command_line.h"
 #include "common/util.h"
@@ -631,11 +633,12 @@ namespace cryptonote
     }
     bad_semantics_txes_lock.unlock();
 
-    uint8_t version = m_blockchain_storage.get_current_hard_fork_version();
-    const size_t max_tx_version = version == 1 ? 1 : 2;
+    int version = m_blockchain_storage.get_current_hard_fork_version();
+    unsigned int max_tx_version = version == 1 ? 1 : version < 8 ? 2 : 3;
+
     if (tx.version == 0 || tx.version > max_tx_version)
     {
-      // v2 is the latest one we know
+      // v3 is the latest one we know
       tvc.m_verifivation_failed = true;
       return false;
     }
@@ -769,16 +772,9 @@ namespace cryptonote
     st_inf.top_block_id_str = epee::string_tools::pod_to_hex(m_blockchain_storage.get_tail_id());
     return true;
   }
-
   //-----------------------------------------------------------------------------------------------
   bool core::check_tx_semantic(const transaction& tx, bool keeped_by_block) const
   {
-    if(!tx.vin.size())
-    {
-      MERROR_VER("tx with empty inputs, rejected for tx id= " << get_transaction_hash(tx));
-      return false;
-    }
-
     if(!check_inputs_types_supported(tx))
     {
       MERROR_VER("unsupported input types for tx id= " << get_transaction_hash(tx));
@@ -790,14 +786,6 @@ namespace cryptonote
       MERROR_VER("tx with invalid outputs, rejected for tx id= " << get_transaction_hash(tx));
       return false;
     }
-    if (tx.version > 1)
-    {
-      if (tx.rct_signatures.outPk.size() != tx.vout.size())
-      {
-        MERROR_VER("tx with mismatched vout/outPk count, rejected for tx id= " << get_transaction_hash(tx));
-        return false;
-      }
-    }
 
     if(!check_money_overflow(tx))
     {
@@ -805,27 +793,12 @@ namespace cryptonote
       return false;
     }
 
-    if (tx.version == 1)
-    {
-      uint64_t amount_in = 0;
-      get_inputs_money_amount(tx, amount_in);
-      uint64_t amount_out = get_outs_money_amount(tx);
-
-      if(amount_in <= amount_out)
-      {
-        MERROR_VER("tx with wrong amounts: ins " << amount_in << ", outs " << amount_out << ", rejected for tx id= " << get_transaction_hash(tx));
-        return false;
-      }
-    }
-    // for version > 1, ringct signatures check verifies amounts match
-
     if(!keeped_by_block && get_object_blobsize(tx) >= m_blockchain_storage.get_current_cumulative_blocksize_limit() - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE)
     {
       MERROR_VER("tx is too large " << get_object_blobsize(tx) << ", expected not bigger than " << m_blockchain_storage.get_current_cumulative_blocksize_limit() - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE);
       return false;
     }
 
-    //check if tx use different key images
     if(!check_tx_inputs_keyimages_diff(tx))
     {
       MERROR_VER("tx uses a single key image more than once");
@@ -844,33 +817,99 @@ namespace cryptonote
       return false;
     }
 
-    if (tx.version >= 2)
+    if (tx.version == transaction::version_1)
     {
-      const rct::rctSig &rv = tx.rct_signatures;
-      switch (rv.type) {
-        case rct::RCTTypeNull:
-          // coinbase should not come here, so we reject for all other types
-          MERROR_VER("Unexpected Null rctSig type");
+      uint64_t amount_in = 0;
+      get_inputs_money_amount(tx, amount_in);
+      uint64_t amount_out = get_outs_money_amount(tx);
+
+      if(amount_in <= amount_out)
+      {
+        MERROR_VER("tx with wrong amounts: ins " << amount_in << ", outs " << amount_out << ", rejected for tx id= " << get_transaction_hash(tx));
+        return false;
+      }
+    }
+
+    if(tx.version <= transaction::version_2 && !tx.vin.size())
+    {
+      MERROR_VER("tx with empty inputs, rejected for tx id= " << get_transaction_hash(tx));
+      return false;
+    }
+
+    if (tx.version >= transaction::version_2) // for version >= 2, ringct signatures check verifies amounts match
+    {
+      if (tx.rct_signatures.outPk.size() != tx.vout.size())
+      {
+        MERROR_VER("tx with mismatched vout/outPk count, rejected for tx id= " << get_transaction_hash(tx));
+        return false;
+      }
+
+      if (tx.version == transaction::version_2)
+      {
+        const rct::rctSig &rv = tx.rct_signatures;
+        switch (rv.type) {
+          case rct::RCTTypeNull:
+            // coinbase should not come here, so we reject for all other types
+            MERROR_VER("Unexpected Null rctSig type");
+            return false;
+          case rct::RCTTypeSimple:
+          case rct::RCTTypeSimpleBulletproof:
+            if (!rct::verRctSimple(rv, true))
+            {
+              MERROR_VER("rct signature semantics check failed");
+              return false;
+            }
+            break;
+          case rct::RCTTypeFull:
+          case rct::RCTTypeFullBulletproof:
+            if (!rct::verRct(rv, true))
+            {
+              MERROR_VER("rct signature semantics check failed");
+              return false;
+            }
+            break;
+          default:
+            MERROR_VER("Unknown rct type: " << rv.type);
+            return false;
+        }
+      }
+      else if (tx.version == transaction::version_3_deregister_tx)
+      {
+        // TODO(doyle): Version should only be valid from the hardfork height
+        tx_extra_service_node_deregister deregister;
+        if (!get_service_node_deregister_from_tx_extra(tx.extra, deregister))
+        {
+          MERROR_VER("TX version partial_deregister_tx or deregister_tx did not contain deregister data");
           return false;
-        case rct::RCTTypeSimple:
-        case rct::RCTTypeSimpleBulletproof:
-          if (!rct::verRctSimple(rv, true))
+        }
+
+        // Check service node to deregister is valid
+        {
+          auto xx__is_service_node_registered = ([](uint64_t block_height, uint32_t service_node_index) -> bool {
+            // Check service_node_index is in list bounds
+            // MERROR_VER("TX version deregister_tx specifies invalid service node index: " << deregister.service_node_index << ", value must be between [0, " << quorum.size() << "]");
+            return true;
+          });
+
+          if (!xx__is_service_node_registered(deregister.block_height, deregister.service_node_index))
           {
-            MERROR_VER("rct signature semantics check failed");
+            MERROR_VER("TX version 3 deregister_tx trying to deregister a non-active node");
             return false;
           }
-          break;
-        case rct::RCTTypeFull:
-        case rct::RCTTypeFullBulletproof:
-          if (!rct::verRct(rv, true))
-          {
-            MERROR_VER("rct signature semantics check failed");
-            return false;
-          }
-          break;
-        default:
-          MERROR_VER("Unknown rct type: " << rv.type);
+        }
+
+        uint32_t quorum_size;
+        if (!get_quorum_list_size_for_height(deregister.block_height, quorum_size))
+        {
+          MERROR_VER("TX version 3 deregister_tx could not get quorum for height: " << deregister.block_height);
           return false;
+        }
+
+        if (deregister.votes.size() != quorum_size)
+        {
+          MERROR_VER("TX version 3 deregister_tx requires the number of voters to match: " << deregister.votes.size() << ", which does not match quorum size: " << quorum_size);
+          return false;
+        }
       }
     }
 
@@ -996,6 +1035,30 @@ namespace cryptonote
     if (keeped_by_block)
       get_blockchain_storage().on_new_tx_from_block(tx);
 
+    if (tx.version == transaction::version_3_deregister_tx)
+    {
+      tx_extra_service_node_deregister deregister;
+      if (!get_service_node_deregister_from_tx_extra(tx.extra, deregister))
+      {
+        LOG_PRINT_L1("TX version deregister_tx did not contain deregister data");
+        return false;
+      }
+
+      std::vector<crypto::public_key> quorum;
+      if (!get_quorum_list_for_height(deregister.block_height, quorum))
+      {
+        LOG_PRINT_L1("TX version 3 deregister_tx could not get quorum for height: " << deregister.block_height);
+        return false;
+      }
+
+      if (!loki::service_node_deregister::verify(deregister, tvc.m_vote_ctx, quorum))
+      {
+        tvc.m_verifivation_failed = true;
+        LOG_PRINT_L1("tx " << tx_hash << ": version 3 deregister_tx signed votes do not validate with the spend keys in the quorum.");
+        return false;
+      }
+    }
+
     if(m_mempool.have_tx(tx_hash))
     {
       LOG_PRINT_L2("tx " << tx_hash << "already have transaction in tx_pool");
@@ -1041,8 +1104,27 @@ namespace cryptonote
       LOG_ERROR("Failed to parse relayed transaction");
       return;
     }
+
     txs.push_back(std::make_pair(tx_hash, std::move(tx_blob)));
     m_mempool.set_relayed(txs);
+  }
+  //-----------------------------------------------------------------------------------------------
+  void core::set_deregister_vote_relayed(const std::vector<loki::service_node_deregister::vote>& votes)
+  {
+    m_deregister_vote_pool.set_relayed(votes);
+  }
+  //-----------------------------------------------------------------------------------------------
+  bool core::relay_deregister_vote()
+  {
+    NOTIFY_NEW_DEREGISTER_VOTE::request req;
+    req.votes = m_deregister_vote_pool.get_relayable_votes();
+    if (!req.votes.empty())
+    {
+      cryptonote_connection_context fake_context = AUTO_VAL_INIT(fake_context);
+      get_protocol()->relay_deregister_vote(req, fake_context);
+    }
+
+    return true;
   }
   //-----------------------------------------------------------------------------------------------
   bool core::get_block_template(block& b, const account_public_address& adr, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce)
@@ -1217,8 +1299,14 @@ namespace cryptonote
       return false;
     }
     add_new_block(b, bvc);
-    if(update_miner_blocktemplate && bvc.m_added_to_main_chain)
-       update_miner_block_template();
+
+    if (bvc.m_added_to_main_chain)
+    {
+      m_deregister_vote_pool.remove_expired_votes(get_current_blockchain_height());
+
+      if(update_miner_blocktemplate)
+         update_miner_block_template();
+    }
     return true;
 
     CATCH_ENTRY_L0("core::handle_incoming_block()", false);
@@ -1358,6 +1446,7 @@ namespace cryptonote
 
     m_fork_moaner.do_call(boost::bind(&core::check_fork_time, this));
     m_txpool_auto_relayer.do_call(boost::bind(&core::relay_txpool_transactions, this));
+    m_deregisters_auto_relayer.do_call(boost::bind(&core::relay_deregister_vote, this));
     m_check_updates_interval.do_call(boost::bind(&core::check_updates, this));
     m_check_disk_space_interval.do_call(boost::bind(&core::check_disk_space, this));
     m_miner.on_idle();
@@ -1559,6 +1648,103 @@ namespace cryptonote
     boost::filesystem::path path(m_config_folder);
     boost::filesystem::space_info si = boost::filesystem::space(path);
     return si.available;
+  }
+  //-----------------------------------------------------------------------------------------------
+  static std::vector<crypto::public_key> xx__get_service_nodes_pub_keys_for_height(uint64_t height)
+  {
+      loki::xx__service_node::init();
+
+      (void)height; // TODO(doyle): Mock function needs to be implemented
+      std::vector<crypto::public_key> result;
+      result.resize(loki::xx__service_node::public_spend_keys.size());
+      for (size_t i = 0; i < result.size(); i++)
+      {
+        result[i] = loki::xx__service_node::public_spend_keys[i];
+      }
+
+      return result;
+  }
+  //-----------------------------------------------------------------------------------------------
+  bool core::get_quorum_list_size_for_height(uint64_t height, uint32_t &quorum_size) const
+  {
+    (void)height;
+    quorum_size = 10;
+    return true;
+  }
+  //-----------------------------------------------------------------------------------------------
+  bool core::get_quorum_list_for_height(uint64_t height, std::vector<crypto::public_key>& quorum) const
+  {
+    const std::vector<crypto::public_key> pub_keys = xx__get_service_nodes_pub_keys_for_height(height);
+    const crypto::hash  block_hash = get_block_id_by_height(height);
+
+    if (block_hash == crypto::null_hash)
+    {
+      LOG_ERROR("Block height: " << height << " returned null hash");
+      return false;
+    }
+
+    // Generate index mapping to pub_keys
+    std::vector<size_t> pub_keys_indexes;
+    {
+      pub_keys_indexes.reserve(pub_keys.size());
+      for (size_t i = 0; i < pub_keys.size(); i++) pub_keys_indexes.push_back(i);
+    }
+
+    uint32_t xx__quorum_size;
+    if (!get_quorum_list_size_for_height(height, xx__quorum_size))
+    {
+      LOG_ERROR("Could not determine quorum list size for height: " << height);
+      return false;
+    }
+
+    // Shuffle indexes and pull out from quorum
+    quorum.resize(xx__quorum_size);
+    if (0) // TODO(doyle): Temp. For debugging with deterministic lists
+    {
+      // TODO(doyle): We should use more of the data from the hash
+      uint64_t seed = 0;
+      std::memcpy(&seed, block_hash.data, std::min(sizeof(seed), sizeof(block_hash.data)));
+
+      std::mt19937_64 mersenne_twister(seed);
+      std::shuffle(pub_keys_indexes.begin(), pub_keys_indexes.end(), mersenne_twister);
+    }
+
+    for (size_t i = 0; i < quorum.size(); i++)
+      quorum[i] = pub_keys[pub_keys_indexes[i]];
+
+    return true;
+  }
+  //-----------------------------------------------------------------------------------------------
+  bool core::add_deregister_vote(const loki::service_node_deregister::vote& vote, vote_verification_context &vvc)
+  {
+    std::vector<crypto::public_key> quorum;
+    if (!get_quorum_list_for_height(vote.block_height, quorum))
+    {
+      vvc.m_verification_failed  = true;
+      vvc.m_invalid_block_height = true;
+      LOG_ERROR("Could not get quorum for height: " << vote.block_height);
+      return false;
+    }
+
+    cryptonote::transaction deregister_tx;
+    bool result = m_deregister_vote_pool.add_vote(vote, vvc, quorum, deregister_tx);
+    if (result && vvc.m_full_tx_deregister_made)
+    {
+      tx_verification_context tvc;
+      blobdata const tx_blob = tx_to_blob(deregister_tx);
+
+      handle_incoming_tx(tx_blob, tvc, false /*keeped_by_block*/, false /*relayed*/, false /*do_not_relay*/);
+      if (!tvc.m_verifivation_failed)
+      {
+        // TODO(doyle): logging
+      }
+      else
+      {
+        printf("Full deregister tx submitted for block height (%zu) snode (%d)\n", vote.block_height, vote.service_node_index);
+      }
+    }
+
+    return result;
   }
   //-----------------------------------------------------------------------------------------------
   std::time_t core::get_start_time() const

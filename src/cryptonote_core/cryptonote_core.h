@@ -41,6 +41,7 @@
 #include "common/download.h"
 #include "common/threadpool.h"
 #include "common/command_line.h"
+#include "service_node_deregister.h"
 #include "tx_pool.h"
 #include "blockchain.h"
 #include "cryptonote_basic/miner.h"
@@ -209,6 +210,10 @@ namespace cryptonote
       */
      virtual void on_transaction_relayed(const cryptonote::blobdata& tx);
 
+     /**
+      * @brief mark the deregister vote as having been relayed in the vote pool
+      */
+     virtual void set_deregister_vote_relayed(const std::vector<loki::service_node_deregister::vote>& votes);
 
      /**
       * @brief gets the miner instance
@@ -773,6 +778,35 @@ namespace cryptonote
       */
      bool offline() const { return m_offline; }
 
+     /**
+      * @brief Get the deterministic list of service node's public keys for quorum testing
+      *
+      * @param height Block height to deterministically recreate the quorum list from
+      * @param quorum The quorum entries are put into this param
+
+      * @return Whether the list could be made
+      */
+     bool get_quorum_list_for_height(uint64_t height, std::vector<crypto::public_key>& quorum) const;
+
+     /**
+      * @brief Get the size of the deterministic list of service node's public keys for quorum testing
+      *
+      * @param height Block height to deterministically get the size from
+      * @param quorum_size The size of the list is put into this param
+
+      * @return Whether the list size could be determined
+      */
+     bool get_quorum_list_size_for_height(uint64_t block_height, uint32_t &quorum_size) const;
+
+     /**
+      * @brief Add a vote to deregister a service node from network
+      *
+      * @param vote The vote for deregistering a service node.
+
+      * @return Whether the vote was added to the partial deregister pool
+      */
+     bool add_deregister_vote(const loki::service_node_deregister::vote& vote, vote_verification_context &vvc);
+
    private:
 
      /**
@@ -926,6 +960,13 @@ namespace cryptonote
      bool relay_txpool_transactions();
 
      /**
+      * @brief attempt to relay the pooled deregister votes
+      *
+      * @return true, necessary for binding this function to a periodic invoker
+      */
+     bool relay_deregister_vote();
+
+     /**
       * @brief checks DNS versions
       *
       * @return true on success, false otherwise
@@ -943,6 +984,7 @@ namespace cryptonote
 
      uint64_t m_test_drop_download_height = 0; //!< height under which to drop incoming blocks, if doing so
 
+     loki::deregister_vote_pool m_deregister_vote_pool;
      tx_memory_pool m_mempool; //!< transaction pool instance
      Blockchain m_blockchain_storage; //!< Blockchain instance
 
@@ -961,6 +1003,7 @@ namespace cryptonote
      epee::math_helper::once_a_time_seconds<60*60*12, false> m_store_blockchain_interval; //!< interval for manual storing of Blockchain, if enabled
      epee::math_helper::once_a_time_seconds<60*60*2, true> m_fork_moaner; //!< interval for checking HardFork status
      epee::math_helper::once_a_time_seconds<60*2, false> m_txpool_auto_relayer; //!< interval for checking re-relaying txpool transactions
+     epee::math_helper::once_a_time_seconds<60*2, false> m_deregisters_auto_relayer; //!< interval for checking re-relaying deregister votes
      epee::math_helper::once_a_time_seconds<60*60*12, true> m_check_updates_interval; //!< interval for checking for new versions
      epee::math_helper::once_a_time_seconds<60*10, true> m_check_disk_space_interval; //!< interval for checking for disk space
 
