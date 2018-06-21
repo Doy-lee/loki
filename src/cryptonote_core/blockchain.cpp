@@ -101,8 +101,9 @@ static const struct {
 } testnet_hard_forks[] = {
   // version 7 from the start of the blockchain, inhereted from Monero testnet
   { 7, 1, 0, 1512211236 },
+  { 8, 45, 0, 1526628233 },
 };
-static const uint64_t testnet_hard_fork_version_1_till = 624633;
+static const uint64_t testnet_hard_fork_version_1_till = 0;
 
 static const struct {
   uint8_t version;
@@ -760,6 +761,23 @@ bool Blockchain::get_block_by_hash(const crypto::hash &h, block &blk, bool *orph
   return false;
 }
 //------------------------------------------------------------------
+static bool check_block_version(network_type type, int version, uint64_t height)
+{
+  if (type == TESTNET)
+  {
+    size_t size = sizeof(testnet_hard_forks)/sizeof(testnet_hard_forks[0]) - 1;
+    for (size_t i = size; i > 0; i--)
+    {
+      if (height >= testnet_hard_forks[i].height)
+      {
+        return (version == testnet_hard_forks[i].version);
+      }
+    }
+  }
+
+  return (version == 7); // TODO(doyle): Verify what this does, I just changed it so it works for now
+}
+//------------------------------------------------------------------
 // This function aggregates the cumulative difficulties and timestamps of the
 // last DIFFICULTY_BLOCKS_COUNT blocks and passes them to next_difficulty,
 // returning the result of that call.  Ignores the genesis block, and can use
@@ -785,7 +803,7 @@ difficulty_type Blockchain::get_difficulty_for_next_block()
   auto height = m_db->height();
 
   uint8_t version = get_current_hard_fork_version();
-  assert(version == 7);
+  assert(check_block_version(m_nettype, version, height));
   size_t difficulty_blocks_count = DIFFICULTY_BLOCKS_COUNT_V2;
 
   // ND: Speedup
@@ -982,7 +1000,8 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std:
   std::vector<difficulty_type> cumulative_difficulties;
   uint8_t version = get_current_hard_fork_version();
   size_t difficulty_blocks_count;
-  assert(version==7);
+
+  assert(check_block_version(m_nettype, version, bei.height));
   difficulty_blocks_count = DIFFICULTY_BLOCKS_COUNT_V2;
 
   // if the alt chain isn't long enough to calculate the difficulty target
