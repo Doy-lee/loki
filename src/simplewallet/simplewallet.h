@@ -335,6 +335,8 @@ namespace cryptonote
       std::chrono::system_clock::time_point m_print_time;
     };
 
+    bool xx__deregister_service_node(const std::vector<std::string> &args);
+
   private:
     std::string m_wallet_file;
     std::string m_generate_new;

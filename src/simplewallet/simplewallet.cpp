@@ -2430,6 +2430,10 @@ simple_wallet::simple_wallet()
                            boost::bind(&simple_wallet::help, this, _1),
                            tr("help [<command>]"),
                            tr("Show the help section or the documentation about a <command>."));
+  m_cmd_binder.set_handler("xx__deregister_service_node",
+                           boost::bind(&simple_wallet::xx__deregister_service_node, this, _1),
+                           tr("xx__deregister_service_node <partial|full> <height> <node id>"),
+                           tr("Submit a deregistration transaction for the given node id."));
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::set_variable(const std::vector<std::string> &args)
@@ -8294,3 +8298,137 @@ int main(int argc, char* argv[])
   //CATCH_ENTRY_L0("main", 1);
 }
 
+bool simple_wallet::xx__deregister_service_node(const std::vector<std::string> &args_)
+{
+  // xx__deregister_node <partial|full> <height> <node id>
+
+  if (args_.size() != 3)
+  {
+    fail_msg_writer() << "expected 3 arguments, received: " << args_.size();
+    return true;
+  }
+
+  srand(time(NULL));
+  uint64_t block_height = boost::lexical_cast<uint64_t>(args_[1]);
+  const std::string &kick_service_node_pubkey = args_[2];
+#if 0
+  {
+    std::string err;
+    block_height = std::max((get_daemon_blockchain_height(err) - 5 /*Always use 5 blocks back*/), (uint64_t)0);
+    if (!err.empty())
+    {
+      fail_msg_writer() << tr("failed to get blockchain height: ") << err;
+      return true;
+    }
+  }
+#endif
+
+  COMMAND_RPC_GET_QUORUM_STATE::response res;
+  {
+    COMMAND_RPC_GET_QUORUM_STATE::request req = AUTO_VAL_INIT(req);
+    req.height = block_height;
+
+    bool r = m_wallet->invoke_http_json("/get_quorum_state", req, res);
+    const std::string err = interpret_rpc_response(r, res.status);
+
+    if (!err.empty())
+    {
+      fail_msg_writer() << tr("Failed to retrieve quorum: ") << err;
+      return true;
+    }
+  }
+
+  if (args_[0] == "full")
+  {
+    tools::wallet2::pending_tx ptx;
+    ptx.tx.unlock_time = 0;
+    ptx.tx.version = transaction::version_3_per_output_unlock_times;
+    ptx.tx.is_deregister = true;
+
+    tx_extra_service_node_deregister deregister = {};
+    deregister.block_height = block_height;
+
+    bool found_service_node_in_nodes_to_test    = false;
+    for (size_t i = 0; i < res.nodes_to_test.size(); i++)
+    {
+      const std::string &entry_str = res.nodes_to_test[i];
+      if (entry_str == kick_service_node_pubkey)
+      {
+        deregister.service_node_index       = i;
+        found_service_node_in_nodes_to_test = true;
+        break;
+      }
+    }
+
+    if (!found_service_node_in_nodes_to_test)
+    {
+      fail_msg_writer() << tr("Failed to find service node in quorum: ") << kick_service_node_pubkey;
+      return true;
+    }
+
+    for (size_t i = 0; i < res.quorum_nodes.size(); i++)
+    {
+      tx_extra_service_node_deregister::vote vote;
+      vote.voters_quorum_index = i;
+
+#if 0
+      crypto::public_key public_spend_key;
+      epee::string_tools::hex_to_pod(res.quorum_nodes[i], public_spend_key);
+      vote.signature = loki::service_node_deregister::sign_vote(deregister.block_height,
+                                                                deregister.service_node_index,
+                                                                public_spend_key,
+                                                                secret_key);
+#else
+      memset((void *)&vote.signature, 'X', sizeof(vote.signature));
+#endif
+      deregister.votes.push_back(vote);
+    }
+
+    if (!add_service_node_deregister_to_tx_extra(ptx.tx.extra, deregister))
+    {
+      fail_msg_writer() << tr("Failed to add service node deregister to tx_extra");
+      return false;
+    }
+
+    try
+    {
+      m_wallet->commit_tx(ptx);
+    }
+    catch (const std::exception &e)
+    {
+      handle_transfer_exception(std::current_exception(), is_daemon_trusted());
+    }
+  }
+  else if (args_[0] == "partial")
+  {
+    loki::service_node_deregister::vote vote = {};
+    vote.block_height                        = block_height;
+    vote.service_node_index                  = rand() % res.nodes_to_test.size();
+    vote.voters_quorum_index                 = rand() % res.quorum_nodes.size();
+
+    crypto::secret_key secret_spend_key = crypto::null_skey;
+    crypto::public_key public_spend_key;
+    epee::string_tools::hex_to_pod(res.quorum_nodes[vote.voters_quorum_index], public_spend_key);
+#if 0
+    vote.signature = loki::service_node_deregister::sign_vote(vote.block_height, vote.service_node_index, public_spend_key, secret_key);
+#else
+      memset((void *)&vote.signature, 'X', sizeof(vote.signature));
+#endif
+
+    try
+    {
+      m_wallet->commit_deregister_vote(vote);
+    }
+    catch (const std::exception &e)
+    {
+      handle_transfer_exception(std::current_exception(), is_daemon_trusted());
+    }
+  }
+  else
+  {
+    fail_msg_writer() << "expected 3 arguments, received: " << args_.size();
+    return true;
+  }
+
+  return true;
+}
