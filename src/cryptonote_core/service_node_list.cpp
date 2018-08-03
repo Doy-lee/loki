@@ -148,6 +148,27 @@ namespace service_nodes
     return m_service_nodes_infos.find(pubkey) != m_service_nodes_infos.end();
   }
 
+  bool is_service_node_and_funded(const crypto::public_key& pubkey, uint64_t* staking_requirement, uint64_t* curr_contributions) const
+  {
+    auto it = m_service_nodes_infos.find(pubkey);
+    bool result = (it != m_service_nodes_infos.end());
+    if (result)
+    {
+      const service_node_info &info = it->second;
+      if (staking_requirement)
+      {
+        *staking_requirement = info.staking_requirement;
+      }
+
+      if (curr_contributions)
+      {
+        *curr_contributions = info.total_contributions;
+      }
+    }
+
+    return result;
+  }
+
   bool service_node_list::contribution_tx_output_has_correct_unlock_time(const cryptonote::transaction& tx, size_t i, uint64_t block_height) const
   {
     uint64_t unlock_time = tx.unlock_time;
