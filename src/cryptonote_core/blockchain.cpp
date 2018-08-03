@@ -2848,6 +2848,37 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
   if (tx.version == 1 && threads > 1)
     waiter.wait();
 
+  {
+    cryptonote::account_public_address address;
+    crypto::public_key service_node;
+
+    if (get_service_node_contributor_from_tx_extra(tx.extra, address))
+    {
+      if (tx.version < tx.version_3_per_output_unlock_times)
+      {
+        MERROR_VER("Service node contribution failed with invalid version");
+        return false;
+      }
+
+      crypto::public_key service_node_key;
+      if (get_service_node_pubkey_from_tx_extra(tx.extra, service_node_key))
+      {
+        MERROR_VER("Service node contribution does not have a pubkey associated");
+        return false;
+      }
+
+      {
+        cyrpto::public_key registration_service_node_key;
+        time_t now = time(nullptr);
+        uint32_t invalid_index = UINT32_MAX;
+        uint64_t height = get_current_blockchain_height();
+        if (!m_service_node_list.is_registration_tx(tx, now, invalid_index, height, ) || is)
+        {
+        }
+      }
+    }
+  }
+
   if (tx.version == 1)
   {
     if (threads > 1)

@@ -68,6 +68,7 @@ namespace service_nodes
     crypto::public_key select_winner(const crypto::hash& prev_id) const;
 
     bool is_service_node(const crypto::public_key& pubkey) const;
+    bool is_service_node_funded(const crypto::public_key& pubkey) const {}
     const std::shared_ptr<quorum_state> get_quorum_state(uint64_t height) const;
 
   private:
