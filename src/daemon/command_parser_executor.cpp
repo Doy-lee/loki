@@ -146,13 +146,41 @@ bool t_command_parser_executor::print_quorum_state(const std::vector<std::string
 
 bool t_command_parser_executor::get_service_node_registration_cmd(const std::vector<std::string>& args)
 {
-  if (args.empty() || args.size() % 2 != 0)
+  std::vector<std::string> addresses;
+  std::vector<std::string> portions;
+  std::string const *operator_cut = nullptr;
+  uint64_t initial_contribution = 0;
+
+  bool failed = true;
+  if (args.size() >= 2)
   {
-    std::cout << "Invalid number of arguments received, expected an even number of arguments and > 0, received: " << args.size() << std::endl;
+    if(!epee::string_tools::get_xtype_from_string(initial_contribution, args[args.size() - 1]))
+    {
+      std::cout << "wrong initial contribution parameter at arg index: " << args.size() - 1 << std::endl;
+      return false;
+    }
+
+    operator_cut = &args[0];
+    size_t remaining_size = args.size() - 2 /*initial_contribution & operator_cut*/;
+    if (remaining_size % 2 == 0)
+    {
+      failed = false;
+      for (size_t i = 1; i < remaining_size; i+=2)
+      {
+        addresses.push_back(args[i]);
+        portions.push_back(args[i+1]);
+      }
+    }
+  }
+
+  if (failed)
+  {
+    std::cout << "args is not in the format of <operator_cut> <address> <portion> [[<address> <portion>] ...] initial_contribution" << std::endl;
+    std::cout << "                                [0..1]                 [0..1]                 [0..1]             [loki amount]"    << std::endl;
     return false;
   }
 
-  bool result = m_executor.get_service_node_registration_cmd(args);
+  bool result = m_executor.get_service_node_registration_cmd(addresses, portions, *operator_cut, initial_contribution, true /*make_friendly*/);
   return result;
 }
 

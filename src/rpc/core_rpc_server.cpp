@@ -2329,10 +2329,32 @@ namespace cryptonote
       return false;
     }
 
-    if (!service_nodes::make_registration_cmd(m_core.get_nettype(), req.args, service_node_pubkey, service_node_key, res.registration_cmd, req.make_friendly))
+    if (req.addresses.size() != req.portions.size())
     {
       error_resp.code    = CORE_RPC_ERROR_CODE_WRONG_PARAM;
-      error_resp.message = "Failed to make registration command";
+      error_resp.message = "The number of addresses and portions must be the same, received respectively: ";
+      error_resp.message += std::to_string(req.addresses.size());
+      error_resp.message += ", ";
+      error_resp.message += std::to_string(req.portions.size());
+      return false;
+    }
+
+    std::vector<std::string> args;
+    args.reserve(1 /*operator_cut*/ + req.addresses.size() + req.portions.size() + 1 /*initial_contribution*/);
+
+    args.push_back(req.operator_cut);
+    for (size_t i = 0; i < req.addresses.size(); ++i)
+    {
+      args.push_back(req.addresses[i]);
+      args.push_back(req.portions[i]);
+    }
+    args.push_back(std::to_string(req.initial_contribution));
+
+    if (!service_nodes::make_registration_cmd(m_core.get_nettype(), args, service_node_pubkey, service_node_key, res.registration_cmd, req.make_friendly))
+    {
+      error_resp.code    = CORE_RPC_ERROR_CODE_WRONG_PARAM;
+      error_resp.message = "Failed to make registration command: ";
+      error_resp.message += res.registration_cmd;
       return false;
     }
 

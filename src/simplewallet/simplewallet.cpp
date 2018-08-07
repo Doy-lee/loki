@@ -4895,7 +4895,7 @@ bool simple_wallet::register_service_node(const std::vector<std::string> &args_)
 
   if (local_args.size() < 4)
   {
-    fail_msg_writer() << tr("Usage: register_service_node [index=<N1>[,<N2>,...]] [priority] <operator cut> <address1> <fraction1> [<address2> <fraction2> [...]] <amount> <expiration timestamp> <service node pubkey> <signature>");
+    fail_msg_writer() << tr("Usage: register_service_node [index=<N1>[,<N2>,...]] [priority] [<address1> <fraction1> [<address2> <fraction2> [...]]] <amount> <expiration timestamp> <service node pubkey> <signature> <amount>");
     fail_msg_writer() << tr("");
     fail_msg_writer() << tr("Prepare this command with the service node using:");
     fail_msg_writer() << tr("");

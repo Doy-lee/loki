@@ -2375,10 +2375,16 @@ namespace cryptonote
   {
     struct request
     {
-      std::vector<std::string> args;
+      std::string operator_cut;
+      std::vector<std::string> addresses;
+      std::vector<std::string> portions;
+      uint64_t initial_contribution;
       bool make_friendly; // Provide information about how to use the command in the result
       BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE(args)
+        KV_SERIALIZE(operator_cut)
+        KV_SERIALIZE(addresses)
+        KV_SERIALIZE(portions)
+        KV_SERIALIZE(initial_contribution)
         KV_SERIALIZE(make_friendly)
       END_KV_SERIALIZE_MAP()
     };

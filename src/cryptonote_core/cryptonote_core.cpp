@@ -1783,9 +1783,11 @@ namespace cryptonote
 
     std::string registration;
     r = service_nodes::make_registration_cmd(get_nettype(), args, m_service_node_pubkey, m_service_node_key, registration, true /*make_friendly*/);
-    CHECK_AND_ASSERT_MES(r, "", tr("Failed to make registration command"));
+    if (!r)
+      std::cout << "Failed to make registration command" << std::endl;
+
     std::cout << registration << std::endl;
-    return true;
+    return r;
   }
   //-----------------------------------------------------------------------------------------------
   std::time_t core::get_start_time() const

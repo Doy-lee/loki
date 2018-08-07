@@ -793,21 +793,29 @@ namespace service_nodes
     return false;
   }
 
-  bool convert_registration_args(cryptonote::network_type nettype, const std::vector<std::string>& args, std::vector<cryptonote::account_public_address>& addresses, std::vector<uint32_t>& portions, uint32_t& portions_for_operator, uint64_t& initial_contribution)
+  bool convert_registration_args(cryptonote::network_type nettype, const std::vector<std::string>& args, std::vector<cryptonote::account_public_address>& addresses, std::vector<uint32_t>& portions, uint32_t& portions_for_operator, uint64_t& initial_contribution, std::string *error)
   {
+    std::stringstream stream;
+
     if (args.size() % 2 == 1)
     {
-      MERROR(tr("Expected an even number of arguments: <operator cut> <address> <fraction> [<address> <fraction> [...]]] <initial contribution>"));
+      stream << tr("Expected an even number of arguments: <operator cut> <address> <fraction> [<address> <fraction> [...]]] <initial contribution>");
+      if (error) *error = stream.str();
+      MERROR(stream.str());
       return false;
     }
     if (args.size() < 4)
     {
-      MERROR(tr("Usage: <operator cut> <address> <fraction> [<address> <fraction> [...]]] <initial contribution>"));
+      stream << tr("Usage: <operator cut> <address> <fraction> [<address> <fraction> [...]]] <initial contribution>");
+      if (error) *error = stream.str();
+      MERROR(stream.str());
       return false;
     }
     if ((args.size()-2)/ 2 > MAX_NUMBER_OF_CONTRIBUTORS)
     {
-      MERROR(tr("Exceeds the maximum number of contributors, which is ") << MAX_NUMBER_OF_CONTRIBUTORS);
+      stream << tr("Exceeds the maximum number of contributors, which is ") << MAX_NUMBER_OF_CONTRIBUTORS;
+      if (error) *error = stream.str();
+      MERROR(stream.str());
       return false;
     }
     addresses.clear();
@@ -817,35 +825,46 @@ namespace service_nodes
       double portion_fraction = boost::lexical_cast<double>(args[0]);
       if (portion_fraction < 0 || portion_fraction > 1)
       {
-        MERROR(tr("Invalid portion amount: ") << args[0] << tr(". ") << tr("Must be between 0 and 1"));
+        stream << tr("Invalid operator cut amount: ") << args[0] << tr(". ") << tr("Must be between 0 and 1");
+        if (error) *error = stream.str();
+        MERROR(stream.str());
         return false;
       }
       portions_for_operator = STAKING_PORTIONS * portion_fraction;
     }
     catch (const std::exception &e)
     {
-      MERROR(tr("Invalid portion amount: ") << args[0] << tr(". ") << tr("Must be between 0 and 1"));
+      stream << tr("Invalid operator cut amount: ") << args[0] << tr(". ") << tr("Must be between 0 and 1");
+      if (error) *error = stream.str();
+      MERROR(stream.str());
       return false;
     }
     uint64_t total_portions = 0;
     for (size_t i = 1; i < args.size()-1; i += 2)
     {
       cryptonote::address_parse_info info;
-      if (!cryptonote::get_account_address_from_str(info, nettype, args[i]))
+      const std::string &addr = args[i];
+      if (!cryptonote::get_account_address_from_str(info, nettype, addr))
       {
-        MERROR(tr("failed to parse address"));
+        stream << tr("failed to parse address") << args[i];
+        if (error) *error = stream.str();
+        MERROR(stream.str());
         return false;
       }
 
       if (info.has_payment_id)
       {
-        MERROR(tr("can't use a payment id for staking tx"));
+        stream << tr("can't use a payment id for staking tx from address: ") << addr;
+        if (error) *error = stream.str();
+        MERROR(stream.str());
         return false;
       }
 
       if (info.is_subaddress)
       {
-        MERROR(tr("can't use a subaddress for staking tx"));
+        stream << tr("can't use a subaddress for staking tx from addres: ") << addr;
+        if (error) *error = stream.str();
+        MERROR(stream.str());
         return false;
       }
 
@@ -856,7 +875,9 @@ namespace service_nodes
         double portion_fraction = boost::lexical_cast<double>(args[i+1]);
         if (portion_fraction < 1.0 / MAX_NUMBER_OF_CONTRIBUTORS || portion_fraction > 1)
         {
-          MERROR(tr("Invalid portion amount: ") << args[i+1] << tr(". ") << tr("Must be at least ") << (1.0 / MAX_NUMBER_OF_CONTRIBUTORS) << " and no more than 1");
+          stream << tr("Invalid portion amount: ") << args[i+1] << tr(". ") << tr("Must be at least ") << (1.0 / MAX_NUMBER_OF_CONTRIBUTORS) << tr(" and no more than 1");
+          if (error) *error = stream.str();
+          MERROR(stream.str());
           return false;
         }
         uint32_t num_portions = STAKING_PORTIONS * portion_fraction;
@@ -865,21 +886,27 @@ namespace service_nodes
       }
       catch (const std::exception &e)
       {
-        MERROR(tr("Invalid portion amount: ") << args[i+1] << tr(". ") << tr("Must be at least ") << (1.0 / MAX_NUMBER_OF_CONTRIBUTORS) << " and no more than 1");
+        stream << tr("Invalid portion amount: ") << args[i+1] << tr(". ") << tr("Must be at least ") << (1.0 / MAX_NUMBER_OF_CONTRIBUTORS) << " and no more than 1";
+        if (error) *error = stream.str();
+        MERROR(stream.str());
         return false;
       }
     }
     if (!cryptonote::parse_amount(initial_contribution, args.back()) || initial_contribution == 0)
     {
-      MERROR(tr("amount is wrong: ") << args.back() <<
+      stream << tr("amount is wrong: ") << args.back() <<
         ", " << tr("expected number from ") << cryptonote::print_money(1) <<
-        " to " << cryptonote::print_money(std::numeric_limits<uint64_t>::max()));
+        " to " << cryptonote::print_money(std::numeric_limits<uint64_t>::max());
+      if (error) *error = stream.str();
+      MERROR(stream.str());
       return true;
     }
     if (total_portions > (uint64_t)STAKING_PORTIONS)
     {
-      MERROR(tr("Invalid portion amounts, portions must sum to at most 1."));
-      MERROR(tr("If it looks correct,  this may be because of rounding. Try reducing one of the portionholders portions by a very tiny amount"));
+      stream << tr("Invalid portion amounts, portions must sum to at most 1.");
+      stream << tr("If it looks correct,  this may be because of rounding. Try reducing one of the portionholders portions by a very tiny amount");
+      if (error) *error = stream.str();
+      MERROR(stream.str());
       return false;
     }
 
@@ -887,47 +914,49 @@ namespace service_nodes
   }
 
   bool make_registration_cmd(cryptonote::network_type nettype, const std::vector<std::string> args, const crypto::public_key& service_node_pubkey,
-                             const crypto::secret_key service_node_key, std::string &cmd, bool make_friendly)
+                             const crypto::secret_key service_node_key, std::string &resp, bool make_friendly)
   {
+    resp.clear();
 
     std::vector<cryptonote::account_public_address> addresses;
     std::vector<uint32_t> portions;
     uint64_t initial_contribution;
     uint32_t operator_portions;
-    if (!convert_registration_args(nettype, args, addresses, portions, operator_portions, initial_contribution))
+    if (!convert_registration_args(nettype, args, addresses, portions, operator_portions, initial_contribution, &resp))
     {
-      MERROR(tr("Could not convert registration args"));
       return false;
     }
 
+    std::stringstream stream;
     uint64_t exp_timestamp = time(nullptr) + STAKING_AUTHORIZATION_EXPIRATION_WINDOW;
 
     crypto::hash hash;
     bool hashed = cryptonote::get_registration_hash(addresses, operator_portions, portions, exp_timestamp, hash);
     if (!hashed)
     {
-      MERROR(tr("Could not make registration hash from addresses and portions"));
+      stream << (tr("Could not make registration hash from addresses and portions"));
+      resp = stream.str();
       return false;
     }
 
     crypto::signature signature;
     crypto::generate_signature(hash, service_node_pubkey, service_node_key, signature);
 
-    std::stringstream stream;
     if (make_friendly)
     {
       stream << tr("Run this command in the wallet that will fund this registration:\n\n");
     }
 
     stream << "register_service_node";
-    for (size_t i = 0; i < args.size(); ++i)
+    for (size_t i = 0; i < args.size() - 1 /*last arg is contribution*/; ++i)
     {
       stream << " " << args[i];
     }
 
     stream << " " << exp_timestamp << " ";
     stream << epee::string_tools::pod_to_hex(service_node_pubkey) << " ";
-    stream << epee::string_tools::pod_to_hex(signature);
+    stream << epee::string_tools::pod_to_hex(signature) << " ";
+    stream << args.back(); // initial contribution
 
     if (make_friendly)
     {
@@ -946,7 +975,7 @@ namespace service_nodes
       stream << tr("Please submit your registration into the blockchain before this time or it will be invalid.");
     }
 
-    cmd = stream.str();
+    resp = stream.str();
     return true;
   }
 }

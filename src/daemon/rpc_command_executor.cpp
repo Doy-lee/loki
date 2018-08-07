@@ -1985,15 +1985,18 @@ bool t_rpc_command_executor::sync_info()
     return true;
 }
 
-bool t_rpc_command_executor::get_service_node_registration_cmd(const std::vector<std::string> &args)
+bool t_rpc_command_executor::get_service_node_registration_cmd(const std::vector<std::string> &addresses, const std::vector<std::string> &portions, const std::string &operator_cut, uint64_t initial_contribution, bool make_friendly)
 {
     cryptonote::COMMAND_RPC_GET_SERVICE_NODE_REGISTRATION_CMD::request req;
     cryptonote::COMMAND_RPC_GET_SERVICE_NODE_REGISTRATION_CMD::response res;
     std::string fail_message = "Unsuccessful";
     epee::json_rpc::error error_resp;
 
-    req.args = args;
-    req.make_friendly = !m_is_rpc;
+    req.addresses            = addresses;
+    req.portions             = portions;
+    req.initial_contribution = initial_contribution;
+    req.operator_cut         = operator_cut;
+    req.make_friendly        = make_friendly;
     if (m_is_rpc)
     {
         if (!m_rpc_client->json_rpc_request(req, res, "get_service_node_registration_cmd", fail_message.c_str()))
