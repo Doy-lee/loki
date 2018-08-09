@@ -1697,6 +1697,20 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
       }
     }
 
+#if 0
+    // #xx__governance_premine_patch check last out of miner tx
+    if (miner_tx && num_vouts_received == 0)
+    {
+      size_t i = tx.vout.size() - 1;
+      check_acc_out_precomp(tx.vout[i], derivation, additional_derivations, i, tx_scan_info[i]);
+      THROW_WALLET_EXCEPTION_IF(tx_scan_info[i].error, error::acc_outs_lookup_error, tx, tx_pub_key, m_account.get_keys());
+      if (tx_scan_info[i].received)
+      {
+        scan_output(tx, tx_pub_key, i, tx_scan_info[i], num_vouts_received, tx_money_got_in_outs, outs);
+      }
+    }
+#endif
+
     if(!outs.empty())
     {
       //good news - got money! take care about it
@@ -2197,7 +2211,8 @@ void wallet2::process_new_blockchain_entry(const cryptonote::block& b, const cry
   //handle transactions from new block
     
   //optimization: seeking only for blocks that are not older then the wallet creation time plus 1 day. 1 day is for possible user incorrect time setup
-  if(b.timestamp + 60*60*24 > m_account.get_createtime() && height >= m_refresh_from_block_height)
+  // #xx__governance_premine_patch
+  if(/* b.timestamp + 60*60*24 > m_account.get_createtime() && height >= m_refresh_from_block_height */ true)
   {
     TIME_MEASURE_START(miner_tx_handle_time);
     if (m_refresh_type != RefreshNoCoinbase)
@@ -2416,7 +2431,8 @@ void wallet2::process_parsed_blocks(uint64_t start_height, const std::vector<cry
     const crypto::hash &bl_id = parsed_blocks[i].hash;
     const cryptonote::block &bl = parsed_blocks[i].block;
 
-    if(current_index >= m_blockchain.size())
+    // #xx__governance_premine_patch
+    if(current_index >= m_blockchain.size() || current_index == 0)
     {
       process_new_blockchain_entry(bl, blocks[i], parsed_blocks[i], bl_id, current_index, tx_cache_data, tx_cache_data_offset, output_tracker_cache);
       ++blocks_added;
@@ -3211,7 +3227,12 @@ void wallet2::detach_blockchain(uint64_t height)
   // size  1 2 3 4 5 6 7 8 9
   // block 0 1 2 3 4 5 6 7 8
   //               C
-  THROW_WALLET_EXCEPTION_IF(height < m_blockchain.offset() && m_blockchain.size() > m_blockchain.offset(),
+
+  // THROW_WALLET_EXCEPTION_IF(height < m_blockchain.offset() && m_blockchain.size() > m_blockchain.offset(),
+  //    error::wallet_internal_error, "Daemon claims reorg below last checkpoint");
+
+  // #xx__governance_premine_patch
+  THROW_WALLET_EXCEPTION_IF(height <= m_checkpoints.get_max_height() && m_blockchain.size() > m_checkpoints.get_max_height() && m_checkpoints.get_max_height() != 0,
       error::wallet_internal_error, "Daemon claims reorg below last checkpoint");
 
   size_t transfers_detached = 0;
@@ -3264,6 +3285,9 @@ void wallet2::detach_blockchain(uint64_t height)
     else
       ++it;
   }
+
+  // #xx__governance_premine_patch
+  m_refresh_from_block_height = height;
 
   LOG_PRINT_L0("Detached blockchain on height " << height << ", transfers detached " << transfers_detached << ", blocks detached " << blocks_detached);
 }
@@ -3977,6 +4001,15 @@ void wallet2::setup_new_blockchain()
   m_blockchain.push_back(get_block_hash(b));
   m_last_block_reward = cryptonote::get_outs_money_amount(b.miner_tx);
   add_subaddress_account(tr("Primary account"));
+
+  // #xx__governance_premine_patch
+  std::vector<uint64_t> o_indices;
+  for (size_t i=0; i < b.miner_tx.vout.size(); i++)
+    o_indices.push_back(0);
+
+  tx_cache_data tx_cache = {};
+  cache_tx_data(b.miner_tx, get_transaction_hash(b.miner_tx), tx_cache);
+  process_new_transaction(get_transaction_hash(b.miner_tx), b.miner_tx, o_indices, 0, b.timestamp, true, false, false, tx_cache, nullptr);
 }
 
 void wallet2::create_keys_file(const std::string &wallet_, bool watch_only, const epee::wipeable_string &password, bool create_address_file)
@@ -5136,6 +5169,7 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
   generate_genesis(genesis);
   crypto::hash genesis_hash = get_block_hash(genesis);
 
+  m_blockchain.clear();
   if (m_blockchain.empty())
   {
     m_blockchain.push_back(genesis_hash);
@@ -5563,6 +5597,8 @@ void wallet2::rescan_blockchain(bool hard, bool refresh)
     m_blockchain.push_back(get_block_hash(b));
     m_last_block_reward = cryptonote::get_outs_money_amount(b.miner_tx);
   }
+
+  m_refresh_from_block_height = 0;
 
   if (refresh)
     this->refresh(false);
