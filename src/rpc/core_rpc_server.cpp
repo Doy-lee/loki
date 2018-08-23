@@ -2032,6 +2032,11 @@ namespace cryptonote
   {
     PERF_TIMER(on_get_service_node_key);
 
+    // XXX: this is a hack
+    {
+      m_core.do_uptime_proof_call();
+    }
+
     crypto::public_key pubkey;
     crypto::secret_key seckey;
     bool result = m_core.get_service_node_keys(pubkey, seckey);

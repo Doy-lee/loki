@@ -2332,6 +2332,18 @@ simple_wallet::simple_wallet()
                            boost::bind(&simple_wallet::help, this, _1),
                            tr("help [<command>]"),
                            tr("Show the help section or the documentation about a <command>."));
+  m_cmd_binder.set_handler("xx__generate_service_node_keys",
+                           boost::bind(&simple_wallet::xx_generate_service_node_keys, this, _1),
+                           tr("xx__generate_service_node_keys <num_keys>"),
+                           tr("")),
+  m_cmd_binder.set_handler("xx__register_service_node",
+                           boost::bind(&simple_wallet::xx_register_service_node, this, _1),
+                           tr("xx__register_service_node"),
+                           tr("")),
+  m_cmd_binder.set_handler("xx__register_dead_service_nodes",
+                           boost::bind(&simple_wallet::xx_register_dead_service_nodes, this, _1),
+                           tr("xx_register_dead_service_nodes <num_nodes>"),
+                           tr(""));
 }
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::set_variable(const std::vector<std::string> &args)
@@ -3856,6 +3868,7 @@ bool simple_wallet::refresh_main(uint64_t start_height, bool reset, bool is_init
     if (is_init)
       print_accounts();
     show_balance_unlocked();
+
   }
   catch (const tools::error::daemon_busy&)
   {
@@ -7305,6 +7318,7 @@ bool simple_wallet::rescan_blockchain(const std::vector<std::string> &args_)
 {
   return refresh_main(0, true);
 }
+#include "dqnt_debug.cpp"
 //----------------------------------------------------------------------------------------------------
 void simple_wallet::wallet_idle_thread()
 {
@@ -7318,6 +7332,33 @@ void simple_wallet::wallet_idle_thread()
     if (m_auto_refresh_enabled)
     {
       m_auto_refresh_refreshing = true;
+
+      // XXX: Check how many dead nodes are on the network, if there's less than 10, make some.
+      {
+        const auto& response = m_wallet->get_service_nodes({});
+        int num_dead_nodes = 0;
+        for (COMMAND_RPC_GET_SERVICE_NODES::response::entry const &entry : response.service_node_states)
+        {
+          if (entry.last_uptime_proof == 0)
+            ++num_dead_nodes;
+        }
+
+        int spawn_num_dead_nodes = 0;
+        if (num_dead_nodes < xx_num_desired_dead_nodes)
+        {
+          spawn_num_dead_nodes = xx_num_desired_dead_nodes - num_dead_nodes;
+        }
+
+        if (spawn_num_dead_nodes > 0)
+        {
+          success_msg_writer(true) << "There are " << num_dead_nodes <<  " spawning extra " << spawn_num_dead_nodes << " dead nodes.";
+          xx_register_dead_service_nodes({std::to_string(spawn_num_dead_nodes)});
+        }
+
+        success_msg_writer(true) << tr("Trying to re-register my tracked service nodes that have expired");
+        xx_register_service_node({});
+      }
+
       try
       {
         uint64_t fetched_blocks;
@@ -8547,3 +8588,200 @@ int main(int argc, char* argv[])
   //CATCH_ENTRY_L0("main", 1);
 }
 
+bool simple_wallet::xx_generate_service_node_keys(const std::vector<std::string> &args)
+{
+  if (args.size() != 1)
+  {
+    fprintf(stderr, "usage: xx_generate_service_node_keys <num_keys>\n");
+    return true;
+  }
+
+  int num_keys = atoi(args[0].c_str());
+  if (num_keys <= 0)
+  {
+    return true;
+  }
+
+  std::vector<crypto::public_key> pkeys(num_keys);
+  fprintf(stdout, "\nchar const *xx_sn_secret_keys[] = \n{\n");
+  for (int i = 0; i < num_keys; i++)
+  {
+    crypto::secret_key skey;
+    crypto::generate_keys(pkeys[i], skey);
+    std::string skey_str = epee::string_tools::pod_to_hex(skey);
+    fprintf(stdout, "    \"%s\",\n", skey_str.c_str());
+  }
+  fprintf(stdout, "};\n\n");
+
+  fprintf(stdout, "char const *xx_sn_public_keys[] = \n{\n");
+  for (int i = 0; i < num_keys; i++)
+  {
+    std::string pkey_str = epee::string_tools::pod_to_hex(pkeys[i]);
+    fprintf(stdout, "    \"%s\",\n", pkey_str.c_str());
+  }
+  fprintf(stdout, "};\n");
+  return true;
+}
+
+#include <random>
+static std::random_device xx_rd;
+static std::default_random_engine xx_generator(xx_rd());
+static std::uniform_int_distribution<long long unsigned> xx_random64(0,0xFFFFFFFFFFFFFFFF);
+
+bool simple_wallet::xx_register_service_node(const std::vector<std::string> &args)
+{
+  if (args.size() != 0)
+  {
+    fprintf(stdout, "No arguments please\n");
+    return true;
+  }
+
+  if (xx_num_sn_keys == 0)
+  {
+    fprintf(stdout, "No service nodes to register\n");
+    return true;
+  }
+  else
+  {
+    fprintf(stdout, "This function manages %zu service nodes!\n", xx_num_sn_keys);
+  }
+
+  std::vector<std::string> custom_args;
+  std::vector<uint8_t> extra;
+  for (size_t i = 0; i < xx_num_sn_keys; ++i, custom_args.clear(), extra.clear())
+  {
+    {
+      uint64_t portions_for_operator = xx_random64(xx_generator);
+      custom_args.push_back(std::to_string(portions_for_operator));
+    }
+
+    std::string const my_address = m_wallet->get_address_as_str();
+    {
+      uint64_t portions_my_address = STAKING_PORTIONS;
+      int choice100 = (xx_random64(xx_generator) % 100);
+#if 0
+      if (choice100 > 90)
+      {
+        uint64_t range = STAKING_PORTIONS        * 0.4f;
+        uint64_t min_portions = STAKING_PORTIONS * 0.255f;
+        portions_my_address = min_portions + (xx_random64(xx_generator) % range);
+      }
+#endif
+
+      custom_args.push_back(my_address);
+      custom_args.push_back(std::to_string(portions_my_address)); // portions for this address
+    }
+
+    std::vector<cryptonote::account_public_address> addresses;
+    std::vector<uint64_t> portions;
+    uint64_t portions_for_operator;
+    bool autostake;
+    if (!service_nodes::convert_registration_args(m_wallet->nettype(), custom_args, addresses, portions, portions_for_operator, autostake))
+    {
+      return true;
+    }
+    autostake = false;
+
+    time_t expiration_timestamp = time(nullptr) + STAKING_AUTHORIZATION_EXPIRATION_WINDOW;
+    crypto::hash hash;
+    bool hashed = cryptonote::get_registration_hash(addresses, portions_for_operator, portions, expiration_timestamp, hash);
+    if (!hashed)
+    {
+      MERROR(tr("Could not make registration hash from addresses and portions"));
+      return false;
+    }
+
+    crypto::public_key pkey;
+    crypto::secret_key skey;
+    assert(epee::string_tools::hex_to_pod(xx_sn_public_keys[i], pkey));
+    assert(epee::string_tools::hex_to_pod(xx_sn_secret_keys[i], skey));
+
+    crypto::signature signature;
+    crypto::generate_signature(hash, pkey, skey, signature);
+
+    add_service_node_pubkey_to_tx_extra(extra, pkey);
+    if (!add_service_node_register_to_tx_extra(extra, addresses, portions_for_operator, portions, expiration_timestamp, signature))
+    {
+      fail_msg_writer() << tr("failed to serialize service node registration tx extra");
+      return true;
+    }
+
+    std::string pkey_str = epee::string_tools::pod_to_hex(pkey);
+    add_service_node_contributor_to_tx_extra(extra, m_wallet->get_account().get_keys().m_account_address);
+    std::set<uint32_t> subaddr_indices;
+    register_service_node_main({pkey_str}, expiration_timestamp, m_wallet->get_account().get_keys().m_account_address, m_wallet->adjust_priority(0), portions, extra, subaddr_indices /*subaddr_indicies*/, true /*autostake*/);
+  }
+  return true;
+}
+
+bool simple_wallet::xx_register_dead_service_nodes(const std::vector<std::string> &args)
+{
+  if (args.size() != 1)
+  {
+    fprintf(stderr, "usage: xx_generate_service_node_keys <num_keys>\n");
+    return true;
+  }
+
+  int num_nodes = atoi(args[0].c_str());
+  if (num_nodes <= 0)
+  {
+    return true;
+  }
+
+  std::vector<std::string> custom_args;
+  std::vector<uint8_t> extra;
+  for (int i = 0; i < num_nodes; ++i, custom_args.clear(), extra.clear())
+  {
+    {
+      uint64_t portions_for_operator = xx_random64(xx_generator);
+      custom_args.push_back(std::to_string(portions_for_operator));
+    }
+
+    std::string const my_address = m_wallet->get_address_as_str();
+    {
+      auto portions_my_address = STAKING_PORTIONS;
+      custom_args.push_back(my_address);
+      custom_args.push_back(std::to_string(portions_my_address)); // portions for this address
+    }
+
+    std::vector<cryptonote::account_public_address> addresses;
+    std::vector<uint64_t> portions;
+    uint64_t portions_for_operator;
+    bool autostake;
+    if (!service_nodes::convert_registration_args(m_wallet->nettype(), custom_args, addresses, portions, portions_for_operator, autostake))
+    {
+      return true;
+    }
+    autostake = false;
+
+    time_t expiration_timestamp = time(nullptr) + STAKING_AUTHORIZATION_EXPIRATION_WINDOW;
+    crypto::hash hash;
+    bool hashed = cryptonote::get_registration_hash(addresses, portions_for_operator, portions, expiration_timestamp, hash);
+    if (!hashed)
+    {
+      MERROR(tr("Could not make registration hash from addresses and portions"));
+      return false;
+    }
+
+    crypto::secret_key skey;
+    crypto::public_key pkey;
+    crypto::generate_keys(pkey, skey);
+
+    crypto::signature signature;
+    crypto::generate_signature(hash, pkey, skey, signature);
+
+    add_service_node_pubkey_to_tx_extra(extra, pkey);
+    if (!add_service_node_register_to_tx_extra(extra, addresses, portions_for_operator, portions, expiration_timestamp, signature))
+    {
+      fail_msg_writer() << tr("failed to serialize service node registration tx extra");
+      return true;
+    }
+
+    std::string pkey_str = epee::string_tools::pod_to_hex(pkey);
+    add_service_node_contributor_to_tx_extra(extra, m_wallet->get_account().get_keys().m_account_address);
+    std::set<uint32_t> subaddr_indices;
+    register_service_node_main({pkey_str}, expiration_timestamp, m_wallet->get_account().get_keys().m_account_address, m_wallet->adjust_priority(0), portions, extra, subaddr_indices /*subaddr_indicies*/, true /*autostake*/);
+  }
+
+  return true;
+}

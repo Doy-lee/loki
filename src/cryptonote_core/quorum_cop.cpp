@@ -35,6 +35,12 @@
 #undef LOKI_DEFAULT_LOG_CATEGORY
 #define LOKI_DEFAULT_LOG_CATEGORY "quorum_cop"
 
+
+#include <random>
+static std::random_device xx_rd;
+static std::default_random_engine xx_generator(xx_rd());
+static std::uniform_int_distribution<long long unsigned> xx_random64(0,0xFFFFFFFFFFFFFFFF);
+
 namespace service_nodes
 {
   quorum_cop::quorum_cop(cryptonote::core& core, service_nodes::service_node_list& service_node_list)
@@ -59,6 +65,7 @@ namespace service_nodes
     }
   }
 
+#include "dqnt_debug.cpp"
   void quorum_cop::block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs)
   {
     crypto::public_key my_pubkey;
@@ -67,13 +74,11 @@ namespace service_nodes
       return;
 
     time_t const now          = time(nullptr);
-    time_t const min_lifetime = 60 * 60 * 2;
-    bool alive_for_min_time   = (now - m_core.get_start_time()) >= min_lifetime;
+    bool alive_for_min_time   = (now - m_core.get_start_time()) >= xx_min_lifetime_before_voting_in_s;
     if (!alive_for_min_time)
     {
       return;
     }
-
     uint64_t const height        = cryptonote::get_block_height(block);
     uint64_t const latest_height = std::max(m_core.get_current_blockchain_height(), m_core.get_target_blockchain_height());
 
@@ -87,7 +92,7 @@ namespace service_nodes
     if (m_last_height < execute_justice_from_height)
       m_last_height = execute_justice_from_height;
 
-
+    auto xx_m_last_height = m_last_height;
     for (;m_last_height < (height - REORG_SAFETY_BUFFER_IN_BLOCKS); m_last_height++)
     {
       const std::shared_ptr<quorum_state> state = m_core.get_quorum_state(m_last_height);
@@ -126,6 +131,64 @@ namespace service_nodes
         }
       }
     }
+
+#if 1
+    for (;xx_m_last_height < (height - REORG_SAFETY_BUFFER_IN_BLOCKS); xx_m_last_height++)
+    {
+      const std::shared_ptr<quorum_state> state = m_core.get_quorum_state(xx_m_last_height);
+      if (!state)
+      {
+        // TODO(loki): Fatal error
+        LOG_ERROR("Quorum state for height: " << xx_m_last_height << "was not cached in daemon!");
+        continue;
+      }
+
+      int nodes_voted = 0;
+      for (size_t i = 0; i < xx_num_sn_keys; i++)
+      {
+        crypto::public_key pkey;
+        crypto::secret_key skey;
+        assert(epee::string_tools::hex_to_pod(xx_sn_public_keys[i], pkey));
+        assert(epee::string_tools::hex_to_pod(xx_sn_secret_keys[i], skey));
+
+        auto it = std::find(state->quorum_nodes.begin(), state->quorum_nodes.end(), pkey);
+        if (it == state->quorum_nodes.end())
+          continue;
+
+        size_t my_index_in_quorum = it - state->quorum_nodes.begin();
+        for (size_t node_index = 0; node_index < state->nodes_to_test.size(); ++node_index)
+        {
+          const crypto::public_key &node_key = state->nodes_to_test[node_index];
+
+          CRITICAL_REGION_LOCAL(m_lock);
+          bool vote_off_node = (m_uptime_proof_seen.find(node_key) == m_uptime_proof_seen.end());
+
+          if (!vote_off_node)
+            continue;
+
+          int choice100 = xx_random64(xx_generator) % 100;
+          if (choice100 >= 90)
+          {
+            continue;
+          }
+
+          nodes_voted++;
+          loki::service_node_deregister::vote vote = {};
+          vote.block_height        = xx_m_last_height;
+          vote.service_node_index  = node_index;
+          vote.voters_quorum_index = my_index_in_quorum;
+          vote.signature           = loki::service_node_deregister::sign_vote(vote.block_height, vote.service_node_index, pkey, skey);
+
+          cryptonote::vote_verification_context vvc = {};
+          if (!m_core.add_deregister_vote(vote, vvc))
+          {
+            LOG_ERROR("Failed to add deregister vote reason: " << print_vote_verification_context(vvc, &vote));
+          }
+        }
+      }
+      fprintf(stdout, "There are %zu nodes, xx__fake_nodes voted %d\n", xx_num_sn_keys, nodes_voted);
+    }
+#endif
   }
 
   static crypto::hash make_hash(crypto::public_key const &pubkey, uint64_t timestamp)

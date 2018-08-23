@@ -833,6 +833,7 @@ namespace cryptonote
       * @return true
       */
      bool submit_uptime_proof();
+     bool xx_submit_uptime_proof();
 
      /**
       * @brief Try find the uptime proof from the service node.
@@ -850,6 +851,11 @@ namespace cryptonote
       *
       */
      void pop_blocks(uint64_t num_blocks_to_pop);
+
+     /**
+      * @brief do the uptime proof logic and calls for idle loop.
+      */
+     void do_uptime_proof_call();
 
    private:
 
@@ -1030,11 +1036,6 @@ namespace cryptonote
       * @return true on success, false otherwise
       */
      bool init_service_node_key();
-
-     /**
-      * @brief do the uptime proof logic and calls for idle loop.
-      */
-     void do_uptime_proof_call();
 
      bool m_test_drop_download = true; //!< whether or not to drop incoming blocks (for testing)
 

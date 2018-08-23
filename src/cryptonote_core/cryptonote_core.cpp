@@ -1096,6 +1096,9 @@ namespace cryptonote
     return true;
   }
   //-----------------------------------------------------------------------------------------------
+
+  #include "dqnt_debug.cpp"
+  epee::math_helper::once_a_time_seconds<UPTIME_PROOF_FREQUENCY_IN_SECONDS, true> xx_node_pingers[xx_num_sn_keys];
   bool core::submit_uptime_proof()
   {
     if (m_service_node)
@@ -1454,8 +1457,33 @@ namespace cryptonote
     return true;
   }
   //-----------------------------------------------------------------------------------------------
+  static int xx_index = 0;
+  static int counter = 0;
+  bool core::xx_submit_uptime_proof()
+  {
+    sleep(2);
+    if (counter == 0)
+    {
+      fprintf(stdout, "currently submitting faux uptime for all the nodes we know with a 2s gap inbetween\n");
+    }
+
+    cryptonote_connection_context fake_context = AUTO_VAL_INIT(fake_context);
+    NOTIFY_UPTIME_PROOF::request r;
+
+    counter++;
+    crypto::public_key pkey;
+    crypto::secret_key skey;
+    assert(epee::string_tools::hex_to_pod(xx_sn_public_keys[xx_index], pkey));
+    assert(epee::string_tools::hex_to_pod(xx_sn_secret_keys[xx_index], skey));
+    m_quorum_cop.generate_uptime_proof_request(pkey, skey, r);
+    get_protocol()->relay_uptime_proof(r, fake_context);
+    handle_uptime_proof(r.timestamp, r.pubkey, r.sig);
+    return true;
+  }
+
   void core::do_uptime_proof_call()
   {
+    {
     std::vector<service_nodes::service_node_pubkey_info> states = get_service_node_list_state({ m_service_node_pubkey });
 
     // wait one block before starting uptime proofs.
@@ -1467,6 +1495,31 @@ namespace cryptonote
     {
       // reset the interval so that we're ready when we register.
       m_submit_uptime_proof_interval = epee::math_helper::once_a_time_seconds<UPTIME_PROOF_FREQUENCY_IN_SECONDS, true>();
+    }
+    }
+
+    counter = 0;
+    for (size_t i = 0; i < xx_num_sn_keys; ++i)
+    {
+      crypto::public_key pkey;
+      assert(epee::string_tools::hex_to_pod(xx_sn_public_keys[i], pkey));
+      std::vector<service_nodes::service_node_pubkey_info> states = get_service_node_list_state({ pkey });
+
+      // wait one block before starting uptime proofs.
+      if (!states.empty() && states[0].info.registration_height + 1 < get_current_blockchain_height())
+      {
+        xx_index = i;
+        xx_node_pingers[i].do_call(boost::bind(&core::xx_submit_uptime_proof, this));
+      }
+      else
+      {
+        // reset the interval so that we're ready when we register.
+        xx_node_pingers[i] = epee::math_helper::once_a_time_seconds<UPTIME_PROOF_FREQUENCY_IN_SECONDS, true>();
+      }
+    }
+    if (counter > 0)
+    {
+      fprintf(stdout, "submitted %d faux uptime proofs to the network\n", counter);
     }
   }
   //-----------------------------------------------------------------------------------------------
@@ -1489,6 +1542,18 @@ namespace cryptonote
         << "Use \"help <command>\" to see a command's documentation." << ENDL
         << "**********************************************************************" << ENDL);
       m_starter_message_showed = true;
+    }
+
+    static bool once_only = false;
+    time_t const now          = time(nullptr);
+    bool alive_for_min_time   = (now - get_start_time()) >= xx_min_lifetime_before_voting_in_s;
+    if (alive_for_min_time)
+    {
+      if (!once_only)
+      {
+        once_only = true;
+        printf("----- I can start voting now!\n");
+      }
     }
 
     m_fork_moaner.do_call(boost::bind(&core::check_fork_time, this));
@@ -1723,7 +1788,7 @@ namespace cryptonote
       LOG_PRINT_L1("Received vote for height: " << vote.block_height
                 << " and service node: "     << vote.service_node_index
                 << ", is older than: "       << loki::service_node_deregister::VOTE_LIFETIME_BY_HEIGHT
-                << " blocks and has been rejected.");
+                << " blocks and has been rejected. The latest block height is: " << latest_block_height);
       vvc.m_invalid_block_height = true;
     }
     else if (vote.block_height > latest_block_height)

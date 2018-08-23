@@ -104,6 +104,7 @@ namespace service_nodes
         }
 
         block_added_generic(block, txs);
+
       }
     }
   }
@@ -545,7 +546,7 @@ namespace service_nodes
 
     const size_t QUORUM_LIFETIME         = (6 * loki::service_node_deregister::DEREGISTER_LIFETIME_BY_HEIGHT);
     // save six times the quorum lifetime, to be sure. also to help with debugging.
-    const size_t cache_state_from_height = (block_height < QUORUM_LIFETIME) ? 0 : block_height - QUORUM_LIFETIME;
+    const size_t cache_state_from_height = 0;
 
     store_quorum_state_from_rewards_list(block_height);
 
@@ -561,6 +562,7 @@ namespace service_nodes
     {
       if (!m_rollback_events.back()->apply(m_service_nodes_infos))
       {
+        clear(true); // If we can't apply a rollback, we can no longer trust the state of the service node list
         init();
         break;
       }
