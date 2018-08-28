@@ -55,6 +55,10 @@ namespace loki
     const uint64_t VOTE_LIFETIME_BY_HEIGHT       = (60 * 60 * 2) / DIFFICULTY_TARGET_V2;
     const uint64_t DEREGISTER_LIFETIME_BY_HEIGHT = VOTE_LIFETIME_BY_HEIGHT;
 
+    static_assert(VOTE_LIFETIME_BY_HEIGHT == DEREGISTER_LIFETIME_BY_HEIGHT,
+        "Lifetimes must be the same! Different lifetimes will generate
+        deregisters that will not validate because the votes are too old.");
+
     struct vote
     {
       uint64_t          block_height;

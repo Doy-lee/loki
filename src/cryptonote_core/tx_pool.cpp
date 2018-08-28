@@ -258,8 +258,8 @@ namespace cryptonote
         return false;
       }
 
-      const uint64_t curr_height = m_blockchain.get_current_blockchain_height();
-      if (deregister.block_height >= curr_height)
+      const uint64_t curr_height = m_blockchain.get_current_blockchain_height() - 1;
+      if (deregister.block_height > curr_height)
       {
         LOG_PRINT_L1("Received deregister tx for height: " << deregister.block_height
                      << " and service node: "              << deregister.service_node_index
