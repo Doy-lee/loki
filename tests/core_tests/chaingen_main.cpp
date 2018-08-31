@@ -83,14 +83,20 @@ int main(int argc, char* argv[])
   std::string tests_folder = command_line::get_arg(vm, arg_test_data_path);
   if (command_line::get_arg(vm, arg_generate_test_data))
   {
+#if 0
     GENERATE("chain001.dat", gen_simple_chain_001);
+#endif
   }
   else if (command_line::get_arg(vm, arg_play_test_data))
   {
+#if 0
     PLAY("chain001.dat", gen_simple_chain_001);
+#endif
   }
   else if (command_line::get_arg(vm, arg_generate_and_play_test_data))
   {
+    GENERATE_AND_PLAY(gen_service_node_ping_test);
+#if 0
     GENERATE_AND_PLAY(gen_service_nodes);
     GENERATE_AND_PLAY(gen_simple_chain_001);
     GENERATE_AND_PLAY(gen_simple_chain_split_1);
@@ -217,6 +223,7 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(gen_multisig_tx_invalid_33_1__no_threshold);
     GENERATE_AND_PLAY(gen_multisig_tx_invalid_33_1_2_no_threshold);
     GENERATE_AND_PLAY(gen_multisig_tx_invalid_33_1_3_no_threshold);
+#endif
 
     el::Level level = (failed_tests.empty() ? el::Level::Info : el::Level::Error);
     MLOG(level, "\nREPORT:");
@@ -233,7 +240,9 @@ int main(int argc, char* argv[])
   }
   else if (command_line::get_arg(vm, arg_test_transactions))
   {
+#if 0
     CALL_TEST("TRANSACTIONS TESTS", test_transactions);
+#endif
   }
   else
   {

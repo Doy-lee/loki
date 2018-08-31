@@ -140,5 +140,74 @@ bool gen_service_nodes::check_expired(cryptonote::core& c, size_t ev_index, cons
   CHECK_TEST_CONDITION(get_balance(alice, blocks, mtx) > MK_COINS(101) - TESTS_DEFAULT_FEE);
 
   return true;
+}
 
+gen_service_node_ping_test::gen_service_node_ping_test()
+{
+  // Deterministic keys
+  static cryptonote::keypair alice_keys = {};
+  static cryptonote::keypair bob_keys = {};
+  static bool keys_init = false;
+  if (!keys_init)
+  {
+    keys_init  = true;
+    crypto::generate_keys(alice_keys.pub, alice_keys.sec);
+    crypto::generate_keys(bob_keys.pub, bob_keys.sec);
+  }
+
+  m_alice_sn_keys = alice_keys;
+  m_bob_sn_keys   = bob_keys;
+}
+
+bool gen_service_node_ping_test::generate(std::vector<test_event_entry> &events)
+{
+#define UNIQUE_BLK block_## __COUNTER__
+  uint64_t ts_start = 1338224400;
+  GENERATE_ACCOUNT  (miner);
+  MAKE_GENESIS_BLOCK(events, blk_0, miner, ts_start);
+  MAKE_ACCOUNT      (events, alice);
+  MAKE_ACCOUNT      (events, bob);
+
+  uint64_t staking_requirement = service_nodes::get_staking_requirement_lock_blocks(cryptonote::FAKECHAIN);
+
+  block *prev_block = &blk_0;
+  generator.set_hf_version(8); MAKE_NEXT_BLOCK(events, blk_1, *prev_block, miner);          prev_block = &blk_1;
+  generator.set_hf_version(9); MAKE_NEXT_BLOCK(events, blk_2, *prev_block, miner);          prev_block = &blk_2;  // advance to hardfork 9
+  REWIND_BLOCKS_N(events, blk_12, *prev_block, miner,  100);                                 prev_block = &blk_12; // generate some coins
+  REWIND_BLOCKS  (events, blk_22, *prev_block, miner);                                      prev_block = &blk_22; // unlock them for transferring
+
+  using cryptonote::transaction;
+  MAKE_TX(events, tx_0, miner, alice, staking_requirement + MK_COINS(1), *prev_block);
+  MAKE_TX(events, tx_1, miner, bob,   staking_requirement + MK_COINS(1), *prev_block);
+  std::list<transaction> const transfer_txs = {tx_0, tx_1};
+
+  MAKE_NEXT_BLOCK_TX_LIST(events, blk_23, *prev_block, miner, transfer_txs);                prev_block = &blk_23;
+  REWIND_BLOCKS(events, blk_24, *prev_block, miner); prev_block = &blk_24; // unlock transfer to alice and bob
+
+  transaction alice_registration = make_registration_tx(events, alice, m_alice_sn_keys, 0 /*operator_cut*/, { alice.get_keys().m_account_address }, { STAKING_PORTIONS }, *prev_block);
+  transaction bob_registration   = make_registration_tx(events, bob,   m_bob_sn_keys,   0 /*operator_cut*/, { bob.get_keys().m_account_address   },   { STAKING_PORTIONS }, *prev_block);
+  std::list<transaction> const registration_txs = {alice_registration, bob_registration};
+  MAKE_NEXT_BLOCK_TX_LIST(events, blk_25, *prev_block, miner, registration_txs);            prev_block = &blk_25;
+
+#if 0
+  register_callback("check_registered", [this](cryptonote::core& core, size_t ev_index, const std::vector<test_event_entry> &events) -> bool {
+    printf("test is being called!!!!!!!!!!!!!!!!!!!!!!\n");
+    DEFINE_TESTS_ERROR_CONTEXT("check_registered");
+    std::vector<service_nodes::service_node_pubkey_info> pubkey_info = core.get_service_node_list_state({});
+    CHECK_EQ(pubkey_info.size(), 1); // service node list must have bob and alice
+
+    if (pubkey_info[0].pubkey  == m_alice_sn_keys.pub)
+    {
+      CHECK_EQ(pubkey_info[1].pubkey, m_bob_sn_keys.pub);
+    }
+    else
+    {
+      CHECK_EQ(pubkey_info[0].pubkey, m_bob_sn_keys.pub);
+      CHECK_EQ(pubkey_info[1].pubkey, m_alice_sn_keys.pub);
+    }
+    return true;
+  });
+#endif
+
+  return true;
 }

@@ -52,3 +52,22 @@ struct get_test_options<gen_service_nodes> {
     hard_forks
   };
 };
+
+
+struct gen_service_node_ping_test : public test_chain_unit_base
+{
+  gen_service_node_ping_test();
+  bool generate(std::vector<test_event_entry> &events);
+  cryptonote::keypair m_alice_sn_keys;
+  cryptonote::keypair m_bob_sn_keys;
+};
+
+template<> struct get_test_options<gen_service_node_ping_test>
+{
+  const std::pair<uint8_t, uint64_t> hard_forks[3] = {std::make_pair(7, 0),
+                                                      std::make_pair(8, 1),
+                                                      std::make_pair(9, 2)};
+  const cryptonote::test_options test_options = { hard_forks };
+};
+
+
