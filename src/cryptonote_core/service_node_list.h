@@ -62,12 +62,18 @@ namespace service_nodes
   {
     uint8_t version;
 
+    enum version
+    {
+      version_0,
+      version_1_swarms,
+    };
+
     struct contribution
     {
       uint64_t amount;
       uint64_t reserved;
       cryptonote::account_public_address address;
-      contribution() {}
+      contribution() = default;
       contribution(uint64_t _reserved, const cryptonote::account_public_address& _address)
         : amount(0), reserved(_reserved), address(_address) { }
 
@@ -96,7 +102,7 @@ namespace service_nodes
     // the minimum contribution to start a new contributor
     uint64_t get_min_contribution() const;
 
-    service_node_info() : version(0) {}
+    service_node_info() = default;
 
     BEGIN_SERIALIZE()
       VARINT_FIELD(version)
@@ -108,7 +114,8 @@ namespace service_nodes
       VARINT_FIELD(total_reserved)
       VARINT_FIELD(staking_requirement)
       VARINT_FIELD(portions_for_operator)
-      VARINT_FIELD(swarm_id)
+      if (version >= service_node_info::version_1_swarms)
+        VARINT_FIELD(swarm_id)
       FIELD(operator_address)
     END_SERIALIZE()
   };

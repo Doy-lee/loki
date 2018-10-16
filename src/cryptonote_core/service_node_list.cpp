@@ -324,16 +324,26 @@ namespace service_nodes
       LOG_PRINT_L1("Deregistration for service node: " << key);
     }
 
-
     m_rollback_events.push_back(std::unique_ptr<rollback_event>(new rollback_change(block_height, key, iter->second)));
-    uint64_t swarm_id = iter->second.swarm_id;
-    m_service_nodes_infos.erase(iter);
-    check_and_process_swarm_decomission(swarm_id);
+    int hard_fork_version = m_blockchain.get_hard_fork_version(block_height);
+    if (hard_fork_version >= cryptonote::Blockchain::version_10_swarms)
+    {
+      uint64_t swarm_id = iter->second.swarm_id;
+      m_service_nodes_infos.erase(iter);
+      check_and_process_swarm_decomission(swarm_id);
+    }
+    else
+    {
+      m_service_nodes_infos.erase(iter);
+    }
   }
 
   void service_node_list::check_and_process_swarm_decomission(uint64_t swarm_id)
   {
-    if (get_swarm_size(swarm_id) == MIN_SWARM_SIZE - 1);
+    const int hard_fork_version = m_blockchain.get_current_hard_fork_version();
+    CHECK_AND_ASSERT_MES_NO_RET(hard_fork_version >= cryptonote::Blockchain::version_10_swarms, "Swarms should only operate from hardfork version 10, current: " << hard_fork_version);
+
+    if (get_swarm_size(swarm_id) == MIN_SWARM_SIZE - 1)
     {
       // XXX XXX XXX XXX
       // All nodes should fetch data from this swarm at this point only.
@@ -353,6 +363,8 @@ namespace service_nodes
     // the last time, if the new node was already registered before. This would
     // have huge performance gains preventing nodes from having to resync every
     // time they rejoin the network.
+    const int hard_fork_version = m_blockchain.get_hard_fork_version(block_height);
+    CHECK_AND_ASSERT_MES(hard_fork_version >= cryptonote::Blockchain::version_10_swarms, 0, "Swarms should only operate from hardfork version 10, current: " << hard_fork_version);
 
     std::vector<uint64_t> swarm_ids = get_swarm_ids();
 
@@ -372,6 +384,9 @@ namespace service_nodes
 
   void service_node_list::check_and_process_swarm_overflow(uint64_t swarm_id, uint64_t block_height)
   {
+    const int hard_fork_version = m_blockchain.get_hard_fork_version(block_height);
+    CHECK_AND_ASSERT_MES_NO_RET(hard_fork_version >= cryptonote::Blockchain::version_10_swarms, "Swarms should only operate from hardfork version 10, current: " << hard_fork_version);
+
     if (get_swarm_size(swarm_id) > MAX_SWARM_SIZE)
     {
       crypto::hash hash = m_blockchain.get_block_id_by_height(block_height);
@@ -407,11 +422,16 @@ namespace service_nodes
 
   std::vector<uint64_t> service_node_list::get_swarm_ids() const
   {
+    std::vector<uint64_t> swarm_ids;
+    const int hard_fork_version = m_blockchain.get_current_hard_fork_version();
+    CHECK_AND_ASSERT_MES(hard_fork_version >= cryptonote::Blockchain::version_10_swarms, swarm_ids, "Swarms should only operate from hardfork version 10, current: " << hard_fork_version);
+
     std::map<uint64_t, size_t> counts;
     for (const auto& entry : m_service_nodes_infos)
       counts[entry.second.swarm_id]++;
-    std::vector<uint64_t> swarm_ids;
+
     swarm_ids.reserve(counts.size());
+
     for (const auto& entry : counts)
       if (entry.second >= MIN_SWARM_SIZE)
         swarm_ids.push_back(entry.first);
@@ -420,6 +440,9 @@ namespace service_nodes
 
   size_t service_node_list::get_swarm_size(uint64_t swarm_id) const
   {
+    const int hard_fork_version = m_blockchain.get_current_hard_fork_version();
+    CHECK_AND_ASSERT_MES(hard_fork_version >= cryptonote::Blockchain::version_10_swarms, 0, "Swarms should only operate from hardfork version 10, current: " << hard_fork_version);
+
     size_t n = 0;
     for (const auto& entry : m_service_nodes_infos)
       if (entry.second.swarm_id == swarm_id)
@@ -430,6 +453,9 @@ namespace service_nodes
   std::vector<crypto::public_key> service_node_list::get_swarm(uint64_t swarm_id) const
   {
     std::vector<crypto::public_key> snodes;
+    const int hard_fork_version = m_blockchain.get_current_hard_fork_version();
+    CHECK_AND_ASSERT_MES(hard_fork_version >= cryptonote::Blockchain::version_10_swarms, snodes, "Swarms should only operate from hardfork version 10, current: " << hard_fork_version);
+
     for (const auto& entry : m_service_nodes_infos)
       if (entry.second.swarm_id == swarm_id)
         snodes.push_back(entry.first);
@@ -481,7 +507,7 @@ namespace service_nodes
       return false;
 
     // check the initial contribution exists
-
+    info = {};
     info.staking_requirement = get_staking_requirement(m_blockchain.nettype(), block_height);
 
     cryptonote::account_public_address address;
@@ -505,12 +531,6 @@ namespace service_nodes
     info.registration_height = block_height;
     info.last_reward_block_height = block_height;
     info.last_reward_transaction_index = index;
-    info.total_contributed = 0;
-    info.total_reserved = 0;
-
-    info.swarm_id = get_new_node_swarm_id(block_height, index);
-
-    info.contributors.clear();
 
     for (size_t i = 0; i < service_node_addresses.size(); i++)
     {
@@ -525,6 +545,13 @@ namespace service_nodes
       info.total_reserved += resultlo;
     }
 
+    const int hard_fork_version = m_blockchain.get_hard_fork_version(block_height);
+    if (hard_fork_version >= cryptonote::Blockchain::version_10_swarms)
+    {
+      info.version  = service_node_info::version_1_swarms;
+      info.swarm_id = get_new_node_swarm_id(block_height, index);
+    }
+
     return true;
   }
 
@@ -535,6 +562,9 @@ namespace service_nodes
 
   uint64_t service_node_list::get_swarm_id_for_pubkey(const crypto::public_key& pubkey) const
   {
+    const int hard_fork_version = m_blockchain.get_current_hard_fork_version();
+    CHECK_AND_ASSERT(hard_fork_version >= cryptonote::Blockchain::version_10_swarms, 0);
+
     std::vector<uint64_t> swarm_ids = get_swarm_ids();
     std::vector<std::pair<size_t, uint64_t> > swarm_ids_with_distance(swarm_ids.size());
     std::pair<size_t, uint64_t> best = std::make_pair(1024, 0);
@@ -562,14 +592,14 @@ namespace service_nodes
     if (!is_registration_tx(tx, block_timestamp, block_height, index, key, info))
       return;
 
-    // NOTE: A node doesn't expire until registration_height + lock blocks excess now which acts as the grace period
-    // So it is possible to find the node still in our list.
     bool registered_during_grace_period = false;
-    const auto iter = m_service_nodes_infos.find(key);
-    if (iter != m_service_nodes_infos.end())
+    int hard_fork_version               = m_blockchain.get_hard_fork_version(block_height);
+    if (hard_fork_version >= cryptonote::Blockchain::version_10_swarms)
     {
-      int hard_fork_version = m_blockchain.get_hard_fork_version(block_height);
-      if (hard_fork_version >= cryptonote::Blockchain::version_10_swarms)
+      // NOTE: A node doesn't expire until registration_height + lock blocks excess now which acts as the grace period
+      // So it is possible to find the node still in our list.
+      const auto iter = m_service_nodes_infos.find(key);
+      if (iter != m_service_nodes_infos.end())
       {
         service_node_info const &old_info = iter->second;
         uint64_t expiry_height = old_info.registration_height + get_staking_requirement_lock_blocks(m_blockchain.nettype());
@@ -581,10 +611,19 @@ namespace service_nodes
         info.last_reward_block_height = old_info.last_reward_block_height;
         info.last_reward_transaction_index = old_info.last_reward_transaction_index;
       }
-      else
-      {
+
+      m_rollback_events.push_back(std::unique_ptr<rollback_event>(new rollback_new(block_height, key)));
+      m_service_nodes_infos[key] = info;
+      check_and_process_swarm_overflow(info.swarm_id, block_height);
+    }
+    else
+    {
+      const auto iter = m_service_nodes_infos.find(key);
+      if (iter != m_service_nodes_infos.end())
         return;
-      }
+
+      m_rollback_events.push_back(std::unique_ptr<rollback_event>(new rollback_new(block_height, key)));
+      m_service_nodes_infos[key] = info;
     }
 
     if (m_service_node_pubkey && *m_service_node_pubkey == key)
@@ -602,11 +641,6 @@ namespace service_nodes
     {
       LOG_PRINT_L1("New service node registered: " << key << " at block height: " << block_height);
     }
-
-    m_rollback_events.push_back(std::unique_ptr<rollback_event>(new rollback_new(block_height, key)));
-    m_service_nodes_infos[key] = info;
-
-    check_and_process_swarm_overflow(info.swarm_id, block_height);
   }
 
   bool service_node_list::get_contribution(const cryptonote::transaction& tx, uint64_t block_height, cryptonote::account_public_address& address, uint64_t& transferred) const
@@ -742,9 +776,16 @@ namespace service_nodes
         }
 
         m_rollback_events.push_back(std::unique_ptr<rollback_event>(new rollback_change(block_height, pubkey, i->second)));
-        uint64_t swarm_id = i->second.swarm_id;
-        m_service_nodes_infos.erase(i);
-        check_and_process_swarm_decomission(swarm_id);
+        if (hard_fork_version >= cryptonote::Blockchain::version_10_swarms)
+        {
+          uint64_t swarm_id = i->second.swarm_id;
+          m_service_nodes_infos.erase(i);
+          check_and_process_swarm_decomission(swarm_id);
+        }
+        else
+        {
+          m_service_nodes_infos.erase(i);
+        }
       }
       // Service nodes may expire early if they double staked by accident, so
       // expiration doesn't mean the node is in the list.
@@ -815,15 +856,13 @@ namespace service_nodes
     std::vector<crypto::public_key> expired_nodes;
     int hard_fork_version = m_blockchain.get_hard_fork_version(block_height);
 
-    uint64_t lock_blocks = get_staking_requirement_lock_blocks(m_blockchain.nettype());
-    if (hard_fork_version >= cryptonote::Blockchain::version_10_swarms)
-      lock_blocks += STAKING_REQUIREMENT_LOCK_BLOCKS_EXCESS;
-
-    if (block_height < lock_blocks)
-      return expired_nodes;
-
     if (hard_fork_version >= cryptonote::Blockchain::version_10_swarms)
     {
+      uint64_t lock_blocks = get_staking_requirement_lock_blocks(m_blockchain.nettype()) + STAKING_REQUIREMENT_LOCK_BLOCKS_EXCESS;
+
+      if (block_height < lock_blocks)
+        return expired_nodes;
+
       for (auto &it : m_service_nodes_infos)
       {
         crypto::public_key const &pubkey = it.first;
@@ -838,7 +877,12 @@ namespace service_nodes
     }
     else
     {
+      uint64_t lock_blocks = get_staking_requirement_lock_blocks(m_blockchain.nettype());
+      if (block_height < lock_blocks)
+        return expired_nodes;
+
       const uint64_t expired_nodes_block_height = block_height - lock_blocks;
+
       std::vector<std::pair<cryptonote::blobdata, cryptonote::block>> blocks;
       if (!m_blockchain.get_blocks(expired_nodes_block_height, 1, blocks))
       {
@@ -931,12 +975,18 @@ namespace service_nodes
 
     crypto::public_key check_winner_pubkey = cryptonote::get_service_node_winner_from_tx_extra(miner_tx.extra);
     if (check_winner_pubkey != winner)
+    {
+      MERROR("The expected winner pubkey was not the pubkey in the miner_tx, expected: " << winner << ", miner_tx winner: " << check_winner_pubkey);
       return false;
+    }
 
     const std::vector<std::pair<cryptonote::account_public_address, uint64_t>> addresses_and_portions = get_winner_addresses_and_portions(prev_id);
     
     if (miner_tx.vout.size() - 1 < addresses_and_portions.size())
+    {
+      MERROR("The number of payout addresses in the miner_tx was greater than the expected payouts");
       return false;
+    }
 
     for (size_t i = 0; i < addresses_and_portions.size(); i++)
     {
@@ -1094,7 +1144,7 @@ namespace service_nodes
   {
 
     CHECK_AND_ASSERT_MES(m_db != nullptr, false, "Failed to store service node info, m_db == nullptr");
-    data_members_for_serialization data_to_store;
+    data_members_for_serialization data_to_store = {};
     {
       std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
 
@@ -1165,7 +1215,7 @@ namespace service_nodes
     }
     std::stringstream ss;
 
-    data_members_for_serialization data_in;
+    data_members_for_serialization data_in = {};
     std::string blob;
 
     m_db->block_txn_start(true/*readonly*/);
