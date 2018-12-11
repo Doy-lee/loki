@@ -611,14 +611,10 @@ else()
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${ARCH_FLAG}")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ARCH_FLAG}")
 
-<<<<<<< HEAD
-  set(WARNINGS "-Wall -Wextra -Wpointer-arith -Wundef -Wvla -Wwrite-strings -Wno-error=extra -Wno-error=deprecated-declarations -Wno-unused-parameter -Wno-unused-variable -Wno-error=unused-variable -Wno-error=undef -Wno-error=uninitialized -Wno-error=user-defined-warnings -Wno-error=unknown-pragmas -Wno-error=unused-function -Wno-error=inconsistent-missing-override -Wno-error=unused-private-field")
+  set(WARNINGS "-Wall -Wextra -Wpointer-arith -Wundef -Wvla -Wwrite-strings -Wno-error=extra -Wno-error=deprecated-declarations -Wno-unused-parameter -Wno-unused-variable -Wno-error=unused-variable -Wno-error=undef -Wno-error=uninitialized -Wno-error=user-defined-warnings -Wno-error=unknown-pragmas -Wno-error=unused-function -Wno-error=inconsistent-missing-override -Wno-error=unused-private-field -Wno-error=#warnings")
 
   option(WARNINGS_AS_ERRORS "Enable warning as errors" OFF)
   if(NOT MINGW AND WARNINGS_AS_ERRORS)
-=======
-  if(NOT MINGW)
->>>>>>> no error on unused private field warning
     set(WARNINGS_AS_ERRORS_FLAG "-Werror")
   endif()
   if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
