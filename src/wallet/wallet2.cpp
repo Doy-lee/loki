@@ -2199,7 +2199,7 @@ void wallet2::process_new_blockchain_entry(const cryptonote::block& b, const cry
   //handle transactions from new block
     
   //optimization: seeking only for blocks that are not older then the wallet creation time plus 1 day. 1 day is for possible user incorrect time setup
-  if(b.timestamp + 60*60*24 > m_account.get_createtime() && height >= m_refresh_from_block_height)
+  if(height >= m_refresh_from_block_height)
   {
     TIME_MEASURE_START(miner_tx_handle_time);
     if (m_refresh_type != RefreshNoCoinbase)
@@ -2422,7 +2422,7 @@ void wallet2::process_parsed_blocks(uint64_t start_height, const std::vector<cry
     const crypto::hash &bl_id = parsed_blocks[i].hash;
     const cryptonote::block &bl = parsed_blocks[i].block;
 
-    if(current_index >= m_blockchain.size())
+    if(current_index >= m_blockchain.size() || current_index == 0)
     {
       process_new_blockchain_entry(bl, blocks[i], parsed_blocks[i], bl_id, current_index, tx_cache_data, tx_cache_data_offset, output_tracker_cache);
       ++blocks_added;
@@ -3983,6 +3983,15 @@ void wallet2::setup_new_blockchain()
   m_blockchain.push_back(get_block_hash(b));
   m_last_block_reward = cryptonote::get_outs_money_amount(b.miner_tx);
   add_subaddress_account(tr("Primary account"));
+
+  std::vector<tx_cache_data> tx_cache_data(1);
+  cache_tx_data(b.miner_tx, get_transaction_hash(b.miner_tx), tx_cache_data[0]);
+
+  std::vector<uint64_t> o_indices;
+  for (size_t i=0; i < b.miner_tx.vout.size(); i++) o_indices.push_back(0);
+
+  m_refresh_from_block_height = 0;
+  process_new_transaction(get_transaction_hash(b.miner_tx), b.miner_tx, o_indices, 0, b.timestamp, true, false, false, tx_cache_data[0]);
 }
 
 void wallet2::create_keys_file(const std::string &wallet_, bool watch_only, const epee::wipeable_string &password, bool create_address_file)
@@ -5142,6 +5151,7 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
   generate_genesis(genesis);
   crypto::hash genesis_hash = get_block_hash(genesis);
 
+  m_blockchain.clear();
   if (m_blockchain.empty())
   {
     m_blockchain.push_back(genesis_hash);
