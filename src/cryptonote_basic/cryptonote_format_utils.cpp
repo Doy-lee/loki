@@ -1404,12 +1404,56 @@ namespace cryptonote
     return get_transaction_hash(t, res, &blob_size);
   }
   //---------------------------------------------------------------
+  int loki_write_varint(char *dest, char const *dest_end, size_t varint)
+  {
+    int result = 0;
+    while (varint >= 0x80)
+    {
+      result++;
+      *dest = (static_cast<char>(varint) & 0x7f) | 0x80;
+      ++dest;
+      varint >>= 7; /* varint should be in multiples of 7, this should just get the next part */
+    }
+    if (varint > 0)
+    {
+      result++;
+      *dest = static_cast<char>(varint);
+    }
+
+    return result;
+    assert(dest < dest_end);
+  }
+  //---------------------------------------------------------------
   blobdata get_block_hashing_blob(const block& b)
   {
+    block_header const &header  = static_cast<block_header const>(b);
+    crypto::hash tree_root_hash = get_tx_tree_hash(b);
+    size_t varint               = b.tx_hashes.size() + 1;
+
+    blobdata blob;
+    blob.resize(sizeof(header) + sizeof(tree_root_hash) + sizeof(varint));
+    char *ptr = &blob[0];
+    {
+      std::stringstream ss;
+      binary_archive<true> ba(ss);
+      bool r = ::serialization::serialize(ba, const_cast<block_header&>(header));
+
+      std::string header_serialized = ss.str();
+      memcpy(ptr, header_serialized.data(), header_serialized.size());
+      ptr += header_serialized.size();
+    }
+
+    memcpy(ptr, tree_root_hash.data, sizeof(tree_root_hash));
+    ptr += sizeof(tree_root_hash);
+    ptr += loki_write_varint(ptr, blob.data() + blob.size(), varint);
+    size_t actual_len  = static_cast<size_t>(ptr - blob.data());
+    blob.resize(actual_len);
+#if 0
     blobdata blob = t_serializable_object_to_blob(static_cast<block_header>(b));
     crypto::hash tree_root_hash = get_tx_tree_hash(b);
     blob.append(reinterpret_cast<const char*>(&tree_root_hash), sizeof(tree_root_hash));
     blob.append(tools::get_varint_data(b.tx_hashes.size()+1));
+#endif
     return blob;
   }
   //---------------------------------------------------------------
@@ -1520,28 +1564,36 @@ namespace cryptonote
     return t_serializable_object_to_blob(tx, b_blob);
   }
   //---------------------------------------------------------------
-  void get_tx_tree_hash(const std::vector<crypto::hash>& tx_hashes, crypto::hash& h)
-  {
-    tree_hash(tx_hashes.data(), tx_hashes.size(), h);
-  }
-  //---------------------------------------------------------------
-  crypto::hash get_tx_tree_hash(const std::vector<crypto::hash>& tx_hashes)
-  {
-    crypto::hash h = null_hash;
-    get_tx_tree_hash(tx_hashes, h);
-    return h;
-  }
-  //---------------------------------------------------------------
   crypto::hash get_tx_tree_hash(const block& b)
   {
-    std::vector<crypto::hash> txs_ids;
-    crypto::hash h = null_hash;
-    size_t bl_sz = 0;
-    get_transaction_hash(b.miner_tx, h, bl_sz);
-    txs_ids.push_back(h);
-    for(auto& th: b.tx_hashes)
-      txs_ids.push_back(th);
-    return get_tx_tree_hash(txs_ids);
+    std::vector<crypto::hash>    vector_hashes;
+    std::array<crypto::hash, 32> stack_hashes;
+
+    size_t const hashes_len        = b.tx_hashes.size() + 1 /*miner_tx*/;
+    crypto::hash *hashes           = stack_hashes.data();
+    if (hashes_len > stack_hashes.size())
+    {
+        vector_hashes.resize(hashes_len);
+        hashes     = vector_hashes.data();
+    }
+
+    crypto::hash *hashes_ptr = hashes;
+    {
+        size_t bl_sz = 0;
+        get_transaction_hash(b.miner_tx, hashes_ptr[0], bl_sz);
+        hashes_ptr++;
+    }
+
+    size_t bytes_to_copy = sizeof(*hashes_ptr) * b.tx_hashes.size();
+    memcpy(hashes_ptr, b.tx_hashes.data(), bytes_to_copy);
+    hashes_ptr += b.tx_hashes.size();
+
+    crypto::hash const *hashes_end = hashes + hashes_len;
+    assert(hashes_ptr == hashes_end);
+
+    crypto::hash result;
+    tree_hash(hashes, hashes_len, result);
+    return result;
   }
   //---------------------------------------------------------------
   bool is_valid_decomposed_amount(uint64_t amount)
