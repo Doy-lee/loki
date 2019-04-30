@@ -110,7 +110,10 @@ namespace service_nodes
     bool is_fully_funded() const { return total_contributed >= staking_requirement; }
     size_t total_num_locked_contributions() const;
 
-    int                                dummy; // FIXME(doyle)
+    int                                dummy;  // FIXME(doyle)
+    int                                dummy2; // FIXME(doyle)
+    int                                dummy3; // FIXME(doyle)
+    int                                dummy4; // FIXME(doyle)
     BEGIN_SERIALIZE_OBJECT()
       VARINT_FIELD(version)
       VARINT_FIELD(registration_height)
@@ -131,6 +134,10 @@ namespace service_nodes
         VARINT_FIELD(public_ip)
         VARINT_FIELD(storage_port)
       }
+      VARINT_FIELD(dummy)
+      VARINT_FIELD(dummy2)
+      VARINT_FIELD(dummy3)
+      VARINT_FIELD(dummy4)
     END_SERIALIZE()
   };
 
