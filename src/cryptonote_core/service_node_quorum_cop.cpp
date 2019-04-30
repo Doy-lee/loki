@@ -66,7 +66,7 @@ namespace service_nodes
   void quorum_cop::block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs)
   {
     process_uptime_quorum(block);
-    process_checkpoint_quorum(block);
+    // process_checkpoint_quorum(block);
   }
 
   void quorum_cop::process_uptime_quorum(cryptonote::block const &block)
