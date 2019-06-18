@@ -119,6 +119,7 @@ namespace service_nodes
     {
       quorum_type const type       = static_cast<quorum_type>(i);
       uint64_t const vote_lifetime = service_nodes::quorum_vote_lifetime(type);
+      if (type == quorum_type::checkpointing) continue;
 
       uint64_t const latest_height = std::max(m_core.get_current_blockchain_height(), m_core.get_target_blockchain_height());
       if (latest_height < vote_lifetime)

@@ -1268,6 +1268,7 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
     }
   }
 
+#if 0
   if (version >= cryptonote::network_version_12_checkpointing)
   {
     if (b.miner_tx.type != transaction::type_standard)
@@ -1284,6 +1285,7 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
       return false;
     }
   }
+#endif
 
   base_reward = reward_parts.adjusted_base_reward;
   if(base_reward + fee < money_in_use)
