@@ -202,9 +202,6 @@ namespace cryptonote
            delete_height > height;
            delete_height -= service_nodes::CHECKPOINT_INTERVAL)
       {
-        if (delete_height % service_nodes::CHECKPOINT_STORE_PERSISTENTLY_INTERVAL == 0)
-          continue;
-
         try
         {
           m_db->remove_block_checkpoint(delete_height);
