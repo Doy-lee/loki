@@ -1077,7 +1077,7 @@ bool Blockchain::switch_to_alternative_blockchain(std::list<blocks_ext_by_hash::
     for (auto& old_ch_ent : disconnected_chain)
     {
       block_verification_context bvc = boost::value_initialized<block_verification_context>();
-      bool r = handle_alternative_block(old_ch_ent, get_block_hash(old_ch_ent), bvc);
+      bool r = handle_alternative_block(old_ch_ent, get_block_hash(old_ch_ent), bvc, nullptr /*checkpoint*/);
       if(!r)
       {
         MERROR("Failed to push ex-main chain blocks to alternative chain ");
@@ -1710,7 +1710,7 @@ bool Blockchain::build_alt_chain(const crypto::hash &prev_id, std::list<blocks_e
 // if that chain is long enough to become the main chain and re-org accordingly
 // if so.  If not, we need to hang on to the block in case it becomes part of
 // a long forked chain eventually.
-bool Blockchain::handle_alternative_block(const block& b, const crypto::hash& id, block_verification_context& bvc)
+bool Blockchain::handle_alternative_block(const block& b, const crypto::hash& id, block_verification_context& bvc, checkpoint_t const *checkpoint)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
@@ -1766,14 +1766,6 @@ bool Blockchain::handle_alternative_block(const block& b, const crypto::hash& id
       return false;
     }
 
-    bool is_a_checkpoint = false;
-    if(!m_checkpoints.check_block(bei.height, id, &is_a_checkpoint))
-    {
-      LOG_ERROR("CHECKPOINT VALIDATION FAILED");
-      bvc.m_verifivation_failed = true;
-      return false;
-    }
-
     // Check the block's hash against the difficulty target for its alt chain
     difficulty_type current_diff = get_next_difficulty_for_alternative_chain(alt_chain, bei);
     CHECK_AND_ASSERT_MES(current_diff, false, "!!!!!!! DIFFICULTY OVERHEAD !!!!!!!");
@@ -1814,7 +1806,23 @@ bool Blockchain::handle_alternative_block(const block& b, const crypto::hash& id
     CHECK_AND_ASSERT_MES(i_res.second, false, "insertion of new alternative block returned as it already exist");
     alt_chain.push_back(i_res.first);
 
-    // FIXME: is it even possible for a checkpoint to show up not on the main chain?
+    bool is_a_checkpoint = false;
+    if (checkpoint)
+    {
+      if (!update_checkpoint(*checkpoint))
+        return false;
+      is_a_checkpoint = true;
+    }
+    else
+    {
+      if(!m_checkpoints.check_block(bei.height, id, &is_a_checkpoint))
+      {
+        LOG_ERROR("CHECKPOINT VALIDATION FAILED");
+        bvc.m_verifivation_failed = true;
+        return false;
+      }
+    }
+
     if(is_a_checkpoint)
     {
       //do reorganize!
@@ -4102,13 +4110,15 @@ bool Blockchain::add_new_block(const block& bl, block_verification_context& bvc,
     //chain switching or wrong block
     bvc.m_added_to_main_chain = false;
     rtxn_guard.stop();
-    bool r = handle_alternative_block(bl, id, bvc);
+    bool r = handle_alternative_block(bl, id, bvc, checkpoint);
     m_blocks_txs_check.clear();
     return r;
     //never relay alternative blocks
   }
 
   rtxn_guard.stop();
+  bool added_block = handle_block_to_main_chain(bl, id, bvc);
+  if (checkpoint) update_checkpoint(*checkpoint);
   return handle_block_to_main_chain(bl, id, bvc);
 }
 //------------------------------------------------------------------

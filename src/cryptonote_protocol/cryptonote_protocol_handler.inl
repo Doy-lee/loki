@@ -1371,6 +1371,10 @@ namespace cryptonote
                   return false;
                 }
 
+                // TODO(doyle): If we are receiving alternative blocks, we won't have
+                // the quorum for the alternative chain, meaning we will not be able to
+                // verify the checkpoint.
+                // For now always accept whatever checkpoint we receive.
 #if 0
                 std::shared_ptr<const service_nodes::testing_quorum> quorum =
                     get_testing_quorum(service_nodes::quorum_type::checkpointing, checkpoint.height);
@@ -1384,10 +1388,6 @@ namespace cryptonote
                 }
 
                 // TODO(doyle): add reasoning, important for sync failures
-                // TODO(doyle): If we are receiving alternative blocks, we won't have
-                // the quorum for the alternative chain, meaning we will not be able to
-                // verify the checkpoint.
-                // For now always accept whatever checkpoint we receive.
                 if (!service_nodes::verify_checkpoint(checkpoint, *quorum))
                 {
                   MERROR("Failed to verify checkpoint at height: " << checkpoint.height);
