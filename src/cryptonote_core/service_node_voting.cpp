@@ -33,6 +33,7 @@
 #include "cryptonote_basic/verification_context.h"
 #include "cryptonote_basic/connection_context.h"
 #include "cryptonote_protocol/cryptonote_protocol_defs.h"
+#include "checkpoints/checkpoints.h"
 
 #include "misc_log_ex.h"
 #include "string_tools.h"
@@ -139,25 +140,73 @@ namespace service_nodes
     return result;
   }
 
-  static bool bounds_check_worker_index(service_nodes::testing_quorum const &quorum, size_t worker_index, cryptonote::vote_verification_context &vvc)
+  static bool bounds_check_worker_index(service_nodes::testing_quorum const &quorum, size_t worker_index, cryptonote::vote_verification_context *vvc)
   {
     if (worker_index >= quorum.workers.size())
     {
-      vvc.m_worker_index_out_of_bounds = true;
+      if (vvc) vvc->m_worker_index_out_of_bounds = true;
       LOG_PRINT_L1("Quorum worker index was out of bounds: " << worker_index << ", expected to be in range of: [0, " << quorum.workers.size() << ")");
       return false;
     }
     return true;
   }
 
-  static bool bounds_check_validator_index(service_nodes::testing_quorum const &quorum, size_t validator_index, cryptonote::vote_verification_context &vvc)
+  static bool bounds_check_validator_index(service_nodes::testing_quorum const &quorum, size_t validator_index, cryptonote::vote_verification_context *vvc)
   {
     if (validator_index >= quorum.validators.size())
     {
-      vvc.m_validator_index_out_of_bounds = true;
+      if (vvc) vvc->m_validator_index_out_of_bounds = true;
       LOG_PRINT_L1("Validator's index was out of bounds: " << validator_index << ", expected to be in range of: [0, " << quorum.validators.size() << ")");
       return false;
     }
+    return true;
+  }
+
+  bool verify_checkpoint(cryptonote::checkpoint_t const &checkpoint, service_nodes::testing_quorum const &quorum)
+  {
+    if (checkpoint.type == cryptonote::checkpoint_type::service_node)
+    {
+      if (checkpoint.signatures.size() < service_nodes::CHECKPOINT_MIN_VOTES)
+      {
+        LOG_PRINT_L1("Checkpoint has insufficient signatures to be considered");
+        return false;
+      }
+
+      if (checkpoint.signatures.size() > service_nodes::CHECKPOINT_QUORUM_SIZE)
+      {
+        LOG_PRINT_L1("Checkpoint has too many signatures to be considered");
+        return false;
+      }
+
+      std::array<size_t, service_nodes::CHECKPOINT_QUORUM_SIZE> unique_vote_set = {};
+      for (service_nodes::voter_to_signature const &voter_to_signature : checkpoint.signatures)
+      {
+        if (!bounds_check_worker_index(quorum, voter_to_signature.voter_index, nullptr))
+          return false;
+
+        if (++unique_vote_set[voter_to_signature.voter_index])
+        {
+          LOG_PRINT_L1("Voter quorum index is duplicated: " << voter_to_signature.voter_index);
+          return false;
+        }
+
+        crypto::public_key const &key = quorum.workers[voter_to_signature.voter_index];
+        if (!crypto::check_signature(checkpoint.block_hash, key, voter_to_signature.signature))
+        {
+          LOG_PRINT_L1("Invalid signatures for votes");
+          return false;
+        }
+      }
+    }
+    else
+    {
+      if (checkpoint.signatures.size() != 0)
+      {
+        LOG_PRINT_L1("Non service-node checkpoints should have no signatures");
+        return false;
+      }
+    }
+
     return true;
   }
 
@@ -210,14 +259,14 @@ namespace service_nodes
       return false;
     }
 
-    if (!bounds_check_worker_index(quorum, deregister.service_node_index, vvc))
+    if (!bounds_check_worker_index(quorum, deregister.service_node_index, &vvc))
       return false;
 
     crypto::hash const hash = make_deregister_vote_hash(deregister.vote_version, deregister.block_height, deregister.service_node_index, deregister.vote_type);
     std::array<int, service_nodes::UPTIME_QUORUM_SIZE> validator_set = {};
     for (const cryptonote::tx_extra_service_node_deregister_::vote& vote : deregister.votes)
     {
-      if (!bounds_check_validator_index(quorum, vote.validator_index, vvc))
+      if (!bounds_check_validator_index(quorum, vote.validator_index, &vvc))
         return false;
 
       if (++validator_set[vote.validator_index] > 1)
@@ -261,9 +310,9 @@ namespace service_nodes
     if (vote.group == quorum_group::invalid)
       result = false;
     else if (vote.group == quorum_group::validator)
-      result = bounds_check_validator_index(quorum, vote.index_in_group, vvc);
+      result = bounds_check_validator_index(quorum, vote.index_in_group, &vvc);
     else
-      result = bounds_check_worker_index(quorum, vote.index_in_group, vvc);
+      result = bounds_check_worker_index(quorum, vote.index_in_group, &vvc);
 
     if (!result)
       return result;
@@ -321,7 +370,7 @@ namespace service_nodes
           key  = quorum.validators[vote.index_in_group];
           hash = make_deregister_vote_hash(vote.version, vote.block_height, vote.deregister.worker_index, static_cast<uint32_t>(vote.type));
 
-          bool result = bounds_check_worker_index(quorum, vote.deregister.worker_index, vvc);
+          bool result = bounds_check_worker_index(quorum, vote.deregister.worker_index, &vvc);
           if (!result)
             return result;
         }

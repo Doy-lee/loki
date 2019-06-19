@@ -111,6 +111,7 @@ static const hard_fork_record testnet_hard_forks[] =
   { network_version_9_service_nodes,     3, 0, 1533631123 },
   { network_version_10_bulletproofs,     4, 0, 1542681077 },
   { network_version_11_infinite_staking, 5, 0, 1551223964 },
+  { network_version_12_checkpointing,    6, 0, 1551223965 },
 };
 
 static const hard_fork_record stagenet_hard_forks[] =
@@ -400,7 +401,7 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
     block_verification_context bvc = boost::value_initialized<block_verification_context>();
     generate_genesis_block(bl, get_config(m_nettype).GENESIS_TX, get_config(m_nettype).GENESIS_NONCE);
     db_wtxn_guard wtxn_guard(m_db);
-    add_new_block(bl, bvc);
+    add_new_block(bl, bvc, nullptr);
     CHECK_AND_ASSERT_MES(!bvc.m_verifivation_failed, false, "Failed to add genesis block to blockchain");
   }
   // TODO: if blockchain load successful, verify blockchain against both
@@ -716,7 +717,7 @@ bool Blockchain::reset_and_set_genesis_block(const block& b)
 
   db_wtxn_guard wtxn_guard(m_db);
   block_verification_context bvc = boost::value_initialized<block_verification_context>();
-  add_new_block(b, bvc);
+  add_new_block(b, bvc, nullptr);
   if (!update_next_cumulative_weight_limit())
     return false;
   return bvc.m_added_to_main_chain && !bvc.m_verifivation_failed;
@@ -1721,10 +1722,6 @@ bool Blockchain::handle_alternative_block(const block& b, const crypto::hash& id
     bvc.m_verifivation_failed = true;
     return false;
   }
-  // this basically says if the blockchain is smaller than the first
-  // checkpoint then alternate blocks are allowed.  Alternatively, if the
-  // last checkpoint *before* the end of the current chain is also before
-  // the block to be added, then this is fine.
   if (!m_checkpoints.is_alternative_block_allowed(get_current_blockchain_height(), block_height))
   {
     MERROR_VER("Block with id: " << id << std::endl << " can't be accepted for alternative chain, block height: " << block_height << std::endl << " blockchain height: " << get_current_blockchain_height());
@@ -4083,7 +4080,7 @@ bool Blockchain::update_next_cumulative_weight_limit(uint64_t *long_term_effecti
   return true;
 }
 //------------------------------------------------------------------
-bool Blockchain::add_new_block(const block& bl, block_verification_context& bvc)
+bool Blockchain::add_new_block(const block& bl, block_verification_context& bvc, checkpoint_t const *checkpoint)
 {
 
   LOG_PRINT_L3("Blockchain::" << __func__);
@@ -4444,7 +4441,7 @@ bool Blockchain::calc_batched_governance_reward(uint64_t height, uint64_t &rewar
 //    vs [k_image, output_keys] (m_scan_table). This is faster because it takes advantage of bulk queries
 //    and is threaded if possible. The table (m_scan_table) will be used later when querying output
 //    keys.
-bool Blockchain::prepare_handle_incoming_blocks(const std::vector<block_complete_entry> &blocks_entry, std::vector<block> &blocks, std::vector<checkpoint_t> &checkpoints)
+bool Blockchain::prepare_handle_incoming_blocks(const std::vector<block_complete_entry> &blocks_entry, std::vector<block> &blocks)
 {
   MTRACE("Blockchain::" << __func__);
   TIME_MEASURE_START(prepare);
@@ -4466,8 +4463,6 @@ bool Blockchain::prepare_handle_incoming_blocks(const std::vector<block_complete
   //  when something uses the pool, which now uses the blockchain and
   //  needs a batch, since a batch could otherwise be active while the
   //  txpool and blockchain locks were not held
-
-  // TODO(doyle): Checkpointing
 
   m_tx_pool.lock();
   CRITICAL_REGION_LOCAL1(m_blockchain_lock);
@@ -4492,39 +4487,6 @@ bool Blockchain::prepare_handle_incoming_blocks(const std::vector<block_complete
     epee::misc_utils::sleep_no_w(1000);
     m_tx_pool.lock();
     m_blockchain_lock.lock();
-  }
-
-  // TODO(loki): Always parse checkpoints, but block syncing have a caching
-  // layer that is pretty complicated but would be nice to have an equivalent
-  // for checkpoints.
-
-  // Place parsing before early returns since the caching layer seems to make
-  // this function early return in the common case, so always ensure checkpoints
-  // are parsed out.
-  for (size_t i = 0; i < blocks.size(); i++)
-  {
-    blobdata const &checkpoint_blob = blocks_entry[i].checkpoint;
-    block const &block              = blocks[i];
-    uint64_t block_height           = get_block_height(block);
-    bool maybe_has_checkpoint       = (block_height % service_nodes::CHECKPOINT_INTERVAL == 0);
-
-    if (checkpoint_blob.size() && !maybe_has_checkpoint)
-    {
-      MDEBUG("Checkpoint blob given but not expecting a checkpoint at this height");
-      return false;
-    }
-
-    if (checkpoint_blob.size())
-    {
-      checkpoint_t checkpoint;
-      if (!t_serializable_object_from_blob(checkpoint, checkpoint_blob))
-      {
-        MDEBUG("Checkpoint blob available but failed to parse");
-        return false;
-      }
-
-      checkpoints.push_back(checkpoint);
-    }
   }
 
   const uint64_t height = m_db->height();

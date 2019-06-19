@@ -1567,14 +1567,13 @@ namespace cryptonote
       return false;
     }
     std::vector<block> pblocks;
-    std::vector<checkpoint_t> checkpoints;
-    if (!prepare_handle_incoming_blocks(blocks, pblocks, checkpoints))
+    if (!prepare_handle_incoming_blocks(blocks, pblocks))
     {
       MERROR("Block found, but failed to prepare to add");
       m_miner.resume();
       return false;
     }
-    add_new_block(b, bvc);
+    add_new_block(b, bvc, nullptr /*checkpoint*/);
     cleanup_handle_incoming_blocks(true);
     //anyway - update miner template
     update_miner_block_template();
@@ -1615,9 +1614,9 @@ namespace cryptonote
     m_blockchain_storage.safesyncmode(onoff);
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::add_new_block(const block& b, block_verification_context& bvc)
+  bool core::add_new_block(const block& b, block_verification_context& bvc, checkpoint_t const *checkpoint)
   {
-    bool result = m_blockchain_storage.add_new_block(b, bvc);
+    bool result = m_blockchain_storage.add_new_block(b, bvc, checkpoint);
     if (result)
     {
       // TODO(loki): PERF(loki): This causes perf problems in integration mode, so in real-time operation it may not be
@@ -1628,10 +1627,10 @@ namespace cryptonote
     return result;
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::prepare_handle_incoming_blocks(const std::vector<block_complete_entry> &blocks_entry, std::vector<block> &blocks, std::vector<checkpoint_t> &checkpoints)
+  bool core::prepare_handle_incoming_blocks(const std::vector<block_complete_entry> &blocks_entry, std::vector<block> &blocks)
   {
     m_incoming_tx_lock.lock();
-    if (!m_blockchain_storage.prepare_handle_incoming_blocks(blocks_entry, blocks, checkpoints))
+    if (!m_blockchain_storage.prepare_handle_incoming_blocks(blocks_entry, blocks))
     {
       cleanup_handle_incoming_blocks(false);
       return false;
@@ -1652,7 +1651,7 @@ namespace cryptonote
   }
 
   //-----------------------------------------------------------------------------------------------
-  bool core::handle_incoming_block(const blobdata& block_blob, const block *b, block_verification_context& bvc, bool update_miner_blocktemplate)
+  bool core::handle_incoming_block(const blobdata& block_blob, const block *b, block_verification_context& bvc, checkpoint_t const *checkpoint, bool update_miner_blocktemplate)
   {
     TRY_ENTRY();
     bvc = boost::value_initialized<block_verification_context>();
@@ -1680,7 +1679,7 @@ namespace cryptonote
       }
       b = &lb;
     }
-    add_new_block(*b, bvc);
+    add_new_block(*b, bvc, checkpoint);
     if(update_miner_blocktemplate && bvc.m_added_to_main_chain)
        update_miner_block_template();
     return true;

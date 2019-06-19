@@ -43,6 +43,7 @@ namespace cryptonote
 {
   struct vote_verification_context;
   struct tx_extra_service_node_deregister_;
+  struct checkpoint_t;
 };
 
 namespace service_nodes
@@ -112,6 +113,7 @@ namespace service_nodes
   quorum_vote_t make_deregister_vote(uint8_t hf_version, make_deregister_type type, uint64_t block_height, uint16_t index_in_group, uint16_t worker_index, crypto::public_key const &pub_key, crypto::secret_key const &secret_key);
   bool          verify_tx_deregister(const cryptonote::tx_extra_service_node_deregister_& deregister, uint64_t latest_height, cryptonote::vote_verification_context& vvc, const service_nodes::testing_quorum &quorum);
   bool          verify_vote         (const quorum_vote_t& vote, uint64_t latest_height, cryptonote::vote_verification_context &vvc, const service_nodes::testing_quorum &quorum);
+  bool          verify_checkpoint   (cryptonote::checkpoint_t const &checkpoint, service_nodes::testing_quorum const &quorum);
 
   crypto::signature make_signature_from_vote         (quorum_vote_t const &vote, const crypto::public_key& pub, const crypto::secret_key& sec);
   crypto::signature make_signature_from_tx_deregister(cryptonote::tx_extra_service_node_deregister_ const &deregister, crypto::public_key const &pub, crypto::secret_key const &sec);

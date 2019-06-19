@@ -648,18 +648,16 @@ namespace cryptonote
       {
         MDEBUG("We have all needed txes for this fluffy block");
 
-        block_complete_entry b;
+        block_complete_entry b = {};
         b.block = arg.b.block;
         b.txs = have_tx;
 
         std::vector<block_complete_entry> blocks;
         blocks.push_back(b);
 
-
         // TODO(doyle): Checkpointing
         std::vector<block> pblocks;
-        std::vector<checkpoint_t> checkpoints;
-        if (!m_core.prepare_handle_incoming_blocks(blocks, pblocks, checkpoints))
+        if (!m_core.prepare_handle_incoming_blocks(blocks, pblocks))
         {
           LOG_PRINT_CCONTEXT_L0("Failure in prepare_handle_incoming_blocks");
           m_core.resume_mine();
@@ -667,7 +665,7 @@ namespace cryptonote
         }
           
         block_verification_context bvc = boost::value_initialized<block_verification_context>();
-        m_core.handle_incoming_block(arg.b.block, pblocks.empty() ? NULL : &pblocks[0], bvc); // got block from handle_notify_new_block
+        m_core.handle_incoming_block(arg.b.block, pblocks.empty() ? NULL : &pblocks[0], bvc, nullptr /*checkpoint*/); // got block from handle_notify_new_block
         if (!m_core.cleanup_handle_incoming_blocks(true))
         {
           LOG_PRINT_CCONTEXT_L0("Failure in cleanup_handle_incoming_blocks");
@@ -1272,13 +1270,13 @@ namespace cryptonote
             }
           }
 
-          std::vector<checkpoint_t> checkpoints;
           std::vector<block> pblocks;
-          if (!m_core.prepare_handle_incoming_blocks(blocks, pblocks, checkpoints))
+          if (!m_core.prepare_handle_incoming_blocks(blocks, pblocks))
           {
             LOG_ERROR_CCONTEXT("Failure in prepare_handle_incoming_blocks");
             return 1;
           }
+
           if (!pblocks.empty() && pblocks.size() != blocks.size())
           {
             m_core.cleanup_handle_incoming_blocks();
@@ -1286,96 +1284,147 @@ namespace cryptonote
             return 1;
           }
 
-          LOKI_DEFER
+          //
+          // NOTE: Deserialize Synced Blocks & Add To Blockchain
+          //
           {
-            if (!m_core.cleanup_handle_incoming_blocks())
+            LOKI_DEFER
             {
-              LOG_PRINT_CCONTEXT_L0("Failure in cleanup_handle_incoming_blocks");
-              return;
-            }
-
-            if (m_stopping)
-              return;
-
-            // in case the peer had dropped beforehand, remove the span anyway so other threads can wake up and get it
-            m_block_queue.remove_spans(span_connection_id, start_height);
-            return;
-          };
-
-          uint64_t block_process_time_full = 0, transactions_process_time_full = 0;
-          size_t num_txs = 0, blockidx = 0;
-          for(const block_complete_entry& block_entry: blocks)
-          {
-            if (m_stopping)
-              return 1;
-
-            // process transactions
-            TIME_MEASURE_START(transactions_process_time);
-            num_txs += block_entry.txs.size();
-            std::vector<tx_verification_context> tvc;
-            m_core.handle_incoming_txs(block_entry.txs, tvc, true, true, false);
-            if (tvc.size() != block_entry.txs.size())
-            {
-              LOG_ERROR_CCONTEXT("Internal error: tvc.size() != block_entry.txs.size()");
-              return 1;
-            }
-            std::vector<blobdata>::const_iterator it = block_entry.txs.begin();
-            for (size_t i = 0; i < tvc.size(); ++i, ++it)
-            {
-              if(tvc[i].m_verifivation_failed)
+              if (!m_core.cleanup_handle_incoming_blocks())
               {
+                LOG_PRINT_CCONTEXT_L0("Failure in cleanup_handle_incoming_blocks");
+                return;
+              }
+
+              if (m_stopping)
+                return;
+
+              // in case the peer had dropped beforehand, remove the span anyway so other threads can wake up and get it
+              m_block_queue.remove_spans(span_connection_id, start_height);
+              return;
+            };
+
+            size_t num_txs                   = 0;
+            uint64_t block_process_time_full = 0, transactions_process_time_full = 0;
+
+            for (size_t checkpoint_index = 0, block_index = 0;
+                 block_index < blocks.size();
+                 ++block_index)
+            {
+              const block_complete_entry& block_entry = blocks[block_index];
+              if (m_stopping)
+                return 1;
+
+              // process transactions
+              TIME_MEASURE_START(transactions_process_time);
+              num_txs += block_entry.txs.size();
+              std::vector<tx_verification_context> tvc;
+              m_core.handle_incoming_txs(block_entry.txs, tvc, true, true, false);
+              if (tvc.size() != block_entry.txs.size())
+              {
+                LOG_ERROR_CCONTEXT("Internal error: tvc.size() != block_entry.txs.size()");
+                return 1;
+              }
+              std::vector<blobdata>::const_iterator it = block_entry.txs.begin();
+              for (size_t i = 0; i < tvc.size(); ++i, ++it)
+              {
+                if(tvc[i].m_verifivation_failed)
+                {
+                  if (!m_p2p->for_connection(span_connection_id, [&](cryptonote_connection_context& context, nodetool::peerid_type peer_id, uint32_t f)->bool{
+                    cryptonote::transaction tx;
+                    parse_and_validate_tx_from_blob(*it, tx); // must succeed if we got here
+                    LOG_ERROR_CCONTEXT("transaction verification failed on NOTIFY_RESPONSE_GET_OBJECTS, tx_id = "
+                        << epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(tx)) << ", dropping connection");
+                    drop_connection(context, false, true);
+                    return 1;
+                  }))
+                    LOG_ERROR_CCONTEXT("span connection id not found");
+
+                  return 1;
+                }
+              }
+              TIME_MEASURE_FINISH(transactions_process_time);
+              transactions_process_time_full += transactions_process_time;
+
+              //
+              // NOTE: Checkpoint Parsing
+              //
+              checkpoint_t checkpoint_allocated_on_stack_;
+              checkpoint_t *checkpoint = nullptr;
+              if (block_entry.checkpoint.size())
+              {
+                // TODO(doyle): It's wasteful to have to parse the checkpoint to figure
+                // out the height when at some point during the syncing step, we know
+                // exactly what height the block entries are for
+                if (!t_serializable_object_from_blob(checkpoint_allocated_on_stack_, block_entry.checkpoint))
+                {
+                  MERROR("Checkpoint blob available but failed to parse");
+                  return false;
+                }
+
+                checkpoint                = &checkpoint_allocated_on_stack_;
+                bool maybe_has_checkpoint = (checkpoint->height % service_nodes::CHECKPOINT_INTERVAL == 0);
+
+                if (!maybe_has_checkpoint)
+                {
+                  MDEBUG("Checkpoint blob given but not expecting a checkpoint at this height");
+                  return false;
+                }
+
+#if 0
+                std::shared_ptr<const service_nodes::testing_quorum> quorum =
+                    get_testing_quorum(service_nodes::quorum_type::checkpointing, checkpoint.height);
+                if (!quorum)
+                {
+                  MERROR(
+                      "Failed to get service node quorum for height: "
+                      << checkpoint.height
+                      << ", quorum should be available as we are syncing the chain and deriving the current relevant quorum");
+                  return false;
+                }
+
+                // TODO(doyle): add reasoning, important for sync failures
+                // TODO(doyle): If we are receiving alternative blocks, we won't have
+                // the quorum for the alternative chain, meaning we will not be able to
+                // verify the checkpoint.
+                // For now always accept whatever checkpoint we receive.
+                if (!service_nodes::verify_checkpoint(checkpoint, *quorum))
+                {
+                  MERROR("Failed to verify checkpoint at height: " << checkpoint.height);
+                  return false;
+                }
+#endif
+              }
+
+              //
+              // NOTE: Block Processing
+              //
+              TIME_MEASURE_START(block_process_time);
+              block_verification_context bvc = {};
+              m_core.handle_incoming_block(block_entry.block, pblocks.empty() ? NULL : &pblocks[block_index], bvc, checkpoint, false); // <--- process block
+
+              if(bvc.m_verifivation_failed || bvc.m_marked_as_orphaned)
+              {
+                char const *ERROR_MSG = (bvc.m_verifivation_failed)
+                                            ? "Block verification failed, dropping connection"
+                                            : "Block received at sync phase was marked as orphaned, dropping connection";
+
                 if (!m_p2p->for_connection(span_connection_id, [&](cryptonote_connection_context& context, nodetool::peerid_type peer_id, uint32_t f)->bool{
-                  cryptonote::transaction tx;
-                  parse_and_validate_tx_from_blob(*it, tx); // must succeed if we got here
-                  LOG_ERROR_CCONTEXT("transaction verification failed on NOTIFY_RESPONSE_GET_OBJECTS, tx_id = "
-                      << epee::string_tools::pod_to_hex(cryptonote::get_transaction_hash(tx)) << ", dropping connection");
-                  drop_connection(context, false, true);
+                  LOG_PRINT_CCONTEXT_L1(ERROR_MSG);
+                  drop_connection(context, true, true);
                   return 1;
                 }))
                   LOG_ERROR_CCONTEXT("span connection id not found");
-
                 return 1;
               }
-            }
-            TIME_MEASURE_FINISH(transactions_process_time);
-            transactions_process_time_full += transactions_process_time;
 
-            // process block
+              TIME_MEASURE_FINISH(block_process_time);
+              block_process_time_full += block_process_time;
 
-            TIME_MEASURE_START(block_process_time);
-            block_verification_context bvc = boost::value_initialized<block_verification_context>();
+            } // each download block
 
-            m_core.handle_incoming_block(block_entry.block, pblocks.empty() ? NULL : &pblocks[blockidx], bvc, false); // <--- process block
-
-            if(bvc.m_verifivation_failed || bvc.m_marked_as_orphaned)
-            {
-              char const *ERROR_MSG = (bvc.m_verifivation_failed)
-                                          ? "Block verification failed, dropping connection"
-                                          : "Block received at sync phase was marked as orphaned, dropping connection";
-
-              if (!m_p2p->for_connection(span_connection_id, [&](cryptonote_connection_context& context, nodetool::peerid_type peer_id, uint32_t f)->bool{
-                LOG_PRINT_CCONTEXT_L1(ERROR_MSG);
-                drop_connection(context, true, true);
-                return 1;
-              }))
-                LOG_ERROR_CCONTEXT("span connection id not found");
-              return 1;
-            }
-
-            TIME_MEASURE_FINISH(block_process_time);
-            block_process_time_full += block_process_time;
-            ++blockidx;
-
-          } // each download block
-
-          // TODO(doyle): Horribly incomplete
-          for (checkpoint_t const &checkpoint : checkpoints)
-          {
-            Blockchain &blockchain = m_core.get_blockchain_storage();
-            blockchain.update_checkpoint(checkpoint);
+            MDEBUG(context << "Block process time (" << blocks.size() << " blocks, " << num_txs << " txs): " << block_process_time_full + transactions_process_time_full << " (" << transactions_process_time_full << "/" << block_process_time_full << ") ms");
           }
-
-          MDEBUG(context << "Block process time (" << blocks.size() << " blocks, " << num_txs << " txs): " << block_process_time_full + transactions_process_time_full << " (" << transactions_process_time_full << "/" << block_process_time_full << ") ms");
 
           const uint64_t current_blockchain_height = m_core.get_current_blockchain_height();
           if (current_blockchain_height > previous_height)

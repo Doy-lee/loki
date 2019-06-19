@@ -252,7 +252,7 @@ namespace cryptonote
      *
      * @return false on erroneous blocks, else true
      */
-    bool prepare_handle_incoming_blocks(const std::vector<block_complete_entry>  &blocks_entry, std::vector<block> &blocks, std::vector<checkpoint_t> &checkpoints);
+    bool prepare_handle_incoming_blocks(const std::vector<block_complete_entry>  &blocks_entry, std::vector<block> &blocks);
 
     /**
      * @brief incoming blocks post-processing, cleanup, and disk sync
@@ -333,12 +333,13 @@ namespace cryptonote
      * chain.  If the block does not belong, is already in the blockchain
      * or an alternate chain, or is invalid, return false.
      *
-     * @param bl_ the block to be added
+     * @param bl the block to be added
      * @param bvc metadata about the block addition's success/failure
+     * @param checkpoint optional checkpoint if there is one associated with the block
      *
      * @return true on successful addition to the blockchain, else false
      */
-    bool add_new_block(const block& bl_, block_verification_context& bvc);
+    bool add_new_block(const block& bl, block_verification_context& bvc, checkpoint_t const *checkpoint);
 
     /**
      * @brief clears the blockchain and starts a new one

@@ -125,7 +125,7 @@ namespace cryptonote
      */
     bool add_checkpoint(uint64_t height, const std::string& hash_str);
 
-    bool update_checkpoint(checkpoint_t const &checkpoin);
+    bool update_checkpoint(checkpoint_t const &checkpoint);
 
     /*
        @brief Remove checkpoints that should not be stored persistently, i.e.
@@ -200,5 +200,4 @@ namespace cryptonote
     uint64_t m_last_cull_height = 0;
     BlockchainDB *m_db;
   };
-
 }
