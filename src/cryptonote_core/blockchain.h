@@ -1258,7 +1258,7 @@ namespace cryptonote
      *
      * @return true if the block was added successfully, otherwise false
      */
-    bool handle_alternative_block(const block& b, const crypto::hash& id, block_verification_context& bvc, checkpoint_t const *checkpoint);
+    bool handle_alternative_block(const block& b, const crypto::hash& id, block_verification_context& bvc, bool has_checkpoint);
 
     /**
      * @brief builds a list of blocks connecting a block to the main chain

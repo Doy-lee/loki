@@ -393,7 +393,6 @@ namespace service_nodes
       case quorum_vote_type::uptime_deregister:
       case quorum_vote_type::checkpoint_deregister:
       {
-        // CHECKPOINT_DEREGISTER(doyle):
         if (votes.size() >= DEREGISTER_MIN_VOTES_TO_KICK_SERVICE_NODE)
         {
           using namespace cryptonote;
