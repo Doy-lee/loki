@@ -246,7 +246,7 @@ namespace service_nodes
       }
     }
 
-    if (deregister.votes.size() < service_nodes::DEREGISTER_MIN_VOTES_TO_KICK_SERVICE_NODE)
+    if (deregister.votes.size() < service_nodes::min_votes_for_quorum(static_cast<quorum_vote_type>(deregister.vote_type)))
     {
       LOG_PRINT_L1("Not enough votes");
       vvc.m_not_enough_votes = true;

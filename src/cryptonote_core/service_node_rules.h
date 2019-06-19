@@ -9,7 +9,6 @@ namespace service_nodes {
   constexpr size_t   UPTIME_FRACTION_OF_THE_NETWORK_TO_TEST = 100;
   constexpr size_t   UPTIME_MIN_NODES_TO_TEST               = 50;
 
-  constexpr size_t   DEREGISTER_MIN_VOTES_TO_KICK_SERVICE_NODE = 7;
   constexpr uint64_t VOTE_LIFETIME                             = 60;
 
   constexpr uint64_t CHECKPOINT_INTERVAL                       = 4;  // Checkpoint every 4 blocks and prune when too old except if (height % CHECKPOINT_STORE_PERSISTENTLY_INTERVAL == 0)
@@ -22,11 +21,12 @@ namespace service_nodes {
 #else
   constexpr ptrdiff_t MIN_TIME_IN_S_BEFORE_VOTING = UPTIME_PROOF_MAX_TIME_IN_SECONDS;
   constexpr size_t    CHECKPOINT_QUORUM_SIZE      = 20;
-  constexpr size_t    CHECKPOINT_MIN_VOTES        = 18;
+  constexpr size_t    CHECKPOINT_MIN_VOTES        = 13;
 #endif
 
-  static_assert(DEREGISTER_MIN_VOTES_TO_KICK_SERVICE_NODE <= UPTIME_QUORUM_SIZE, "The number of votes required to kick can't exceed the actual quorum size, otherwise we never kick.");
-  static_assert(CHECKPOINT_MIN_VOTES <= CHECKPOINT_QUORUM_SIZE, "The number of votes required to kick can't exceed the actual quorum size, otherwise we never kick.");
+  static_assert(UPTIME_DEREGISTER_MIN_VOTES_TO_KICK_SERVICE_NODE <= UPTIME_QUORUM_SIZE,         "The number of votes required to kick can't exceed the actual quorum size, otherwise we never kick.");
+  static_assert(CHECKPOINT_DEREGISTER_MIN_VOTES_TO_KICK_SERVICE_NODE <= CHECKPOINT_QUORUM_SIZE, "The number of votes required to kick can't exceed the actual quorum size, otherwise we never kick.");
+  static_assert(CHECKPOINT_MIN_VOTES <= CHECKPOINT_QUORUM_SIZE,                                 "The number of votes required to checkpoint can't exceed the actual quorum size, otherwise we never checkpoint.");
 
   constexpr size_t   MAX_SWARM_SIZE                   = 10;
   // We never create a new swarm unless there are SWARM_BUFFER extra nodes
@@ -71,6 +71,17 @@ namespace service_nodes {
                                                                                          : quorum_type::checkpointing;
     assert((size_t)result < (size_t)quorum_type::count);
     return result;
+  }
+
+  inline size_t min_votes_for_quorum(quorum_vote_type type)
+  {
+    switch(type)
+    {
+      default: assert("Unhandled quorum vote type" != nullptr); return 999;
+      case quorum_vote_type::uptime_deregister:     return UPTIME_DEREGISTER_MIN_VOTES_TO_KICK_SERVICE_NODE;
+      case quorum_vote_type::checkpoint:            return CHECKPOINT_MIN_VOTES;
+      case quorum_vote_type::checkpoint_deregister: return CHECKPOINT_DEREGISTER_MIN_VOTES_TO_KICK_SERVICE_NODE;
+    }
   }
 
   static_assert(STAKING_PORTIONS != UINT64_MAX, "UINT64_MAX is used as the invalid value for failing to calculate the min_node_contribution");
