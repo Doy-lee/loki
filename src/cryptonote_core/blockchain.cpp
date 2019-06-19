@@ -618,6 +618,10 @@ void Blockchain::pop_blocks(uint64_t nblocks)
   }
 
   m_db->batch_stop();
+
+  auto split_height = m_db->height();
+  for (BlockchainDetachedHook* hook : m_blockchain_detached_hooks)
+    hook->blockchain_detached(split_height);
 }
 //------------------------------------------------------------------
 // This function tells BlockchainDB to remove the top block from the
