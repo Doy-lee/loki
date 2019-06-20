@@ -3168,34 +3168,27 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
           continue;
         }
 
-        bool deregistered_in_previous_quorum = false;
-        for (size_t enum_index = 0;
-             enum_index <= (size_t)service_nodes::max_quorum_type_for_hf(hf_version);
-             ++enum_index)
+        auto const existing_vote_type     = static_cast<service_nodes::quorum_vote_type>(existing_deregister.vote_type);
+        auto existing_desired_quorum_type = (existing_vote_type == service_nodes::quorum_vote_type::uptime_deregister)
+                                                ? service_nodes::quorum_type::uptime
+                                                : service_nodes::quorum_type::checkpointing;
+
+        std::shared_ptr<const service_nodes::testing_quorum> existing_quorum =
+            m_service_node_list.get_testing_quorum(existing_desired_quorum_type, existing_deregister.block_height);
+        if (!existing_quorum)
         {
-          auto type = static_cast<service_nodes::quorum_type>(enum_index);
-          std::shared_ptr<const service_nodes::testing_quorum> existing_quorum = m_service_node_list.get_testing_quorum(type, existing_deregister.block_height);
-
-          if (!existing_quorum)
-          {
-            MERROR_VER("Could not get quorum for recent deregister tx");
-            continue;
-          }
-
-          if (existing_quorum->workers[existing_deregister.service_node_index] ==
-              quorum->workers[deregister.service_node_index])
-          {
-            deregistered_in_previous_quorum = true;
-            break;
-          }
+          MERROR_VER("Could not get quorum for recent deregister tx");
+          continue;
         }
 
-        if (deregistered_in_previous_quorum)
+        if (existing_quorum->workers[existing_deregister.service_node_index] ==
+            quorum->workers[deregister.service_node_index])
         {
           MERROR_VER("Already seen this deregister tx (aka double spend, we can safely ignore)");
           tvc.m_double_spend = true;
           return false;
         }
+
       }
     }
     else if (tx.get_type() == transaction::type_key_image_unlock)
