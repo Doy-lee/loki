@@ -50,6 +50,7 @@ namespace cryptonote
 {
   struct tx_verification_context;
   struct vote_verification_context;
+  struct block_verification_context;
   //---------------------------------------------------------------
   void get_transaction_prefix_hash(const transaction_prefix& tx, crypto::hash& h);
   crypto::hash get_transaction_prefix_hash(const transaction_prefix& tx);
@@ -179,8 +180,9 @@ namespace cryptonote
   std::string get_unit(unsigned int decimal_point = -1);
   std::string print_money(uint64_t amount, unsigned int decimal_point = -1);
 
-  char const *print_tx_verification_context  (tx_verification_context const &tvc, transaction const *tx = nullptr);
-  char const *print_vote_verification_context(vote_verification_context const &vvc, service_nodes::quorum_vote_t const *vote = nullptr);
+  char const *print_tx_verification_context   (tx_verification_context const &tvc, transaction const *tx = nullptr);
+  char const *print_vote_verification_context (vote_verification_context const &vvc, service_nodes::quorum_vote_t const *vote = nullptr);
+  char const *print_block_verification_context(block_verification_context const &bvc);
   //---------------------------------------------------------------
   template<class t_object>
   bool t_serializable_object_from_blob(t_object& to, const blobdata& b_blob)

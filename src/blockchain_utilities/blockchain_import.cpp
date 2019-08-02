@@ -222,8 +222,8 @@ int check_flush(cryptonote::core &core, std::vector<block_complete_entry> &block
 
     if(bvc.m_verifivation_failed)
     {
-      MERROR("Block verification failed, id = "
-          << epee::string_tools::pod_to_hex(get_blob_hash(block_entry.block)));
+      MERROR("Block verification failed, id = " << epee::string_tools::pod_to_hex(get_blob_hash(block_entry.block))
+                                                << ", " << print_block_verification_context(bvc));
       core.cleanup_handle_incoming_blocks();
       return 1;
     }
