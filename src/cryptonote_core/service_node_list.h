@@ -397,6 +397,13 @@ namespace service_nodes
       std::vector<pubkey_and_sninfo> active_service_nodes_infos() const;
       // Similar to the above, but returns all nodes that are fully funded *and* decommissioned.
       std::vector<pubkey_and_sninfo> decommissioned_service_nodes_infos() const;
+
+      bool process_registration_tx    (cryptonote::network_type nettype, uint8_t hf_version, const cryptonote::transaction& tx, uint64_t block_timestamp, uint64_t block_height, uint32_t index, crypto::public_key const *my_pubkey);
+      bool process_contribution_tx    (cryptonote::network_type nettype, uint8_t hf_version, const cryptonote::transaction& tx, uint64_t block_height, uint32_t index); // Returns true if there was a contribution that fully funded a service node
+      bool process_state_change_tx    (cryptonote::network_type nettype, uint8_t hf_version, std::vector<state_t> const &state_history, const cryptonote::transaction& tx, uint64_t block_height, crypto::public_key const *my_pubkey); // Returns true if a service node changed state (deregistered, decommissioned, or recommissioned)
+      bool process_key_image_unlock_tx(cryptonote::network_type nettype, const cryptonote::transaction &tx, uint64_t block_height);
+      void update_swarms              (uint64_t seed);
+      std::vector<crypto::public_key> get_expired_nodes(cryptonote::Blockchain const &blockchain, const std::vector<cryptonote::transaction> &txs, uint64_t block_height) const;
     };
 
   private:
@@ -404,18 +411,7 @@ namespace service_nodes
     // Note(maxim): private methods don't have to be protected the mutex
     // Returns true if there was a registration:
     void rescan_starting_from_curr_state(bool store_to_disk);
-    bool process_registration_tx(const cryptonote::transaction& tx, uint64_t block_timestamp, uint64_t block_height, uint32_t index);
-    // Returns true if there was a successful contribution that fully funded a service node:
-    bool process_contribution_tx(const cryptonote::transaction& tx, uint64_t block_height, uint32_t index);
-    // Returns true if a service node changed state (deregistered, decommissioned, or recommissioned)
-    bool process_state_change_tx(const cryptonote::transaction& tx, uint64_t block_height);
     void process_block(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs);
-    void update_swarms(uint64_t height);
-
-    bool contribution_tx_output_has_correct_unlock_time(const cryptonote::transaction& tx, size_t i, uint64_t block_height) const;
-
-    bool is_registration_tx(const cryptonote::transaction& tx, uint64_t block_timestamp, uint64_t block_height, uint32_t index, crypto::public_key& key, service_node_info& info) const;
-    std::vector<crypto::public_key> update_and_get_expired_nodes(const std::vector<cryptonote::transaction> &txs, uint64_t block_height);
 
     void reset(bool delete_db_entry = false);
     bool load(uint64_t current_height);
@@ -439,6 +435,7 @@ namespace service_nodes
     state_t                        m_state;
   };
 
+  bool is_registration_tx   (const cryptonote::transaction& tx, uint64_t block_timestamp, uint64_t block_height, uint32_t tx_index_in_block, crypto::public_key& key, service_node_info& info);
   bool reg_tx_extract_fields(const cryptonote::transaction& tx, std::vector<cryptonote::account_public_address>& addresses, uint64_t& portions_for_operator, std::vector<uint64_t>& portions, uint64_t& expiration_timestamp, crypto::public_key& service_node_key, crypto::signature& signature, crypto::public_key& tx_pub_key);
 
   struct converted_registration_args
