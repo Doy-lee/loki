@@ -1248,6 +1248,29 @@ namespace cryptonote
     return buf;
   }
   //---------------------------------------------------------------
+  char const *print_block_verification_context(block_verification_context const &bvc)
+  {
+    static char buf[2048];
+    buf[0] = 0;
+
+    char *bufPtr = buf;
+    char *bufEnd = buf + sizeof(buf);
+    if (bvc.m_added_to_main_chain)  bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "Block added to main chain, ");
+    if (bvc.m_verifivation_failed)  bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "Block verification failed, dropping connection, ");
+    if (bvc.m_marked_as_orphaned)   bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "Alternative block is orphaned, ");
+    if (bvc.m_already_exists)       bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "Block already exists, ");
+    if (bvc.m_partial_block_reward) bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "Block specifies partial block reward, ");
+    if (bvc.m_failed_checkpoint)    bufPtr += snprintf(bufPtr, bufEnd - bufPtr, "Block failed checkpoint, ");
+
+    if (bufPtr != buf)
+    {
+      char *last_comma = bufPtr - 2;
+      if (last_comma[0] == ',') last_comma[0] = 0;
+    }
+
+    return buf;
+  }
+  //---------------------------------------------------------------
   crypto::hash get_blob_hash(const blobdata& blob)
   {
     crypto::hash h = null_hash;

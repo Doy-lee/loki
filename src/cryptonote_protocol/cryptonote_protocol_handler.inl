@@ -675,7 +675,7 @@ namespace cryptonote
         
         if( bvc.m_verifivation_failed )
         {
-          LOG_PRINT_CCONTEXT_L0("Block verification failed, dropping connection");
+          LOG_PRINT_CCONTEXT_L0(print_block_verification_context(bvc));
           drop_connection(context, true, false);
           return 1;
         }

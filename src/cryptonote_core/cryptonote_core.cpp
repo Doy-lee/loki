@@ -1576,7 +1576,7 @@ namespace cryptonote
     m_miner.resume();
 
 
-    CHECK_AND_ASSERT_MES(!bvc.m_verifivation_failed, false, "mined block failed verification");
+    CHECK_AND_ASSERT_MES(!bvc.m_verifivation_failed, false, print_block_verification_context(bvc));
     if(bvc.m_added_to_main_chain)
     {
       std::vector<crypto::hash> missed_txs;

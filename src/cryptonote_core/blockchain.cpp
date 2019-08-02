@@ -1793,6 +1793,7 @@ bool Blockchain::handle_alternative_block(const block& b, const crypto::hash& id
       {
         MERROR_VER("Block with id: " << id << std::endl << " can't be accepted for alternative chain, block height: " << block_height << std::endl << " blockchain height: " << get_current_blockchain_height());
         bvc.m_verifivation_failed = true;
+        bvc.m_failed_checkpoint   = true;
         return false;
       }
     }
@@ -1916,6 +1917,7 @@ bool Blockchain::handle_alternative_block(const block& b, const crypto::hash& id
       {
         LOG_ERROR("CHECKPOINT VALIDATION FAILED");
         bvc.m_verifivation_failed = true;
+        bvc.m_failed_checkpoint   = true;
         return false;
       }
     }
@@ -3848,6 +3850,7 @@ leave:
     {
       LOG_ERROR("CHECKPOINT VALIDATION FAILED");
       bvc.m_verifivation_failed = true;
+      bvc.m_failed_checkpoint   = true;
       goto leave;
     }
 
@@ -4050,7 +4053,7 @@ leave:
   }
   else
   {
-    LOG_ERROR("Blocks that failed verification should not reach here");
+    LOG_ERROR("Blocks that failed verification should not reach here: " << print_block_verification_context(bvc));
   }
 
   // TODO(loki): Not nice, making the hook take in a vector of pair<transaction,
@@ -4279,6 +4282,10 @@ bool Blockchain::add_new_block(const block& bl, block_verification_context& bvc,
 
   if (result && checkpoint)
     update_checkpoint(*checkpoint);
+
+  if (!result)
+    MERROR_VER("Failed to add block: " << print_block_verification_context(bvc));
+
   return result;
 }
 //------------------------------------------------------------------
