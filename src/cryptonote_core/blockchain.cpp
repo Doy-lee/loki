@@ -3736,7 +3736,6 @@ bool Blockchain::handle_block_to_main_chain(const block& bl, const crypto::hash&
   {
     MERROR_VER("Block with id: " << id << std::endl << "has wrong prev_id: " << bl.prev_id << std::endl << "expected: " << top_hash);
     bvc.m_verifivation_failed = true;
-leave:
     return false;
   }
 
@@ -3757,7 +3756,7 @@ leave:
   {
     MERROR_VER("Block with id: " << id << std::endl << "has old version: " << (unsigned)bl.major_version << std::endl << "current: " << (unsigned)m_hardfork->get_current_version());
     bvc.m_verifivation_failed = true;
-    goto leave;
+    return false;
   }
 
   TIME_MEASURE_FINISH(t1);
@@ -3769,7 +3768,7 @@ leave:
   {
     MERROR_VER("Block with id: " << id << std::endl << "has invalid timestamp: " << bl.timestamp);
     bvc.m_verifivation_failed = true;
-    goto leave;
+    return false;
   }
 
   TIME_MEASURE_FINISH(t2);
@@ -3811,7 +3810,7 @@ leave:
       {
         MERROR_VER("Block with id is INVALID: " << id << ", expected " << expected_hash);
         bvc.m_verifivation_failed = true;
-        goto leave;
+        return false;
       }
       fast_check = true;
     }
@@ -3837,7 +3836,7 @@ leave:
     {
       MERROR_VER("Block with id: " << id << std::endl << "does not have enough proof of work: " << proof_of_work << " at height " << blockchain_height << ", unexpected difficulty: " << current_diffic);
       bvc.m_verifivation_failed = true;
-      goto leave;
+      return false;
     }
   }
 
@@ -3849,7 +3848,7 @@ leave:
     {
       LOG_ERROR("CHECKPOINT VALIDATION FAILED");
       bvc.m_verifivation_failed = true;
-      goto leave;
+      return false;
     }
 
   }
@@ -3865,7 +3864,7 @@ leave:
   {
     MERROR_VER("Block with id: " << id << " failed to pass prevalidation");
     bvc.m_verifivation_failed = true;
-    goto leave;
+    return false;
   }
 
   size_t coinbase_weight = get_transaction_weight(bl.miner_tx);
@@ -3888,6 +3887,13 @@ leave:
   // from the tx_pool and validating them.  Each is then added
   // to txs.  Keys spent in each are added to <keys> by the double spend check.
   txs.reserve(bl.tx_hashes.size());
+
+  LOKI_DEFER
+  {
+    if (bvc.m_verifivation_failed)
+      return_tx_to_pool(txs);
+  };
+
   for (const crypto::hash& tx_id : bl.tx_hashes)
   {
     transaction tx_tmp;
@@ -3902,8 +3908,7 @@ leave:
     {
       MERROR("Block with id: " << id << " attempting to add transaction already in blockchain with id: " << tx_id);
       bvc.m_verifivation_failed = true;
-      return_tx_to_pool(txs);
-      goto leave;
+      return false;
     }
 
     TIME_MEASURE_FINISH(aa);
@@ -3915,8 +3920,7 @@ leave:
     {
       MERROR_VER("Block with id: " << id  << " has at least one unknown transaction with id: " << tx_id);
       bvc.m_verifivation_failed = true;
-      return_tx_to_pool(txs);
-      goto leave;
+      return false;
     }
 
     TIME_MEASURE_FINISH(bb);
@@ -3961,8 +3965,7 @@ leave:
         MERROR_VER("tx_index " << tx_index << ", m_blocks_txs_check " << m_blocks_txs_check.size() << ":");
         for (const auto &h: m_blocks_txs_check) MERROR_VER("  " << h);
         bvc.m_verifivation_failed = true;
-        return_tx_to_pool(txs);
-        goto leave;
+        return false;
       }
     }
 #if defined(PER_BLOCK_CHECKPOINT)
@@ -3977,8 +3980,7 @@ leave:
         add_block_as_invalid(bl, id);
         MERROR_VER("Block with id " << id << " added as invalid because of wrong inputs in transactions");
         bvc.m_verifivation_failed = true;
-        return_tx_to_pool(txs);
-        goto leave;
+        return false;
       }
     }
 #endif
@@ -3997,8 +3999,7 @@ leave:
   {
     MERROR_VER("Block with id: " << id << " has incorrect miner transaction");
     bvc.m_verifivation_failed = true;
-    return_tx_to_pool(txs);
-    goto leave;
+    return false;
   }
 
   TIME_MEASURE_FINISH(vmt);
@@ -4036,7 +4037,6 @@ leave:
       LOG_ERROR("Error adding block with hash: " << id << " to blockchain, what = " << e.what());
       m_batch_success = false;
       bvc.m_verifivation_failed = true;
-      return_tx_to_pool(txs);
       return false;
     }
     catch (const std::exception& e)
@@ -4045,7 +4045,6 @@ leave:
       LOG_ERROR("Error adding block with hash: " << id << " to blockchain, what = " << e.what());
       m_batch_success = false;
       bvc.m_verifivation_failed = true;
-      return_tx_to_pool(txs);
       return false;
     }
   }
@@ -4068,7 +4067,6 @@ leave:
 
   for (BlockAddedHook* hook : m_block_added_hooks)
     hook->block_added(bl, only_txs);
-
   TIME_MEASURE_FINISH(addblock);
 
   // do this after updating the hard fork state since the weight limit may change due to fork
@@ -4230,7 +4228,6 @@ bool Blockchain::update_next_cumulative_weight_limit(uint64_t *long_term_effecti
 //------------------------------------------------------------------
 bool Blockchain::add_new_block(const block& bl, block_verification_context& bvc, checkpoint_t const *checkpoint)
 {
-
   LOG_PRINT_L3("Blockchain::" << __func__);
   crypto::hash id = get_block_hash(bl);
   CRITICAL_REGION_LOCAL(m_tx_pool);//to avoid deadlock lets lock tx_pool for whole add/reorganize process
@@ -4262,10 +4259,11 @@ bool Blockchain::add_new_block(const block& bl, block_verification_context& bvc,
     }
   }
 
-  bool result = false;
+  bool const is_alt_block = (bl.prev_id != get_tail_id());
+  bool result             = false;
   rtxn_guard.stop();
   //check that block refers to chain tail
-  if(!(bl.prev_id == get_tail_id()))
+  if (is_alt_block)
   {
     //chain switching or wrong block
     bvc.m_added_to_main_chain = false;
@@ -4279,7 +4277,62 @@ bool Blockchain::add_new_block(const block& bl, block_verification_context& bvc,
   }
 
   if (result && checkpoint)
-    update_checkpoint(*checkpoint);
+  {
+    bool checkpoint_failed = true;
+    LOKI_DEFER
+    {
+      if (checkpoint_failed)
+      {
+        MERROR("Failed to verify checkpoint at height: " << checkpoint->height);
+        pop_block_from_blockchain();
+        result = false;
+      }
+    };
+
+    if (checkpoint->height == get_block_height(bl))
+    {
+      std::shared_ptr<const service_nodes::testing_quorum> quorum = nullptr;
+      std::vector<std::shared_ptr<const service_nodes::testing_quorum>> alt_quorums;
+      if (is_alt_block)
+      {
+        m_service_node_list.get_testing_quorum(service_nodes::quorum_type::checkpointing, checkpoint->height, false /*include_old*/, &alt_quorums);
+      }
+      else
+      {
+        quorum = m_service_node_list.get_testing_quorum(service_nodes::quorum_type::checkpointing, checkpoint->height);
+        if (!quorum)
+        {
+          MERROR(
+              "Failed to get service node quorum for height: "
+              << checkpoint->height
+              << ", quorum should be available as we are syncing the chain and deriving the current relevant quorum");
+        }
+      }
+
+      if (is_alt_block)
+      {
+        for (auto const &alt_quorum : alt_quorums)
+        {
+          // TODO(doyle): add reasoning, important for sync failure
+          if (service_nodes::verify_checkpoint(*checkpoint, *alt_quorum))
+          {
+            checkpoint_failed = false;
+            update_checkpoint(*checkpoint);
+            break;
+          }
+        }
+      }
+      else
+      {
+        if (quorum && service_nodes::verify_checkpoint(*checkpoint, *quorum))
+        {
+          checkpoint_failed = false;
+          update_checkpoint(*checkpoint);
+        }
+      }
+    }
+  }
+
   return result;
 }
 //------------------------------------------------------------------

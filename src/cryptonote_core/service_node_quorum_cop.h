@@ -65,9 +65,10 @@ namespace service_nodes
 
     std::shared_ptr<const testing_quorum> get(quorum_type type) const
     {
-      if (type == quorum_type::obligations) return obligations;
+      if      (type == quorum_type::obligations) return obligations;
       else if (type == quorum_type::checkpointing) return checkpointing;
-      assert(!"Developer error: Unhandled quorum enum");
+      assert("Developer error: Unhandled quorum enum" == nullptr);
+      MERROR("Developer error: Unhandled quorum enum with value: " << (size_t)type);
       return nullptr;
     }
   };

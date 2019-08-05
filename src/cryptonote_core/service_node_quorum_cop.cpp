@@ -425,7 +425,8 @@ namespace service_nodes
       return true;
     }
 
-    std::shared_ptr<const testing_quorum> quorum = m_core.get_testing_quorum(vote.type, vote.block_height);
+    std::vector<std::shared_ptr<const testing_quorum>> alt_quorums;
+    std::shared_ptr<const testing_quorum> quorum = m_core.get_testing_quorum(vote.type, vote.block_height, false /*include_old*/, &alt_quorums);
     if (!quorum)
     {
       // TODO(loki): Fatal error
@@ -434,8 +435,26 @@ namespace service_nodes
       return false;
     }
 
-    uint64_t latest_height             = std::max(m_core.get_current_blockchain_height(), m_core.get_target_blockchain_height());
-    std::vector<pool_vote_entry> votes = m_vote_pool.add_pool_vote_if_unique(latest_height, vote, vvc, *quorum);
+    uint64_t latest_height = std::max(m_core.get_current_blockchain_height(), m_core.get_target_blockchain_height());
+    bool verified          = verify_vote(vote, latest_height, vvc, *quorum);
+
+    if (!verified)
+    {
+      for (auto const &alt_quorum : alt_quorums)
+      {
+        vvc      = {};
+        verified = verify_vote(vote, latest_height, vvc, *alt_quorum);
+        if (verified) break;
+      }
+
+      if (!verified)
+      {
+        LOG_PRINT_L1("Received vote failed verification against all known valid quorums");
+        return false;
+      }
+    }
+
+    std::vector<pool_vote_entry> votes = m_vote_pool.add_pool_vote_if_unique(latest_height, vote, vvc);
     bool result                        = !vvc.m_verification_failed;
 
     if (!vvc.m_added_to_pool) // NOTE: Not unique vote

@@ -193,7 +193,11 @@ namespace service_nodes
     return true;
   }
 
-  std::shared_ptr<const testing_quorum> service_node_list::get_testing_quorum(quorum_type type, uint64_t height, bool include_old) const
+  std::shared_ptr<const testing_quorum>
+  service_node_list::get_testing_quorum(quorum_type type,
+                                        uint64_t height,
+                                        bool include_old,
+                                        std::vector<std::shared_ptr<const testing_quorum>> *alt_quorums) const
   {
     if (type == quorum_type::checkpointing) {
         if (height < REORG_SAFETY_BUFFER_BLOCKS_POST_HF12)
@@ -226,12 +230,30 @@ namespace service_nodes
         quorums = &it->quorums;
     }
 
+    if (alt_quorums)
+    {
+      state_sort_key const start_range = {height, crypto::null_hash};
+      auto const range                 = m_alt_states.equal_range(start_range);
+
+      ptrdiff_t num_alt_quorums = std::distance(range.first, range.second);
+      assert(num_alt_quorums >= 0);
+      num_alt_quorums = std::max(num_alt_quorums, (ptrdiff_t)0);
+      alt_quorums->reserve(num_alt_quorums);
+
+      for (auto it = range.first; it != range.second; it++)
+      {
+        quorum_manager const &other_quorums = it->second.quorums;
+        alt_quorums->push_back(other_quorums.get(type));
+      }
+    }
+
     if (!quorums)
       return nullptr;
 
     std::shared_ptr<const testing_quorum> result = quorums->get(type);
     if (!result)
-      MERROR("Developer error: Unhandled quorum enum with value: " << (size_t)type);
+      raise(SIGTRAP);
+
     return result;
   }
 
@@ -1171,20 +1193,23 @@ namespace service_nodes
     uint64_t const block_height      = cryptonote::get_block_height(block);
     cryptonote::network_type nettype = m_blockchain.nettype();
 
-    state_t *curr_state = nullptr;
-    state_t *prev_state = nullptr;
     if (is_alternative_block)
     {
-      crypto::hash const &prev_hash = block.prev_id; // Find the parent state derived from this block
+      state_sort_key const prev_sort_key = {block_height - 1, block.prev_id};
+      if (m_alt_states.count(prev_sort_key) > 0) return; // NOTE: Already received this alt block and processed it
+
+      // NOTE: Otherwise find the parent state_t for this block, copy it and update the state with this incoming alt block
       auto it = std::lower_bound(m_state_history.begin(),
                                  m_state_history.end(),
-                                 block_height,
-                                 [](state_t const &state, uint64_t block_height) { return state.height < block_height; });
+                                 prev_sort_key.height,
+                                 [](state_t const &state, uint64_t height) { return state.height < height; });
 
-      if (it == m_state_history.end())
+      state_t *curr_state = nullptr;
+      state_t *prev_state = nullptr;
+      if (it == m_state_history.end() || it->height != prev_sort_key.height)
       {
         // Not part of the main chain state, is state forking off another alternative state?
-        auto alt_it = m_alt_states.find(prev_hash);
+        auto alt_it = m_alt_states.find(prev_sort_key);
         if (alt_it == m_alt_states.end())
           return; // TODO(doyle): The block's parent does not match any forked or derived state we're aware of
 
@@ -1195,24 +1220,45 @@ namespace service_nodes
         prev_state = &(*it);
       }
 
-      // NOTE: Already received this alt block and processed it
-      if (m_alt_states.count(block_hash) > 0)
-        return;
+      // TODO(loki): Instead of taking a pointer to a curr_state and prev_state,
+      // then writing the code to process block and generate quorums in one code
+      // path ...
 
-      curr_state  = &m_alt_states[block_hash];
-      *curr_state = *prev_state;
+      // This is done this way due to some bug in GCC where taking
+      // a pointer to m_state_history.back() and writing new information to it
+      // is not saved to the original object in the array??
+      state_sort_key const sort_key = {block_height, block_hash};
+      m_alt_states[sort_key]        = *prev_state;
+      curr_state                    = &m_alt_states[sort_key];
+
+      // TODO(doyle): Need to use all the available history, not just m_state_history
+      curr_state->process_block(m_blockchain, m_state_history, block, txs, m_service_node_pubkey);
+      prev_state->quorums = generate_quorums(nettype, *curr_state, block);
     }
     else
     {
       assert(m_state.height == block_height);
       m_state_history.push_back(m_state);
-      curr_state = &m_state;
+
+      // TODO(loki): Instead of taking a pointer to a curr_state and prev_state,
+      // then writing the code to process block and generate quorums in one code
+      // path ...
+
+      // This is done this way due to some bug in GCC where taking
+      // a pointer to m_state_history.back() and writing new information to it
+      // is not saved to the original object in the array??
+      m_state.prev_block_hash = m_state_history.back().block_hash;
+      m_state.block_hash      = block_hash;
+
+      // TODO(doyle): Need to use all the available history, not just m_state_history
+      m_state.process_block(m_blockchain, m_state_history, block, txs, m_service_node_pubkey);
+      m_state_history.back().quorums = generate_quorums(nettype, m_state, block);
 
       //
       // Cull old history
       //
+      uint64_t const start_height = (block_height < MAX_SHORT_TERM_STATE_HISTORY) ? 0 : block_height - MAX_SHORT_TERM_STATE_HISTORY;
       {
-        uint64_t start_height = (block_height < MAX_SHORT_TERM_STATE_HISTORY) ? 0 : block_height - MAX_SHORT_TERM_STATE_HISTORY;
         auto it =
             std::lower_bound(m_state_history.begin(),
                              m_state_history.end(),
@@ -1235,15 +1281,16 @@ namespace service_nodes
           m_old_quorum_states.erase(m_old_quorum_states.begin(), m_old_quorum_states.begin() + (m_old_quorum_states.size() -  m_store_quorum_history));
       }
 
-      prev_state = &m_state_history.back();
+      for (auto it = m_alt_states.begin(); it != m_alt_states.end();)
+      {
+        state_sort_key const &sort_key = it->first;
+        state_t const &alt_state       = it->second;
+        if (sort_key.height <= start_height)
+          it = m_alt_states.erase(it);
+        else
+          break;
+      }
     }
-
-    curr_state->prev_block_hash = prev_state->block_hash;
-    curr_state->block_hash      = block_hash;
-
-    // TODO(doyle): Need to use all the available history, not just m_state_history
-    curr_state->process_block(m_blockchain, m_state_history, block, txs, m_service_node_pubkey);
-    prev_state->quorums = generate_quorums(nettype, *curr_state, block);
   }
 
   void service_node_list::state_t::process_block(cryptonote::Blockchain const &blockchain, std::vector<state_t> const &state_history, const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, crypto::public_key const *my_pubkey)

@@ -214,7 +214,7 @@ namespace service_nodes
     /// the actual internal quorum used is for `height - REORG_SAFETY_BUFFER_BLOCKS_POST_HF12`, i.e.
     /// do no subtract off the buffer in advance)
     /// return: nullptr if the quorum is not cached in memory (pruned from memory).
-    std::shared_ptr<const testing_quorum> get_testing_quorum(quorum_type type, uint64_t height, bool include_old = false) const;
+    std::shared_ptr<const testing_quorum> get_testing_quorum(quorum_type type, uint64_t height, bool include_old = false, std::vector<std::shared_ptr<const testing_quorum>> *alt_quorums = nullptr) const;
     bool                                  get_quorum_pubkey(quorum_type type, quorum_group group, uint64_t height, size_t quorum_index, crypto::public_key &key) const;
 
     std::vector<service_node_pubkey_info> get_service_node_list_state(const std::vector<crypto::public_key> &service_node_pubkeys) const;
@@ -446,10 +446,10 @@ namespace service_nodes
       quorum_manager quorums;
     };
 
-    std::map<crypto::hash, state_t> m_alt_states;
-    std::deque<quorums_by_height>   m_old_quorum_states; // Store all old quorum history only if run with --store-full-quorum-history
-    std::vector<state_t>            m_state_history;
-    state_t                         m_state;
+    std::map<state_sort_key, state_t> m_alt_states;
+    std::deque<quorums_by_height>     m_old_quorum_states; // Store all old quorum history only if run with --store-full-quorum-history
+    std::vector<state_t>              m_state_history;
+    state_t                           m_state;
   };
 
   bool is_registration_tx   (const cryptonote::transaction& tx, uint64_t block_timestamp, uint64_t block_height, uint32_t tx_index_in_block, crypto::public_key& key, service_node_info& info);

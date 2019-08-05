@@ -2204,9 +2204,13 @@ namespace cryptonote
     return si.available;
   }
   //-----------------------------------------------------------------------------------------------
-  std::shared_ptr<const service_nodes::testing_quorum> core::get_testing_quorum(service_nodes::quorum_type type, uint64_t height, bool include_old) const
+  std::shared_ptr<const service_nodes::testing_quorum>
+  core::get_testing_quorum(service_nodes::quorum_type type,
+                           uint64_t height,
+                           bool include_old,
+                           std::vector<std::shared_ptr<const service_nodes::testing_quorum>> *alt_quorums) const
   {
-    return m_service_node_list.get_testing_quorum(type, height, include_old);
+    return m_service_node_list.get_testing_quorum(type, height, include_old, alt_quorums);
   }
   //-----------------------------------------------------------------------------------------------
   bool core::is_service_node(const crypto::public_key& pubkey, bool require_active) const

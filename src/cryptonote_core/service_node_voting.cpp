@@ -514,17 +514,8 @@ namespace service_nodes
     return false;
   }
 
-  std::vector<pool_vote_entry> voting_pool::add_pool_vote_if_unique(uint64_t latest_height,
-                                                                    const quorum_vote_t& vote,
-                                                                    cryptonote::vote_verification_context& vvc,
-                                                                    const service_nodes::testing_quorum &quorum)
+  std::vector<pool_vote_entry> voting_pool::add_pool_vote_if_unique(uint64_t latest_height, const quorum_vote_t &vote, cryptonote::vote_verification_context &vvc)
   {
-    if (!verify_vote(vote, latest_height, vvc, quorum))
-    {
-      LOG_PRINT_L1("Signature verification failed for deregister vote");
-      return {};
-    }
-
     CRITICAL_REGION_LOCAL(m_lock);
     auto *votes = find_vote_pool(vote, /*create_if_not_found=*/ true);
     if (!votes)
