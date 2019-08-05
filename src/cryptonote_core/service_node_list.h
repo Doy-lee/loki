@@ -203,6 +203,7 @@ namespace service_nodes
     bool validate_miner_tx(const crypto::hash& prev_id, const cryptonote::transaction& miner_tx, uint64_t height, int hard_fork_version, cryptonote::block_reward_parts const &base_reward) const override;
     std::vector<std::pair<cryptonote::account_public_address, uint64_t>> get_winner_addresses_and_portions() const;
     crypto::public_key select_winner() const;
+    void alt_block_added(const cryptonote::block &block, const std::vector<cryptonote::transaction> &txs);
 
     bool is_service_node(const crypto::public_key& pubkey, bool require_active = true) const;
     bool is_key_image_locked(crypto::key_image const &check_image, uint64_t *unlock_height = nullptr, service_node_info::contribution_t *the_locked_contribution = nullptr) const;
@@ -384,9 +385,23 @@ namespace service_nodes
       END_SERIALIZE()
     };
 
+    struct state_sort_key
+    {
+      uint64_t     height;
+      crypto::hash block_hash;
+      bool operator<(state_sort_key const &other) const
+      {
+        if (this->height == other.height) return (this->block_hash < other.block_hash);
+        return this->height < other.height;
+      }
+    };
+
     using block_height = uint64_t;
     struct state_t
     {
+      crypto::hash                           block_hash;
+      crypto::hash                           prev_block_hash;
+
       service_nodes_infos_t                  service_nodes_infos;
       std::vector<key_image_blacklist_entry> key_image_blacklist;
       block_height                           height;
@@ -401,6 +416,7 @@ namespace service_nodes
       std::vector<crypto::public_key> get_expired_nodes(cryptonote::Blockchain const &blockchain, const std::vector<cryptonote::transaction> &txs, uint64_t block_height) const;
 
     private:
+      // Returns true if there was a registration:
       bool process_registration_tx    (cryptonote::network_type nettype, uint8_t hf_version, const cryptonote::transaction& tx, uint64_t block_timestamp, uint64_t block_height, uint32_t index, crypto::public_key const *my_pubkey);
       bool process_contribution_tx    (cryptonote::network_type nettype, uint8_t hf_version, const cryptonote::transaction& tx, uint64_t block_height, uint32_t index); // Returns true if there was a contribution that fully funded a service node
       bool process_state_change_tx    (cryptonote::network_type nettype, uint8_t hf_version, std::vector<state_t> const &state_history, const cryptonote::transaction& tx, uint64_t block_height, crypto::public_key const *my_pubkey); // Returns true if a service node changed state (deregistered, decommissioned, or recommissioned)
@@ -410,9 +426,8 @@ namespace service_nodes
   private:
 
     // Note(maxim): private methods don't have to be protected the mutex
-    // Returns true if there was a registration:
     void rescan_starting_from_curr_state(bool store_to_disk);
-    void process_block(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs);
+    void process_block(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, bool is_alternative_block);
 
     void reset(bool delete_db_entry = false);
     bool load(uint64_t current_height);
@@ -431,9 +446,10 @@ namespace service_nodes
       quorum_manager quorums;
     };
 
-    std::deque<quorums_by_height>  m_old_quorum_states; // Store all old quorum history only if run with --store-full-quorum-history
-    std::vector<state_t>           m_state_history;
-    state_t                        m_state;
+    std::map<crypto::hash, state_t> m_alt_states;
+    std::deque<quorums_by_height>   m_old_quorum_states; // Store all old quorum history only if run with --store-full-quorum-history
+    std::vector<state_t>            m_state_history;
+    state_t                         m_state;
   };
 
   bool is_registration_tx   (const cryptonote::transaction& tx, uint64_t block_timestamp, uint64_t block_height, uint32_t tx_index_in_block, crypto::public_key& key, service_node_info& info);

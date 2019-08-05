@@ -110,7 +110,7 @@ namespace service_nodes
           return;
         }
 
-        process_block(block, txs);
+        process_block(block, txs, false/*is_alternative_block*/);
       }
     }
 
@@ -1014,7 +1014,14 @@ namespace service_nodes
   void service_node_list::block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs)
   {
     std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
-    process_block(block, txs);
+    process_block(block, txs, false /*is_alternative_block*/);
+    store();
+  }
+
+  void service_node_list::alt_block_added(const cryptonote::block &block, const std::vector<cryptonote::transaction> &txs)
+  {
+    std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
+    process_block(block, txs, true /*is_alternative_block*/);
     store();
   }
 
@@ -1154,47 +1161,89 @@ namespace service_nodes
     return result;
   }
 
-  void service_node_list::process_block(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs)
+  void service_node_list::process_block(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, bool is_alternative_block)
   {
     uint8_t const hf_version = block.major_version;
     if (hf_version < 9)
       return;
 
+    crypto::hash const block_hash    = cryptonote::get_block_hash(block);
     uint64_t const block_height      = cryptonote::get_block_height(block);
     cryptonote::network_type nettype = m_blockchain.nettype();
 
-    assert(m_state.height == block_height);
-    m_state_history.push_back(m_state);
-
-    //
-    // Cull old history
-    //
+    state_t *curr_state = nullptr;
+    state_t *prev_state = nullptr;
+    if (is_alternative_block)
     {
-      uint64_t start_height = (block_height < MAX_SHORT_TERM_STATE_HISTORY) ? 0 : block_height - MAX_SHORT_TERM_STATE_HISTORY;
-      auto it =
-          std::lower_bound(m_state_history.begin(),
-                           m_state_history.end(),
-                           start_height,
-                           [](state_t const &state, uint64_t start_height) { return state.height < start_height; });
+      crypto::hash const &prev_hash = block.prev_id; // Find the parent state derived from this block
+      auto it = std::lower_bound(m_state_history.begin(),
+                                 m_state_history.end(),
+                                 block_height,
+                                 [](state_t const &state, uint64_t block_height) { return state.height < block_height; });
 
-      while (it != m_state_history.end() && it->height <= start_height)
+      if (it == m_state_history.end())
       {
-        if (it->height % STORE_LONG_TERM_STATE_INTERVAL == 0)
-          it++;
-        else
-        {
-          if (m_store_quorum_history)
-            m_old_quorum_states.emplace_back(it->height, it->quorums);
-          it = m_state_history.erase(it);
-        }
+        // Not part of the main chain state, is state forking off another alternative state?
+        auto alt_it = m_alt_states.find(prev_hash);
+        if (alt_it == m_alt_states.end())
+          return; // TODO(doyle): The block's parent does not match any forked or derived state we're aware of
+
+        prev_state = &alt_it->second;
+      }
+      else
+      {
+        prev_state = &(*it);
       }
 
-      if (m_old_quorum_states.size() > m_store_quorum_history)
-        m_old_quorum_states.erase(m_old_quorum_states.begin(), m_old_quorum_states.begin() + (m_old_quorum_states.size() -  m_store_quorum_history));
+      // NOTE: Already received this alt block and processed it
+      if (m_alt_states.count(block_hash) > 0)
+        return;
+
+      curr_state  = &m_alt_states[block_hash];
+      *curr_state = *prev_state;
+    }
+    else
+    {
+      assert(m_state.height == block_height);
+      m_state_history.push_back(m_state);
+      curr_state = &m_state;
+
+      //
+      // Cull old history
+      //
+      {
+        uint64_t start_height = (block_height < MAX_SHORT_TERM_STATE_HISTORY) ? 0 : block_height - MAX_SHORT_TERM_STATE_HISTORY;
+        auto it =
+            std::lower_bound(m_state_history.begin(),
+                             m_state_history.end(),
+                             start_height,
+                             [](state_t const &state, uint64_t start_height) { return state.height < start_height; });
+
+        while (it != m_state_history.end() && it->height <= start_height)
+        {
+          if (it->height % STORE_LONG_TERM_STATE_INTERVAL == 0)
+            it++;
+          else
+          {
+            if (m_store_quorum_history)
+              m_old_quorum_states.emplace_back(it->height, it->quorums);
+            it = m_state_history.erase(it);
+          }
+        }
+
+        if (m_old_quorum_states.size() > m_store_quorum_history)
+          m_old_quorum_states.erase(m_old_quorum_states.begin(), m_old_quorum_states.begin() + (m_old_quorum_states.size() -  m_store_quorum_history));
+      }
+
+      prev_state = &m_state_history.back();
     }
 
-    m_state.process_block(m_blockchain, m_state_history, block, txs, m_service_node_pubkey);
-    m_state_history.back().quorums = generate_quorums(nettype, m_state, block);
+    curr_state->prev_block_hash = prev_state->block_hash;
+    curr_state->block_hash      = block_hash;
+
+    // TODO(doyle): Need to use all the available history, not just m_state_history
+    curr_state->process_block(m_blockchain, m_state_history, block, txs, m_service_node_pubkey);
+    prev_state->quorums = generate_quorums(nettype, *curr_state, block);
   }
 
   void service_node_list::state_t::process_block(cryptonote::Blockchain const &blockchain, std::vector<state_t> const &state_history, const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, crypto::public_key const *my_pubkey)
