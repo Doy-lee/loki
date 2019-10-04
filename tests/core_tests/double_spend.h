@@ -30,6 +30,7 @@
 
 #pragma once 
 #include "chaingen.h"
+#include "loki_tests.h"
 
 const size_t invalid_index_value = std::numeric_limits<size_t>::max();
 const uint64_t FIRST_BLOCK_REWARD = 17592186044415;
@@ -57,16 +58,8 @@ private:
   size_t m_invalid_block_index;
 };
 
-
-template<bool txs_keeped_by_block>
-struct gen_double_spend_in_tx : public gen_double_spend_base< gen_double_spend_in_tx<txs_keeped_by_block> >
+struct gen_double_spend_in_tx : public gen_double_spend_base<gen_double_spend_in_tx>
 {
-  static const uint64_t send_amount = FIRST_BLOCK_REWARD - TESTS_DEFAULT_FEE;
-  static const bool has_invalid_tx = true;
-  static const size_t expected_pool_txs_count = 0;
-  static const uint64_t expected_bob_balance = send_amount;
-  static const uint64_t expected_alice_balance = 0;
-
   bool generate(std::vector<test_event_entry>& events) const;
 };
 

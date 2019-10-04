@@ -250,9 +250,7 @@ cryptonote::transaction loki_chain_generator::create_tx(const cryptonote::accoun
                                                         const cryptonote::account_base &dest,
                                                         uint64_t amount,
                                                         uint64_t fee,
-                                                        bool kept_by_block,
-                                                        bool can_be_added_by_block,
-                                                        std::string const &fail_msg) const
+                                                        bool kept_by_block) const
 {
   cryptonote::transaction t;
   loki_tx_builder(events_, t, blocks_.back().block, src, dest, amount, hf_version_).with_fee(fee).build();

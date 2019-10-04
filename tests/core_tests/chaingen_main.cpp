@@ -208,6 +208,8 @@ int main(int argc, char* argv[])
     GENERATE_AND_PLAY(gen_bp_tx_invalid_wrong_amount);
     GENERATE_AND_PLAY(gen_bp_tx_invalid_borromean_type);
 
+    GENERATE_AND_PLAY(gen_double_spend_in_tx);
+
     // TODO(loki): Tests we need to fix
 #if 0
       //GENERATE_AND_PLAY(gen_ring_signature_big); // Takes up to XXX hours (if CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW == 10)
@@ -218,8 +220,6 @@ int main(int argc, char* argv[])
       GENERATE_AND_PLAY(gen_tx_output_with_zero_amount); // TODO(loki): See comment in the function
 
       // Double spend
-      GENERATE_AND_PLAY(gen_double_spend_in_tx<false>);
-      GENERATE_AND_PLAY(gen_double_spend_in_tx<true>);
       GENERATE_AND_PLAY(gen_double_spend_in_the_same_block<false>);
       GENERATE_AND_PLAY(gen_double_spend_in_the_same_block<true>);
       GENERATE_AND_PLAY(gen_double_spend_in_different_blocks<false>);

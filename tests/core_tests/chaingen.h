@@ -1246,13 +1246,13 @@ class loki_tx_builder {
   bool m_finished = false;
 
 public:
-  loki_tx_builder(const std::vector<test_event_entry>& events,
-            cryptonote::transaction& tx,
-            const cryptonote::block& head,
-            const cryptonote::account_base& from,
-            const cryptonote::account_base& to,
-            uint64_t amount,
-            uint8_t hf_version)
+    loki_tx_builder(const std::vector<test_event_entry> &events,
+                    cryptonote::transaction &tx,
+                    const cryptonote::block &head,
+                    const cryptonote::account_base &from,
+                    const cryptonote::account_base &to,
+                    uint64_t amount,
+                    uint8_t hf_version)
     : m_events(events)
     , m_tx(tx)
     , m_head(head)
@@ -1262,7 +1262,7 @@ public:
     , m_hf_version(hf_version)
     , m_fee(TESTS_DEFAULT_FEE)
     , m_unlock_time(0)
-  {}
+    {}
 
   loki_tx_builder&& with_fee(uint64_t fee) {
     m_fee = fee;
@@ -1391,7 +1391,7 @@ struct loki_chain_generator
   loki_blockchain_entry                               &create_and_add_next_block(const std::vector<cryptonote::transaction>& txs = {}, cryptonote::checkpoint_t const *checkpoint = nullptr, bool can_be_added_to_blockchain = true, std::string const &fail_msg = {});
 
   // NOTE: Create transactions but don't add to events_
-  cryptonote::transaction                              create_tx             (const cryptonote::account_base &src, const cryptonote::account_base &dest, uint64_t amount, uint64_t fee, bool kept_by_block, bool can_be_added_to_blockchain = true, std::string const &fail_msg = {}) const;
+  cryptonote::transaction                              create_tx             (const cryptonote::account_base &src, const cryptonote::account_base &dest, uint64_t amount, uint64_t fee, bool kept_by_block) const;
   cryptonote::transaction                              create_registration_tx(const cryptonote::account_base& src, const cryptonote::keypair& sn_keys = cryptonote::keypair::generate(hw::get_device("default"))) const;
   cryptonote::transaction                              create_state_change_tx(service_nodes::new_state state, const crypto::public_key& pub_key, uint64_t height = -1, const std::vector<uint64_t>& voters = {}, uint64_t fee = 0) const;
   cryptonote::checkpoint_t                             create_service_node_checkpoint(uint64_t block_height, size_t num_votes) const;
