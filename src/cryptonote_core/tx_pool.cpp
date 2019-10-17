@@ -126,6 +126,7 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::have_duplicated_non_standard_tx(transaction const &tx, uint8_t hard_fork_version) const
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto &service_node_list = m_blockchain.get_service_node_list();
     if (tx.type == txtype::state_change)
     {
@@ -267,6 +268,7 @@ namespace cryptonote
   bool tx_memory_pool::add_tx(transaction &tx, const crypto::hash &id, const cryptonote::blobdata &blob, size_t tx_weight, tx_verification_context& tvc, const tx_pool_options &opts, uint8_t hf_version,
       uint64_t *blink_rollback_height)
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     // this should already be called with that lock, but let's make it explicit for clarity
     auto lock = tools::unique_lock(m_transactions_lock);
 
@@ -501,6 +503,7 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::add_tx(transaction &tx, tx_verification_context& tvc, const tx_pool_options &opts, uint8_t version)
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     crypto::hash h = null_hash;
     size_t blob_size = 0;
     cryptonote::blobdata bl;
@@ -743,6 +746,7 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::remove_tx(const crypto::hash &txid, const txpool_tx_meta_t *meta, const sorted_tx_container::iterator *stc_it)
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     const auto it = stc_it ? *stc_it : find_tx_in_sorted_container(txid);
     if (it == m_txs_by_fee_and_receive_time.end())
     {
@@ -857,6 +861,7 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::insert_key_images(const transaction_prefix &tx, const crypto::hash &id, bool kept_by_block)
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     for(const auto& in: tx.vin)
     {
       CHECKED_GET_SPECIFIC_VARIANT(in, const txin_to_key, txin, false);
@@ -876,6 +881,7 @@ namespace cryptonote
   //       is treated properly.  Should probably not return early, however.
   bool tx_memory_pool::remove_transaction_keyimages(const transaction_prefix& tx, const crypto::hash &actual_hash)
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
 
     // ND: Speedup
@@ -906,6 +912,7 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::take_tx(const crypto::hash &id, transaction &tx, cryptonote::blobdata &txblob, size_t& tx_weight, uint64_t& fee, bool &relayed, bool &do_not_relay, bool &double_spend_seen)
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
 
     auto sorted_it = find_tx_in_sorted_container(id);
@@ -960,6 +967,7 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   void tx_memory_pool::on_idle()
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     m_remove_stuck_tx_interval.do_call([this](){return remove_stuck_transactions();});
   }
 
@@ -972,6 +980,7 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   sorted_tx_container::iterator tx_memory_pool::find_tx_in_sorted_container(const crypto::hash& id) const
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     return std::find_if( m_txs_by_fee_and_receive_time.begin(), m_txs_by_fee_and_receive_time.end()
                        , [&](const sorted_tx_container::value_type& a){
                          return a.second == id;
@@ -982,6 +991,7 @@ namespace cryptonote
   //TODO: investigate whether boolean return is appropriate
   bool tx_memory_pool::remove_stuck_transactions()
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
 
     std::list<std::pair<crypto::hash, uint64_t>> remove;
@@ -1045,6 +1055,7 @@ namespace cryptonote
   //TODO: investigate whether boolean return is appropriate
   bool tx_memory_pool::get_relayable_transactions(std::vector<std::pair<crypto::hash, cryptonote::blobdata>> &txs) const
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
 
     const uint64_t now = time(NULL);
@@ -1122,6 +1133,7 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   void tx_memory_pool::set_relayed(const std::vector<std::pair<crypto::hash, cryptonote::blobdata>> &txs)
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
 
     const time_t now = time(NULL);
@@ -1149,12 +1161,14 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   size_t tx_memory_pool::get_transactions_count(bool include_unrelayed_txes) const
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
     return m_blockchain.get_txpool_tx_count(include_unrelayed_txes);
   }
   //---------------------------------------------------------------------------------
   void tx_memory_pool::get_transactions(std::vector<transaction>& txs, bool include_unrelayed_txes) const
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
 
     txs.reserve(m_blockchain.get_txpool_tx_count(include_unrelayed_txes));
@@ -1174,6 +1188,7 @@ namespace cryptonote
   //------------------------------------------------------------------
   void tx_memory_pool::get_transaction_hashes(std::vector<crypto::hash>& txs, bool include_unrelayed_txes) const
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
 
     txs.reserve(m_blockchain.get_txpool_tx_count(include_unrelayed_txes));
@@ -1185,6 +1200,7 @@ namespace cryptonote
   //------------------------------------------------------------------
   void tx_memory_pool::get_transaction_backlog(std::vector<rpc::tx_backlog_entry>& backlog, bool include_unrelayed_txes) const
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
 
     const uint64_t now = time(NULL);
@@ -1197,6 +1213,7 @@ namespace cryptonote
   //------------------------------------------------------------------
   void tx_memory_pool::get_transaction_stats(struct rpc::txpool_stats& stats, bool include_unrelayed_txes) const
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
 
     const uint64_t now = time(NULL);
@@ -1275,6 +1292,7 @@ namespace cryptonote
   //TODO: investigate whether boolean return is appropriate
   bool tx_memory_pool::get_transactions_and_spent_keys_info(std::vector<rpc::tx_info>& tx_infos, std::vector<rpc::spent_key_image_info>& key_image_infos, bool include_sensitive_data) const
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto tx_lock = tools::unique_lock(m_transactions_lock, std::defer_lock);
     auto bc_lock = tools::unique_lock(m_blockchain, std::defer_lock);
     auto blink_lock = blink_shared_lock(std::defer_lock);
@@ -1354,6 +1372,7 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::get_pool_for_rpc(std::vector<cryptonote::rpc::tx_in_pool>& tx_infos, cryptonote::rpc::key_images_with_tx_hashes& key_image_infos) const
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
 
     tx_infos.reserve(m_blockchain.get_txpool_tx_count());
@@ -1401,6 +1420,7 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::check_for_key_images(const std::vector<crypto::key_image>& key_images, std::vector<bool> spent) const
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
 
     spent.clear();
@@ -1415,6 +1435,7 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   int tx_memory_pool::find_transactions(const std::vector<crypto::hash> &tx_hashes, std::vector<cryptonote::blobdata> &txblobs) const
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     if (tx_hashes.empty())
       return 0;
     txblobs.reserve(txblobs.size() + tx_hashes.size());
@@ -1447,6 +1468,7 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::on_blockchain_inc(block const &blk)
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto lock = tools::unique_lock(m_transactions_lock);
     m_input_cache.clear();
     m_parsed_tx_cache.clear();
@@ -1526,6 +1548,7 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::on_blockchain_dec()
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto lock = tools::unique_lock(m_transactions_lock);
     m_input_cache.clear();
     m_parsed_tx_cache.clear();
@@ -1546,11 +1569,13 @@ namespace cryptonote
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::have_tx(const crypto::hash &id) const
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     return have_txs({{id}})[0];
   }
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::have_tx_keyimges_as_spent(const transaction& tx, std::vector<crypto::hash> *conflicting) const
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
 
     bool ret = false;
@@ -1578,6 +1603,7 @@ namespace cryptonote
   bool tx_memory_pool::check_tx_inputs(const std::function<cryptonote::transaction&()> &get_tx, const crypto::hash &txid, uint64_t &max_used_block_height,
       crypto::hash &max_used_block_id, tx_verification_context &tvc, bool kept_by_block, uint64_t* blink_rollback_height) const
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     if (!kept_by_block)
     {
       const std::unordered_map<crypto::hash, std::tuple<bool, tx_verification_context, uint64_t, crypto::hash>>::const_iterator i = m_input_cache.find(txid);
@@ -1677,6 +1703,7 @@ end:
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::is_transaction_ready_to_go(txpool_tx_meta_t& txd, const crypto::hash &txid, const cryptonote::blobdata &txblob, transaction &tx) const
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     struct transction_parser
     {
       transction_parser(const cryptonote::blobdata &txblob, const crypto::hash &txid, transaction &tx): txblob(txblob), txid(txid), tx(tx), parsed(false) {}
@@ -1744,6 +1771,7 @@ end:
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::have_key_images(const std::unordered_set<crypto::key_image>& k_images, const transaction_prefix& tx)
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     for(size_t i = 0; i!= tx.vin.size(); i++)
     {
       CHECKED_GET_SPECIFIC_VARIANT(tx.vin[i], const txin_to_key, itk, false);
@@ -1755,6 +1783,7 @@ end:
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::append_key_images(std::unordered_set<crypto::key_image>& k_images, const transaction_prefix& tx)
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     for(size_t i = 0; i!= tx.vin.size(); i++)
     {
       CHECKED_GET_SPECIFIC_VARIANT(tx.vin[i], const txin_to_key, itk, false);
@@ -1766,6 +1795,7 @@ end:
   //---------------------------------------------------------------------------------
   void tx_memory_pool::mark_double_spend(const transaction &tx)
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
 
     bool changed = false;
@@ -1811,6 +1841,7 @@ end:
   //TODO: investigate whether boolean return is appropriate
   bool tx_memory_pool::fill_block_template(block &bl, size_t median_weight, uint64_t already_generated_coins, size_t &total_weight, uint64_t &fee, uint64_t &expected_reward, uint8_t version, uint64_t height)
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
 
     uint64_t best_coinbase = 0, coinbase = 0;
@@ -1932,6 +1963,7 @@ end:
   //---------------------------------------------------------------------------------
   size_t tx_memory_pool::validate(uint8_t version)
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
 
     size_t tx_weight_limit = get_transaction_weight_limit(version);
@@ -1996,6 +2028,7 @@ end:
   //---------------------------------------------------------------------------------
   bool tx_memory_pool::init(size_t max_txpool_weight)
   {
+    ZoneScopedC(loki::TRACE_TXPOOL_COLOR);
     auto locks = tools::unique_locks(m_transactions_lock, m_blockchain);
 
     m_txpool_max_weight = max_txpool_weight ? max_txpool_weight : DEFAULT_TXPOOL_MAX_WEIGHT;

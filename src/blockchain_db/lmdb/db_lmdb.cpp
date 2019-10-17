@@ -39,6 +39,7 @@
 #include "file_io_utils.h"
 #include "common/util.h"
 #include "common/pruning.h"
+#include "common/loki.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "crypto/crypto.h"
 #include "profile_tools.h"
@@ -106,6 +107,7 @@ struct MDB_val_copy: public MDB_val
   MDB_val_copy(const T &t) :
     t_copy(t)
   {
+    ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
     mv_size = sizeof (T);
     mv_data = &t_copy;
   }
@@ -119,6 +121,7 @@ struct MDB_val_copy<cryptonote::blobdata>: public MDB_val
   MDB_val_copy(const cryptonote::blobdata &bd) :
     data(new char[bd.size()])
   {
+    ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
     memcpy(data.get(), bd.data(), bd.size());
     mv_size = bd.size();
     mv_data = data.get();
@@ -134,6 +137,7 @@ struct MDB_val_copy<const char*>: public MDB_val
     size(strlen(s)+1), // include the NUL, makes it easier for compares
     data(new char[size])
   {
+    ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
     mv_size = size;
     mv_data = data.get();
     memcpy(mv_data, s, size);
@@ -536,6 +540,7 @@ void mdb_txn_safe::allow_new_txns()
 
 void lmdb_resized(MDB_env *env)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   mdb_txn_safe::prevent_new_txns();
 
   MGINFO("LMDB map resize detected.");
@@ -587,6 +592,7 @@ void BlockchainLMDB::check_open() const
 
 void BlockchainLMDB::do_resize(uint64_t increase_size)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   CRITICAL_REGION_LOCAL(m_synchronization_lock);
   const uint64_t add_size = 1LL << 30;
@@ -656,6 +662,7 @@ void BlockchainLMDB::do_resize(uint64_t increase_size)
 // threshold_size is used for batch transactions
 bool BlockchainLMDB::need_resize(uint64_t threshold_size) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
 #if defined(ENABLE_AUTO_RESIZE)
   MDB_envinfo mei;
@@ -703,6 +710,7 @@ bool BlockchainLMDB::need_resize(uint64_t threshold_size) const
 
 void BlockchainLMDB::check_and_resize_for_batch(uint64_t batch_num_blocks, uint64_t batch_bytes)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   MTRACE("[" << __func__ << "] " << "checking DB size");
   const uint64_t min_increase_size = 512 * (1 << 20);
@@ -735,6 +743,7 @@ void BlockchainLMDB::check_and_resize_for_batch(uint64_t batch_num_blocks, uint6
 
 uint64_t BlockchainLMDB::get_estimated_batch_size(uint64_t batch_num_blocks, uint64_t batch_bytes) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   uint64_t threshold_size = 0;
 
@@ -811,6 +820,7 @@ estim:
 void BlockchainLMDB::add_block(const block& blk, size_t block_weight, uint64_t long_term_block_weight, const difficulty_type& cumulative_difficulty, const uint64_t& coins_generated,
     uint64_t num_rct_outs, const crypto::hash& blk_hash)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   mdb_txn_cursors *m_cursors = &m_wcursors;
@@ -887,6 +897,7 @@ void BlockchainLMDB::add_block(const block& blk, size_t block_weight, uint64_t l
 
 void BlockchainLMDB::remove_block()
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   int result;
 
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
@@ -924,6 +935,7 @@ void BlockchainLMDB::remove_block()
 
 uint64_t BlockchainLMDB::add_transaction_data(const crypto::hash& blk_hash, const std::pair<transaction, blobdata>& txp, const crypto::hash& tx_hash, const crypto::hash& tx_prunable_hash)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   mdb_txn_cursors *m_cursors = &m_wcursors;
@@ -1012,6 +1024,7 @@ uint64_t BlockchainLMDB::add_transaction_data(const crypto::hash& blk_hash, cons
 // passing it in to functions like this
 void BlockchainLMDB::remove_transaction_data(const crypto::hash& tx_hash, const transaction& tx)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   int result;
 
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
@@ -1092,6 +1105,7 @@ uint64_t BlockchainLMDB::add_output(const crypto::hash& tx_hash,
     const uint64_t unlock_time,
     const rct::key *commitment)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   mdb_txn_cursors *m_cursors = &m_wcursors;
@@ -1155,6 +1169,7 @@ uint64_t BlockchainLMDB::add_output(const crypto::hash& tx_hash,
 void BlockchainLMDB::add_tx_amount_output_indices(const uint64_t tx_id,
     const std::vector<uint64_t>& amount_output_indices)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   mdb_txn_cursors *m_cursors = &m_wcursors;
@@ -1177,6 +1192,7 @@ void BlockchainLMDB::add_tx_amount_output_indices(const uint64_t tx_id,
 
 void BlockchainLMDB::remove_tx_outputs(const uint64_t tx_id, const transaction& tx)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
 
   std::vector<std::vector<uint64_t>> amount_output_indices_set = get_tx_amount_output_indices(tx_id, 1);
@@ -1200,6 +1216,7 @@ void BlockchainLMDB::remove_tx_outputs(const uint64_t tx_id, const transaction& 
 
 void BlockchainLMDB::remove_output(const uint64_t amount, const uint64_t& out_index)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   mdb_txn_cursors *m_cursors = &m_wcursors;
@@ -1238,6 +1255,7 @@ void BlockchainLMDB::remove_output(const uint64_t amount, const uint64_t& out_in
 
 void BlockchainLMDB::prune_outputs(uint64_t amount)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   mdb_txn_cursors *m_cursors = &m_wcursors;
@@ -1292,6 +1310,7 @@ void BlockchainLMDB::prune_outputs(uint64_t amount)
 
 void BlockchainLMDB::add_spent_key(const crypto::key_image& k_image)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   mdb_txn_cursors *m_cursors = &m_wcursors;
@@ -1309,6 +1328,7 @@ void BlockchainLMDB::add_spent_key(const crypto::key_image& k_image)
 
 void BlockchainLMDB::remove_spent_key(const crypto::key_image& k_image)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   mdb_txn_cursors *m_cursors = &m_wcursors;
@@ -1329,6 +1349,7 @@ void BlockchainLMDB::remove_spent_key(const crypto::key_image& k_image)
 
 BlockchainLMDB::~BlockchainLMDB()
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
 
   // batch transaction shouldn't be active at this point. If it is, consider it aborted.
@@ -1343,6 +1364,7 @@ BlockchainLMDB::~BlockchainLMDB()
 
 BlockchainLMDB::BlockchainLMDB(bool batch_transactions): BlockchainDB()
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   // initialize folder to something "safe" just in case
   // someone accidentally misuses this class...
@@ -1362,6 +1384,7 @@ BlockchainLMDB::BlockchainLMDB(bool batch_transactions): BlockchainDB()
 
 void BlockchainLMDB::open(const std::string& filename, cryptonote::network_type nettype, const int db_flags)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   int result;
   int mdb_flags = MDB_NORDAHEAD;
 
@@ -1605,6 +1628,7 @@ void BlockchainLMDB::open(const std::string& filename, cryptonote::network_type 
 
 void BlockchainLMDB::close()
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   if (m_batch_active)
   {
@@ -1621,6 +1645,7 @@ void BlockchainLMDB::close()
 
 void BlockchainLMDB::sync()
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -1637,12 +1662,14 @@ void BlockchainLMDB::sync()
 
 void BlockchainLMDB::safesyncmode(const bool onoff)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   MINFO("switching safe mode " << (onoff ? "on" : "off"));
   mdb_env_set_flags(m_env, MDB_NOSYNC|MDB_MAPASYNC, !onoff);
 }
 
 void BlockchainLMDB::reset()
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -1699,6 +1726,7 @@ void BlockchainLMDB::reset()
 
 std::vector<std::string> BlockchainLMDB::get_filenames() const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   std::vector<std::string> filenames;
 
@@ -1715,6 +1743,7 @@ std::vector<std::string> BlockchainLMDB::get_filenames() const
 
 bool BlockchainLMDB::remove_data_file(const std::string& folder) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   const std::string filename = folder + "/data.mdb";
   try
   {
@@ -1738,6 +1767,7 @@ std::string BlockchainLMDB::get_db_name() const
 // TODO: this?
 bool BlockchainLMDB::lock()
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   return false;
@@ -1746,6 +1776,7 @@ bool BlockchainLMDB::lock()
 // TODO: this?
 void BlockchainLMDB::unlock()
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 }
@@ -1800,6 +1831,7 @@ void BlockchainLMDB::unlock()
 
 void BlockchainLMDB::add_txpool_tx(const crypto::hash &txid, const cryptonote::blobdata &blob, const txpool_tx_meta_t &meta)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   mdb_txn_cursors *m_cursors = &m_wcursors;
@@ -1826,6 +1858,7 @@ void BlockchainLMDB::add_txpool_tx(const crypto::hash &txid, const cryptonote::b
 
 void BlockchainLMDB::update_txpool_tx(const crypto::hash &txid, const txpool_tx_meta_t &meta)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   mdb_txn_cursors *m_cursors = &m_wcursors;
@@ -1852,6 +1885,7 @@ void BlockchainLMDB::update_txpool_tx(const crypto::hash &txid, const txpool_tx_
 
 uint64_t BlockchainLMDB::get_txpool_tx_count(bool include_unrelayed_txes) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -1896,6 +1930,7 @@ uint64_t BlockchainLMDB::get_txpool_tx_count(bool include_unrelayed_txes) const
 
 bool BlockchainLMDB::txpool_has_tx(const crypto::hash& txid) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -1911,6 +1946,7 @@ bool BlockchainLMDB::txpool_has_tx(const crypto::hash& txid) const
 
 void BlockchainLMDB::remove_txpool_tx(const crypto::hash& txid)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   mdb_txn_cursors *m_cursors = &m_wcursors;
@@ -1941,6 +1977,7 @@ void BlockchainLMDB::remove_txpool_tx(const crypto::hash& txid)
 
 bool BlockchainLMDB::get_txpool_tx_meta(const crypto::hash& txid, txpool_tx_meta_t &meta) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -1961,6 +1998,7 @@ bool BlockchainLMDB::get_txpool_tx_meta(const crypto::hash& txid, txpool_tx_meta
 
 bool BlockchainLMDB::get_txpool_tx_blob(const crypto::hash& txid, cryptonote::blobdata &bd) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -1981,6 +2019,7 @@ bool BlockchainLMDB::get_txpool_tx_blob(const crypto::hash& txid, cryptonote::bl
 
 cryptonote::blobdata BlockchainLMDB::get_txpool_tx_blob(const crypto::hash& txid) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   cryptonote::blobdata bd;
   if (!get_txpool_tx_blob(txid, bd))
     throw1(DB_ERROR("Tx not found in txpool: "));
@@ -1989,6 +2028,7 @@ cryptonote::blobdata BlockchainLMDB::get_txpool_tx_blob(const crypto::hash& txid
 
 uint32_t BlockchainLMDB::get_blockchain_pruning_seed() const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -2010,6 +2050,7 @@ uint32_t BlockchainLMDB::get_blockchain_pruning_seed() const
 
 static bool is_v1_tx(MDB_cursor *c_txs_pruned, MDB_val *tx_id)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   MDB_val v;
   int ret = mdb_cursor_get(c_txs_pruned, tx_id, &v, MDB_SET);
   if (ret)
@@ -2023,6 +2064,7 @@ enum { prune_mode_prune, prune_mode_update, prune_mode_check };
 
 bool BlockchainLMDB::prune_worker(int mode, uint32_t pruning_seed)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   const uint32_t log_stripes = tools::get_pruning_log_stripes(pruning_seed);
   if (log_stripes && log_stripes != CRYPTONOTE_PRUNING_LOG_STRIPES)
@@ -2321,6 +2363,7 @@ bool BlockchainLMDB::check_pruning()
 
 bool BlockchainLMDB::for_all_txpool_txes(std::function<bool(const crypto::hash&, const txpool_tx_meta_t&, const cryptonote::blobdata*)> f, bool include_blob, bool include_unrelayed_txes) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -2434,6 +2477,7 @@ static bool read_alt_block_data_from_mdb_val(MDB_val const v, alt_block_data_t *
 
 bool BlockchainLMDB::for_all_alt_blocks(std::function<bool(const crypto::hash&, const alt_block_data_t&, const cryptonote::blobdata*, const cryptonote::blobdata *)> f, bool include_blob) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -2476,6 +2520,7 @@ bool BlockchainLMDB::for_all_alt_blocks(std::function<bool(const crypto::hash&, 
 
 bool BlockchainLMDB::block_exists(const crypto::hash& h, uint64_t *height) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -2506,6 +2551,7 @@ bool BlockchainLMDB::block_exists(const crypto::hash& h, uint64_t *height) const
 
 cryptonote::blobdata BlockchainLMDB::get_block_blob(const crypto::hash& h) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -2514,6 +2560,7 @@ cryptonote::blobdata BlockchainLMDB::get_block_blob(const crypto::hash& h) const
 
 uint64_t BlockchainLMDB::get_block_height(const crypto::hash& h) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -2534,6 +2581,7 @@ uint64_t BlockchainLMDB::get_block_height(const crypto::hash& h) const
 
 block_header BlockchainLMDB::get_block_header(const crypto::hash& h) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -2543,6 +2591,7 @@ block_header BlockchainLMDB::get_block_header(const crypto::hash& h) const
 
 cryptonote::blobdata BlockchainLMDB::get_block_blob_from_height(const uint64_t& height) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -2567,6 +2616,7 @@ cryptonote::blobdata BlockchainLMDB::get_block_blob_from_height(const uint64_t& 
 
 uint64_t BlockchainLMDB::get_block_timestamp(const uint64_t& height) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -2589,6 +2639,7 @@ uint64_t BlockchainLMDB::get_block_timestamp(const uint64_t& height) const
 
 std::vector<uint64_t> BlockchainLMDB::get_block_cumulative_rct_outputs(const std::vector<uint64_t> &heights) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   std::vector<uint64_t> res;
@@ -2650,6 +2701,7 @@ std::vector<uint64_t> BlockchainLMDB::get_block_cumulative_rct_outputs(const std
 
 uint64_t BlockchainLMDB::get_top_block_timestamp() const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   uint64_t m_height = height();
@@ -2665,6 +2717,7 @@ uint64_t BlockchainLMDB::get_top_block_timestamp() const
 
 size_t BlockchainLMDB::get_block_weight(const uint64_t& height) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -2687,6 +2740,7 @@ size_t BlockchainLMDB::get_block_weight(const uint64_t& height) const
 
 std::vector<uint64_t> BlockchainLMDB::get_block_info_64bit_fields(uint64_t start_height, size_t count, uint64_t (*extract)(const mdb_block_info* bi_data)) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -2739,6 +2793,7 @@ std::vector<uint64_t> BlockchainLMDB::get_block_info_64bit_fields(uint64_t start
 
 uint64_t BlockchainLMDB::get_max_block_size()
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -2760,6 +2815,7 @@ uint64_t BlockchainLMDB::get_max_block_size()
 
 void BlockchainLMDB::add_max_block_size(uint64_t sz)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   mdb_txn_cursors *m_cursors = &m_wcursors;
@@ -2789,6 +2845,7 @@ void BlockchainLMDB::add_max_block_size(uint64_t sz)
 
 std::vector<uint64_t> BlockchainLMDB::get_block_weights(uint64_t start_height, size_t count) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   return get_block_info_64bit_fields(start_height, count,
       [](const mdb_block_info* bi) { return bi->bi_weight; });
 }
@@ -2801,6 +2858,7 @@ std::vector<uint64_t> BlockchainLMDB::get_long_term_block_weights(uint64_t start
 
 difficulty_type BlockchainLMDB::get_block_cumulative_difficulty(const uint64_t& height) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__ << "  height: " << height);
   check_open();
 
@@ -2823,6 +2881,7 @@ difficulty_type BlockchainLMDB::get_block_cumulative_difficulty(const uint64_t& 
 
 difficulty_type BlockchainLMDB::get_block_difficulty(const uint64_t& height) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -2840,6 +2899,7 @@ difficulty_type BlockchainLMDB::get_block_difficulty(const uint64_t& height) con
 
 uint64_t BlockchainLMDB::get_block_already_generated_coins(const uint64_t& height) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -2862,6 +2922,7 @@ uint64_t BlockchainLMDB::get_block_already_generated_coins(const uint64_t& heigh
 
 uint64_t BlockchainLMDB::get_block_long_term_weight(const uint64_t& height) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -2884,6 +2945,7 @@ uint64_t BlockchainLMDB::get_block_long_term_weight(const uint64_t& height) cons
 
 crypto::hash BlockchainLMDB::get_block_hash_from_height(const uint64_t& height) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -2906,6 +2968,7 @@ crypto::hash BlockchainLMDB::get_block_hash_from_height(const uint64_t& height) 
 
 std::vector<block> BlockchainLMDB::get_blocks_range(const uint64_t& h1, const uint64_t& h2) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   std::vector<block> v;
@@ -2920,6 +2983,7 @@ std::vector<block> BlockchainLMDB::get_blocks_range(const uint64_t& h1, const ui
 
 std::vector<crypto::hash> BlockchainLMDB::get_hashes_range(const uint64_t& h1, const uint64_t& h2) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   std::vector<crypto::hash> v;
@@ -2934,6 +2998,7 @@ std::vector<crypto::hash> BlockchainLMDB::get_hashes_range(const uint64_t& h1, c
 
 crypto::hash BlockchainLMDB::top_block_hash(uint64_t *block_height) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   uint64_t m_height = height();
@@ -2949,6 +3014,7 @@ crypto::hash BlockchainLMDB::top_block_hash(uint64_t *block_height) const
 
 block BlockchainLMDB::get_top_block() const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   uint64_t m_height = height();
@@ -2964,6 +3030,7 @@ block BlockchainLMDB::get_top_block() const
 
 uint64_t BlockchainLMDB::height() const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   TXN_PREFIX_RDONLY();
@@ -2978,6 +3045,7 @@ uint64_t BlockchainLMDB::height() const
 
 uint64_t BlockchainLMDB::num_outputs() const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   TXN_PREFIX_RDONLY();
@@ -3000,6 +3068,7 @@ uint64_t BlockchainLMDB::num_outputs() const
 
 bool BlockchainLMDB::tx_exists(const crypto::hash& h) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -3030,6 +3099,7 @@ bool BlockchainLMDB::tx_exists(const crypto::hash& h) const
 
 bool BlockchainLMDB::tx_exists(const crypto::hash& h, uint64_t& tx_id) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -3062,6 +3132,7 @@ bool BlockchainLMDB::tx_exists(const crypto::hash& h, uint64_t& tx_id) const
 
 uint64_t BlockchainLMDB::get_tx_unlock_time(const crypto::hash& h) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -3082,6 +3153,7 @@ uint64_t BlockchainLMDB::get_tx_unlock_time(const crypto::hash& h) const
 
 bool BlockchainLMDB::get_tx_blob(const crypto::hash& h, cryptonote::blobdata &bd) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -3116,6 +3188,7 @@ bool BlockchainLMDB::get_tx_blob(const crypto::hash& h, cryptonote::blobdata &bd
 
 bool BlockchainLMDB::get_pruned_tx_blob(const crypto::hash& h, cryptonote::blobdata &bd) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -3144,6 +3217,7 @@ bool BlockchainLMDB::get_pruned_tx_blob(const crypto::hash& h, cryptonote::blobd
 
 bool BlockchainLMDB::get_prunable_tx_blob(const crypto::hash& h, cryptonote::blobdata &bd) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -3172,6 +3246,7 @@ bool BlockchainLMDB::get_prunable_tx_blob(const crypto::hash& h, cryptonote::blo
 
 bool BlockchainLMDB::get_prunable_tx_hash(const crypto::hash& tx_hash, crypto::hash &prunable_hash) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -3200,6 +3275,7 @@ bool BlockchainLMDB::get_prunable_tx_hash(const crypto::hash& tx_hash, crypto::h
 
 uint64_t BlockchainLMDB::get_tx_count() const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -3215,6 +3291,7 @@ uint64_t BlockchainLMDB::get_tx_count() const
 
 std::vector<transaction> BlockchainLMDB::get_tx_list(const std::vector<crypto::hash>& hlist) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   std::vector<transaction> v;
@@ -3229,6 +3306,7 @@ std::vector<transaction> BlockchainLMDB::get_tx_list(const std::vector<crypto::h
 
 std::vector<uint64_t> BlockchainLMDB::get_tx_block_heights(const std::vector<crypto::hash>& hs) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   std::vector<uint64_t> result;
@@ -3253,6 +3331,7 @@ std::vector<uint64_t> BlockchainLMDB::get_tx_block_heights(const std::vector<cry
 
 uint64_t BlockchainLMDB::get_num_outputs(const uint64_t& amount) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -3275,6 +3354,7 @@ uint64_t BlockchainLMDB::get_num_outputs(const uint64_t& amount) const
 
 output_data_t BlockchainLMDB::get_output_key(const uint64_t& amount, const uint64_t& index, bool include_commitmemt) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -3308,6 +3388,7 @@ output_data_t BlockchainLMDB::get_output_key(const uint64_t& amount, const uint6
 
 tx_out_index BlockchainLMDB::get_output_tx_and_index_from_global(const uint64_t& output_id) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -3330,6 +3411,7 @@ tx_out_index BlockchainLMDB::get_output_tx_and_index_from_global(const uint64_t&
 
 tx_out_index BlockchainLMDB::get_output_tx_and_index(const uint64_t& amount, const uint64_t& index) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   std::vector < uint64_t > offsets;
   std::vector<tx_out_index> indices;
@@ -3343,6 +3425,7 @@ tx_out_index BlockchainLMDB::get_output_tx_and_index(const uint64_t& amount, con
 
 std::vector<std::vector<uint64_t>> BlockchainLMDB::get_tx_amount_output_indices(uint64_t tx_id, size_t n_txes) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
 
   check_open();
@@ -3385,6 +3468,7 @@ std::vector<std::vector<uint64_t>> BlockchainLMDB::get_tx_amount_output_indices(
 
 bool BlockchainLMDB::has_key_image(const crypto::key_image& img) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -3401,6 +3485,7 @@ bool BlockchainLMDB::has_key_image(const crypto::key_image& img) const
 
 bool BlockchainLMDB::for_all_key_images(std::function<bool(const crypto::key_image&)> f) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -3432,6 +3517,7 @@ bool BlockchainLMDB::for_all_key_images(std::function<bool(const crypto::key_ima
 
 bool BlockchainLMDB::for_blocks_range(const uint64_t& h1, const uint64_t& h2, std::function<bool(uint64_t, const crypto::hash&, const cryptonote::block&)> f) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -3481,6 +3567,7 @@ bool BlockchainLMDB::for_blocks_range(const uint64_t& h1, const uint64_t& h2, st
 
 bool BlockchainLMDB::for_all_transactions(std::function<bool(const crypto::hash&, const cryptonote::transaction&)> f, bool pruned) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -3541,6 +3628,7 @@ bool BlockchainLMDB::for_all_transactions(std::function<bool(const crypto::hash&
 
 bool BlockchainLMDB::for_all_outputs(std::function<bool(uint64_t amount, const crypto::hash &tx_hash, uint64_t height, size_t tx_idx)> f) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -3574,6 +3662,7 @@ bool BlockchainLMDB::for_all_outputs(std::function<bool(uint64_t amount, const c
 
 bool BlockchainLMDB::for_all_outputs(uint64_t amount, const std::function<bool(uint64_t height)> &f) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -3613,6 +3702,7 @@ bool BlockchainLMDB::for_all_outputs(uint64_t amount, const std::function<bool(u
 // batch_num_blocks: (optional) Used to check if resize needed before batch transaction starts.
 bool BlockchainLMDB::batch_start(uint64_t batch_num_blocks, uint64_t batch_bytes)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   if (! m_batch_transactions)
     throw0(DB_ERROR("batch transactions not enabled"));
@@ -3656,6 +3746,7 @@ bool BlockchainLMDB::batch_start(uint64_t batch_num_blocks, uint64_t batch_bytes
 
 void BlockchainLMDB::batch_commit()
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   if (! m_batch_transactions)
     throw0(DB_ERROR("batch transactions not enabled"));
@@ -3683,6 +3774,7 @@ void BlockchainLMDB::batch_commit()
 
 void BlockchainLMDB::cleanup_batch()
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   // for destruction of batch transaction
   m_write_txn = nullptr;
   delete m_write_batch_txn;
@@ -3693,6 +3785,7 @@ void BlockchainLMDB::cleanup_batch()
 
 void BlockchainLMDB::batch_stop()
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   if (! m_batch_transactions)
     throw0(DB_ERROR("batch transactions not enabled"));
@@ -3722,6 +3815,7 @@ void BlockchainLMDB::batch_stop()
 
 void BlockchainLMDB::batch_abort()
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   if (! m_batch_transactions)
     throw0(DB_ERROR("batch transactions not enabled"));
@@ -3887,6 +3981,7 @@ void BlockchainLMDB::block_rtxn_abort() const
 uint64_t BlockchainLMDB::add_block(const std::pair<block, blobdata>& blk, size_t block_weight, uint64_t long_term_block_weight, const difficulty_type& cumulative_difficulty, const uint64_t& coins_generated,
     const std::vector<std::pair<transaction, blobdata>>& txs)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   uint64_t m_height = height();
@@ -3921,6 +4016,7 @@ struct checkpoint_mdb_buffer
 
 static bool convert_checkpoint_into_buffer(checkpoint_t const &checkpoint, checkpoint_mdb_buffer &result)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   blk_checkpoint_header header = {};
   header.height                = checkpoint.height;
   header.block_hash            = checkpoint.block_hash;
@@ -3961,6 +4057,7 @@ static bool convert_checkpoint_into_buffer(checkpoint_t const &checkpoint, check
 
 void BlockchainLMDB::update_block_checkpoint(checkpoint_t const &checkpoint)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
 
   checkpoint_mdb_buffer buffer = {};
@@ -3981,6 +4078,7 @@ void BlockchainLMDB::update_block_checkpoint(checkpoint_t const &checkpoint)
 
 void BlockchainLMDB::remove_block_checkpoint(uint64_t height)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
 
   check_open();
@@ -4021,6 +4119,7 @@ static checkpoint_t convert_mdb_val_to_checkpoint(MDB_val const value)
 
 bool BlockchainLMDB::get_block_checkpoint_internal(uint64_t height, checkpoint_t &checkpoint, MDB_cursor_op op) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   check_open();
   TXN_PREFIX_RDONLY();
   RCURSOR(block_checkpoints);
@@ -4042,6 +4141,7 @@ bool BlockchainLMDB::get_block_checkpoint_internal(uint64_t height, checkpoint_t
 
 bool BlockchainLMDB::get_block_checkpoint(uint64_t height, checkpoint_t &checkpoint) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   bool result = get_block_checkpoint_internal(height, checkpoint, MDB_SET_KEY);
   return result;
@@ -4049,6 +4149,7 @@ bool BlockchainLMDB::get_block_checkpoint(uint64_t height, checkpoint_t &checkpo
 
 bool BlockchainLMDB::get_top_checkpoint(checkpoint_t &checkpoint) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   bool result = get_block_checkpoint_internal(0, checkpoint, MDB_LAST);
   return result;
@@ -4056,6 +4157,7 @@ bool BlockchainLMDB::get_top_checkpoint(checkpoint_t &checkpoint) const
 
 std::vector<checkpoint_t> BlockchainLMDB::get_checkpoints_range(uint64_t start, uint64_t end, size_t num_desired_checkpoints) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   std::vector<checkpoint_t> result;
   checkpoint_t top_checkpoint    = {};
   checkpoint_t bottom_checkpoint = {};
@@ -4143,6 +4245,7 @@ std::vector<checkpoint_t> BlockchainLMDB::get_checkpoints_range(uint64_t start, 
 
 void BlockchainLMDB::pop_block(block& blk, std::vector<transaction>& txs)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -4163,6 +4266,7 @@ void BlockchainLMDB::pop_block(block& blk, std::vector<transaction>& txs)
 void BlockchainLMDB::get_output_tx_and_index_from_global(const std::vector<uint64_t> &global_indices,
     std::vector<tx_out_index> &tx_out_indices) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   tx_out_indices.clear();
@@ -4188,6 +4292,7 @@ void BlockchainLMDB::get_output_tx_and_index_from_global(const std::vector<uint6
 
 void BlockchainLMDB::get_output_key(const epee::span<const uint64_t> &amounts, const std::vector<uint64_t> &offsets, std::vector<output_data_t> &outputs, bool allow_partial) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   if (amounts.size() != 1 && amounts.size() != offsets.size())
     throw0(DB_ERROR("Invalid sizes of amounts and offets"));
 
@@ -4241,6 +4346,7 @@ void BlockchainLMDB::get_output_key(const epee::span<const uint64_t> &amounts, c
 
 void BlockchainLMDB::get_output_tx_and_index(const uint64_t& amount, const std::vector<uint64_t> &offsets, std::vector<tx_out_index> &indices) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   indices.clear();
@@ -4277,6 +4383,7 @@ void BlockchainLMDB::get_output_tx_and_index(const uint64_t& amount, const std::
 
 std::map<uint64_t, std::tuple<uint64_t, uint64_t, uint64_t>> BlockchainLMDB::get_output_histogram(const std::vector<uint64_t> &amounts, bool unlocked, uint64_t recent_cutoff, uint64_t min_count) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -4368,6 +4475,7 @@ std::map<uint64_t, std::tuple<uint64_t, uint64_t, uint64_t>> BlockchainLMDB::get
 
 bool BlockchainLMDB::get_output_distribution(uint64_t amount, uint64_t from_height, uint64_t to_height, std::vector<uint64_t> &distribution, uint64_t &base) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -4413,6 +4521,7 @@ bool BlockchainLMDB::get_output_distribution(uint64_t amount, uint64_t from_heig
 
 bool BlockchainLMDB::get_output_blacklist(std::vector<uint64_t> &blacklist) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -4455,6 +4564,7 @@ bool BlockchainLMDB::get_output_blacklist(std::vector<uint64_t> &blacklist) cons
 
 void BlockchainLMDB::add_output_blacklist(std::vector<uint64_t> const &blacklist)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   if (blacklist.size() == 0)
     return;
 
@@ -4479,6 +4589,7 @@ void BlockchainLMDB::check_hard_fork_info()
 
 void BlockchainLMDB::drop_hard_fork_info()
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -4496,6 +4607,7 @@ void BlockchainLMDB::drop_hard_fork_info()
 
 void BlockchainLMDB::set_hard_fork_version(uint64_t height, uint8_t version)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -4515,6 +4627,7 @@ void BlockchainLMDB::set_hard_fork_version(uint64_t height, uint8_t version)
 
 uint8_t BlockchainLMDB::get_hard_fork_version(uint64_t height) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -4533,6 +4646,7 @@ uint8_t BlockchainLMDB::get_hard_fork_version(uint64_t height) const
 
 void BlockchainLMDB::add_alt_block(const crypto::hash &blkid, const cryptonote::alt_block_data_t &data, const cryptonote::blobdata &block, cryptonote::blobdata const *checkpoint)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   mdb_txn_cursors *m_cursors = &m_wcursors;
@@ -4576,6 +4690,7 @@ void BlockchainLMDB::add_alt_block(const crypto::hash &blkid, const cryptonote::
 
 bool BlockchainLMDB::get_alt_block(const crypto::hash &blkid, alt_block_data_t *data, cryptonote::blobdata *block, cryptonote::blobdata *checkpoint)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB:: " << __func__);
   check_open();
 
@@ -4597,6 +4712,7 @@ bool BlockchainLMDB::get_alt_block(const crypto::hash &blkid, alt_block_data_t *
 
 void BlockchainLMDB::remove_alt_block(const crypto::hash &blkid)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
   mdb_txn_cursors *m_cursors = &m_wcursors;
@@ -4615,6 +4731,7 @@ void BlockchainLMDB::remove_alt_block(const crypto::hash &blkid)
 
 uint64_t BlockchainLMDB::get_alt_block_count()
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB:: " << __func__);
   check_open();
 
@@ -4635,6 +4752,7 @@ uint64_t BlockchainLMDB::get_alt_block_count()
 
 void BlockchainLMDB::drop_alt_blocks()
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -4649,6 +4767,7 @@ void BlockchainLMDB::drop_alt_blocks()
 
 bool BlockchainLMDB::is_read_only() const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   unsigned int flags;
   auto result = mdb_env_get_flags(m_env, &flags);
   if (result)
@@ -4662,6 +4781,7 @@ bool BlockchainLMDB::is_read_only() const
 
 uint64_t BlockchainLMDB::get_database_size() const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   uint64_t size = 0;
   boost::filesystem::path datafile(m_folder);
   datafile /= CRYPTONOTE_BLOCKCHAINDATA_FILENAME;
@@ -4672,6 +4792,7 @@ uint64_t BlockchainLMDB::get_database_size() const
 
 void BlockchainLMDB::fixup(fixup_context const context)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   // Always call parent as well
   BlockchainDB::fixup(context);
@@ -6111,6 +6232,7 @@ void BlockchainLMDB::migrate_6_7()
 
 void BlockchainLMDB::migrate(const uint32_t oldversion, cryptonote::network_type nettype)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   switch(oldversion) {
   case 0:
     migrate_0_1(); /* FALLTHRU */
@@ -6135,6 +6257,7 @@ uint64_t constexpr SERVICE_NODE_BLOB_SHORT_TERM_KEY = 1;
 uint64_t constexpr SERVICE_NODE_BLOB_LONG_TERM_KEY  = 2;
 void BlockchainLMDB::set_service_node_data(const std::string& data, bool long_term)
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -6152,6 +6275,7 @@ void BlockchainLMDB::set_service_node_data(const std::string& data, bool long_te
 
 bool BlockchainLMDB::get_service_node_data(std::string& data, bool long_term) const
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
@@ -6182,6 +6306,7 @@ bool BlockchainLMDB::get_service_node_data(std::string& data, bool long_term) co
 
 void BlockchainLMDB::clear_service_node_data()
 {
+  ZoneScopedC(loki::TRACE_DB_LMDB_COLOR);
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 

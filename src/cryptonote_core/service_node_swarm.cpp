@@ -1,6 +1,8 @@
 #include "service_node_swarm.h"
 #include "common/random.h"
 
+#include "common/loki.h"
+
 #undef LOKI_DEFAULT_LOG_CATEGORY
 #define LOKI_DEFAULT_LOG_CATEGORY "service_nodes"
 
@@ -14,6 +16,7 @@ namespace service_nodes
 {
   static uint64_t get_new_swarm_id(const swarm_snode_map_t &swarm_to_snodes)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_SWARM_COLOR);
     // UINT64_MAX is reserved for unassigned swarms
     constexpr uint64_t MAX_ID = UINT64_MAX - 1;
 
@@ -67,6 +70,7 @@ namespace service_nodes
   /// The excess is calculated as the total number of snodes above MIN_SWARM_SIZE across all swarms
   prod_static size_t calc_excess(const swarm_snode_map_t &swarm_to_snodes)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_SWARM_COLOR);
     const size_t excess = std::accumulate(swarm_to_snodes.begin(),
                                           swarm_to_snodes.end(),
                                           size_t(0),
@@ -84,6 +88,7 @@ namespace service_nodes
   /// 2. there is enough excess to leave IDEAL_SWARM_MARGIN excess in the existing swarms
   prod_static size_t calc_threshold(const swarm_snode_map_t &swarm_to_snodes)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_SWARM_COLOR);
     const size_t threshold = NEW_SWARM_SIZE + (swarm_to_snodes.size() * IDEAL_SWARM_MARGIN);
     LOG_PRINT_L2("Calculated threshold: " << threshold);
     return threshold;
@@ -91,6 +96,7 @@ namespace service_nodes
 
   prod_static const excess_pool_snode& pick_from_excess_pool(const std::vector<excess_pool_snode>& excess_pool, std::mt19937_64 &mt)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_SWARM_COLOR);
     /// Select random snode
     const auto idx = tools::uniform_distribution_portable(mt, excess_pool.size());
     return excess_pool.at(idx);
@@ -98,12 +104,14 @@ namespace service_nodes
 
   prod_static void remove_excess_snode_from_swarm(const excess_pool_snode& excess_snode, swarm_snode_map_t &swarm_to_snodes)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_SWARM_COLOR);
     auto &swarm_sn_vec = swarm_to_snodes.at(excess_snode.swarm_id);
     swarm_sn_vec.erase(std::remove(swarm_sn_vec.begin(), swarm_sn_vec.end(), excess_snode.public_key), swarm_sn_vec.end());
   }
 
   prod_static void get_excess_pool(size_t threshold, const swarm_snode_map_t& swarm_to_snodes, std::vector<excess_pool_snode>& pool_snodes, size_t& excess)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_SWARM_COLOR);
     /// Create a pool of all the service nodes belonging
     /// to the swarms that have excess. That way we naturally
     /// make the chances of picking a swarm proportionate to the
@@ -129,6 +137,7 @@ namespace service_nodes
 
   prod_static void create_new_swarm_from_excess(swarm_snode_map_t &swarm_to_snodes, std::mt19937_64 &mt)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_SWARM_COLOR);
     const bool has_starving_swarms = std::any_of(swarm_to_snodes.begin(),
                                                 swarm_to_snodes.end(),
                                                 [](const swarm_snode_map_t::value_type& pair) {
@@ -165,6 +174,7 @@ namespace service_nodes
 
   prod_static void calc_swarm_sizes(const swarm_snode_map_t &swarm_to_snodes, std::vector<swarm_size> &sorted_swarm_sizes)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_SWARM_COLOR);
     sorted_swarm_sizes.clear();
     sorted_swarm_sizes.reserve(swarm_to_snodes.size());
     for (const auto &entry : swarm_to_snodes)
@@ -182,6 +192,7 @@ namespace service_nodes
   /// and run the excess/threshold logic after each assignment to ensure new swarms are generated when required.
   prod_static void assign_snodes(const std::vector<crypto::public_key> &snode_pubkeys, swarm_snode_map_t &swarm_to_snodes, std::mt19937_64 &mt, size_t percentile)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_SWARM_COLOR);
     std::vector<swarm_size> sorted_swarm_sizes;
     for (const auto &sn_pk : snode_pubkeys)
     {
@@ -209,7 +220,7 @@ namespace service_nodes
 
   void calc_swarm_changes(swarm_snode_map_t &swarm_to_snodes, uint64_t seed)
   {
-
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_SWARM_COLOR);
     if (swarm_to_snodes.size() == 0)
     {
       // nothing to do

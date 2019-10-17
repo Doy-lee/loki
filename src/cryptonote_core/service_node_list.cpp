@@ -93,7 +93,8 @@ namespace service_nodes
 
   void service_node_list::init()
   {
-    std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
+    std::lock_guard<LockableBase(boost::recursive_mutex)> lock(m_sn_mutex);
     if (m_blockchain.get_current_hard_fork_version() < 9)
     {
       reset(true);
@@ -137,7 +138,8 @@ namespace service_nodes
   std::shared_ptr<const quorum> service_node_list::get_quorum(quorum_type type, uint64_t height, bool include_old, std::vector<std::shared_ptr<const quorum>> *alt_quorums) const
   {
     height = offset_testing_quorum_height(type, height);
-    std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
+
+    std::lock_guard<LockableBase(boost::recursive_mutex)> lock(m_sn_mutex);
     quorum_manager const *quorums = nullptr;
     if (height == m_state.height)
       quorums = &m_state.quorums;
@@ -188,6 +190,7 @@ namespace service_nodes
 
   static bool get_pubkey_from_quorum(quorum const &quorum, quorum_group group, size_t quorum_index, crypto::public_key &key)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     std::vector<crypto::public_key> const *array = nullptr;
     if      (group == quorum_group::validator) array = &quorum.validators;
     else if (group == quorum_group::worker)    array = &quorum.workers;
@@ -222,13 +225,14 @@ namespace service_nodes
 
   size_t service_node_list::get_service_node_count() const
   {
-    std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
+    std::lock_guard<LockableBase(boost::recursive_mutex)> lock(m_sn_mutex);
     return m_state.service_nodes_infos.size();
   }
 
   std::vector<service_node_pubkey_info> service_node_list::get_service_node_list_state(const std::vector<crypto::public_key> &service_node_pubkeys) const
   {
-    std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
+    std::lock_guard<LockableBase(boost::recursive_mutex)> lock(m_sn_mutex);
     std::vector<service_node_pubkey_info> result;
 
     if (service_node_pubkeys.empty())
@@ -254,7 +258,7 @@ namespace service_nodes
 
   void service_node_list::set_my_service_node_keys(const service_node_keys *keys)
   {
-    std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
+   std::lock_guard<LockableBase(boost::recursive_mutex)> lock(m_sn_mutex);
     m_service_node_keys = keys;
   }
 
@@ -266,13 +270,14 @@ namespace service_nodes
 
   bool service_node_list::is_service_node(const crypto::public_key& pubkey, bool require_active) const
   {
-    std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
+    std::lock_guard<LockableBase(boost::recursive_mutex)> lock(m_sn_mutex);
     auto it = m_state.service_nodes_infos.find(pubkey);
     return it != m_state.service_nodes_infos.end() && (!require_active || it->second->is_active());
   }
 
   bool service_node_list::is_key_image_locked(crypto::key_image const &check_image, uint64_t *unlock_height, service_node_info::contribution_t *the_locked_contribution) const
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     for (const auto& pubkey_info : m_state.service_nodes_infos)
     {
       const service_node_info &info = *pubkey_info.second;
@@ -294,6 +299,7 @@ namespace service_nodes
 
   bool reg_tx_extract_fields(const cryptonote::transaction& tx, contributor_args_t &contributor_args, uint64_t& expiration_timestamp, crypto::public_key& service_node_key, crypto::signature& signature)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     cryptonote::tx_extra_service_node_register registration;
     if (!get_service_node_register_from_tx_extra(tx.extra, registration))
       return false;
@@ -375,6 +381,7 @@ namespace service_nodes
 
   static uint64_t get_staking_output_contribution(const cryptonote::transaction& tx, int i, crypto::key_derivation const &derivation, hw::device& hwdev)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     if (tx.vout[i].target.type() != typeid(cryptonote::txout_to_key))
     {
       return 0;
@@ -598,6 +605,7 @@ namespace service_nodes
                                                            const cryptonote::transaction &tx,
                                                            const service_node_keys *my_keys)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     if (tx.type != cryptonote::txtype::state_change)
       return false;
 
@@ -796,6 +804,7 @@ namespace service_nodes
 
   bool service_node_list::state_t::process_key_image_unlock_tx(cryptonote::network_type nettype, uint64_t block_height, const cryptonote::transaction &tx)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     crypto::public_key snode_key;
     if (!cryptonote::get_service_node_pubkey_from_tx_extra(tx.extra, snode_key))
       return false;
@@ -852,6 +861,7 @@ namespace service_nodes
 
   bool is_registration_tx(cryptonote::network_type nettype, uint8_t hf_version, const cryptonote::transaction& tx, uint64_t block_timestamp, uint64_t block_height, uint32_t index, crypto::public_key& key, service_node_info& info)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     contributor_args_t contributor_args = {};
     crypto::public_key service_node_key;
     uint64_t expiration_timestamp;
@@ -953,6 +963,7 @@ namespace service_nodes
 
   bool service_node_list::state_t::process_registration_tx(cryptonote::network_type nettype, const cryptonote::block &block, const cryptonote::transaction& tx, uint32_t index, const service_node_keys *my_keys)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     uint8_t const hf_version       = block.major_version;
     uint64_t const block_timestamp = block.timestamp;
     uint64_t const block_height    = cryptonote::get_block_height(block);
@@ -1031,6 +1042,7 @@ namespace service_nodes
 
   bool service_node_list::state_t::process_contribution_tx(cryptonote::network_type nettype, const cryptonote::block &block, const cryptonote::transaction& tx, uint32_t index)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     uint64_t const block_height = cryptonote::get_block_height(block);
     uint8_t const hf_version    = block.major_version;
 
@@ -1161,7 +1173,7 @@ namespace service_nodes
     if (block.major_version < cryptonote::network_version_9_service_nodes)
       return true;
 
-    std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
+    std::lock_guard<LockableBase(boost::recursive_mutex)> lock(m_sn_mutex);
     process_block(block, txs);
 
     if (block.major_version >= cryptonote::network_version_13_enforce_checkpoints && checkpoint)
@@ -1190,6 +1202,7 @@ namespace service_nodes
       size_t sublist_size  = 0,
       size_t sublist_up_to = 0)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     std::vector<size_t> result(list_size);
     std::iota(result.begin(), result.end(), 0);
 
@@ -1227,6 +1240,7 @@ namespace service_nodes
 
   static quorum_manager generate_quorums(cryptonote::network_type nettype, uint8_t hf_version, service_node_list::state_t const &state)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     quorum_manager result = {};
     assert(state.block_hash != crypto::null_hash);
 
@@ -1342,6 +1356,7 @@ namespace service_nodes
                                                      const std::vector<cryptonote::transaction> &txs,
                                                      const service_node_keys *my_keys)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     ++height;
     bool need_swarm_update = false;
     uint64_t block_height  = cryptonote::get_block_height(block);
@@ -1367,16 +1382,19 @@ namespace service_nodes
     //
     // Expire Nodes
     //
-    for (const crypto::public_key& pubkey : get_expired_nodes(db, nettype, block.major_version, block_height))
     {
-      auto i = service_nodes_infos.find(pubkey);
-      if (i != service_nodes_infos.end())
+      ZoneUniqueNamedNC("process_block (expire nodes)", loki::TRACE_SERVICE_NODE_LIST_COLOR, true);
+      for (const crypto::public_key& pubkey : get_expired_nodes(db, nettype, block.major_version, block_height))
       {
-        if (my_keys && my_keys->pub == pubkey) MGINFO_GREEN("Service node expired (yours): " << pubkey << " at block height: " << block_height);
-        else                                   LOG_PRINT_L1("Service node expired: " << pubkey << " at block height: " << block_height);
+        auto i = service_nodes_infos.find(pubkey);
+        if (i != service_nodes_infos.end())
+        {
+          if (my_keys && my_keys->pub == pubkey) MGINFO_GREEN("Service node expired (yours): " << pubkey << " at block height: " << block_height);
+          else                                   LOG_PRINT_L1("Service node expired: " << pubkey << " at block height: " << block_height);
 
-        need_swarm_update += i->second->is_active();
-        service_nodes_infos.erase(i);
+          need_swarm_update += i->second->is_active();
+          service_nodes_infos.erase(i);
+        }
       }
     }
 
@@ -1384,6 +1402,7 @@ namespace service_nodes
     // Advance the list to the next candidate for a reward
     //
     {
+      ZoneUniqueNamedNC("process_block (advance list to next winner)", loki::TRACE_SERVICE_NODE_LIST_COLOR, true);
       crypto::public_key winner_pubkey = cryptonote::get_service_node_winner_from_tx_extra(block.miner_tx.extra);
       auto it = service_nodes_infos.find(winner_pubkey);
       if (it != service_nodes_infos.end())
@@ -1400,21 +1419,46 @@ namespace service_nodes
     //
     cryptonote::txtype max_tx_type     = cryptonote::transaction::get_max_type_for_hf(hf_version);
     cryptonote::txtype staking_tx_type = (max_tx_type < cryptonote::txtype::stake) ? cryptonote::txtype::standard : cryptonote::txtype::stake;
-    for (uint32_t index = 0; index < txs.size(); ++index)
     {
-      const cryptonote::transaction& tx = txs[index];
-      if (tx.type == staking_tx_type)
+      ZoneUniqueNamedNC("process_block (process txs in block)", loki::TRACE_SERVICE_NODE_LIST_COLOR, true);
+      for (uint32_t index = 0; index < txs.size(); ++index)
       {
-        process_registration_tx(nettype, block, tx, index, my_keys);
-        need_swarm_update += process_contribution_tx(nettype, block, tx, index);
-      }
-      else if (tx.type == cryptonote::txtype::state_change)
-      {
-        need_swarm_update += process_state_change_tx(state_history, state_archive, alt_states, nettype, block, tx, my_keys);
-      }
-      else if (tx.type == cryptonote::txtype::key_image_unlock)
-      {
-        process_key_image_unlock_tx(nettype, block_height, tx);
+        const cryptonote::transaction& tx = txs[index];
+        if (tx.type == staking_tx_type)
+        {
+          process_registration_tx(nettype, block, tx, index, my_keys);
+          need_swarm_update += process_contribution_tx(nettype, block, tx, index);
+        }
+        else if (tx.type == cryptonote::txtype::state_change)
+        {
+          const cryptonote::transaction& tx = txs[index];
+          if ((hf_version >= cryptonote::network_version_14_blink_lns && tx.type == cryptonote::txtype::stake) ||
+              (hf_version <= cryptonote::network_version_13_enforce_checkpoints && tx.type == cryptonote::txtype::standard))
+          {
+            process_registration_tx(nettype, block, tx, index, my_keys);
+            need_swarm_update += process_contribution_tx(nettype, block, tx, index);
+          }
+          else if (tx.type == cryptonote::txtype::state_change)
+          {
+            need_swarm_update += process_state_change_tx(state_history, state_archive, alt_states, nettype, block, tx, my_keys);
+          }
+          else if (tx.type == cryptonote::txtype::key_image_unlock)
+          {
+            if (tx.type == cryptonote::txtype::standard)
+            {
+              process_registration_tx(nettype, block, tx, index, my_keys);
+              need_swarm_update += process_contribution_tx(nettype, block, tx, index);
+            }
+            else if (tx.type == cryptonote::txtype::state_change)
+            {
+              need_swarm_update += process_state_change_tx(state_history, state_archive, alt_states, nettype, block, tx, my_keys);
+            }
+            else if (tx.type == cryptonote::txtype::key_image_unlock)
+            {
+              process_key_image_unlock_tx(nettype, block_height, tx);
+            }
+          }
+        }
       }
     }
 
@@ -1460,6 +1504,7 @@ namespace service_nodes
     // Cull old history
     uint64_t cull_height = short_term_state_cull_height(hf_version, block_height);
     {
+      ZoneUniqueNamedNC("process_block (cull old history)", loki::TRACE_SERVICE_NODE_LIST_COLOR, true);
       auto end_it = m_transient.state_history.upper_bound(cull_height);
       for (auto it = m_transient.state_history.begin(); it != end_it; it++)
       {
@@ -1490,11 +1535,14 @@ namespace service_nodes
     }
 
     // Cull alt state history
-    for (auto it = m_transient.alt_state.begin(); it != m_transient.alt_state.end(); )
     {
-      state_t const &alt_state = it->second;
-      if (alt_state.height < cull_height) it = m_transient.alt_state.erase(it);
-      else it++;
+      ZoneUniqueNamedNC("process_block (cull alt history)", loki::TRACE_SERVICE_NODE_LIST_COLOR, true);
+      for (auto it = m_transient.alt_state.begin(); it != m_transient.alt_state.end(); )
+      {
+        state_t const &alt_state = it->second;
+        if (alt_state.height < cull_height) it = m_transient.alt_state.erase(it);
+        else it++;
+      }
     }
 
     cryptonote::network_type nettype = m_blockchain.nettype();
@@ -1504,7 +1552,8 @@ namespace service_nodes
 
   void service_node_list::blockchain_detached(uint64_t height, bool /*by_pop_blocks*/)
   {
-    std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
+    std::lock_guard<LockableBase(boost::recursive_mutex)> lock(m_sn_mutex);
 
     uint64_t revert_to_height = height - 1;
     bool reinitialise         = false;
@@ -1549,6 +1598,7 @@ namespace service_nodes
                                                                                uint8_t hf_version,
                                                                                uint64_t block_height) const
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     std::vector<crypto::public_key> expired_nodes;
     uint64_t const lock_blocks = staking_num_lock_blocks(nettype);
 
@@ -1621,6 +1671,7 @@ namespace service_nodes
 
   block_winner service_node_list::state_t::get_block_winner() const
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     block_winner result           = {};
     service_node_info const *info = nullptr;
     {
@@ -1670,7 +1721,8 @@ namespace service_nodes
 
   bool service_node_list::validate_miner_tx(const crypto::hash& prev_id, const cryptonote::transaction& miner_tx, uint64_t height, int hf_version, cryptonote::block_reward_parts const &reward_parts) const
   {
-    std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
+    std::lock_guard<LockableBase(boost::recursive_mutex)> lock(m_sn_mutex);
     if (hf_version < 9)
       return true;
 
@@ -1844,6 +1896,7 @@ namespace service_nodes
 
   bool service_node_list::store()
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     if (!m_blockchain.has_db())
         return false; // Haven't been initialized yet
 
@@ -1853,8 +1906,7 @@ namespace service_nodes
 
     data_for_serialization *data[] = {&m_transient.cache_long_term_data, &m_transient.cache_short_term_data};
     auto const serialize_version   = data_for_serialization::get_version(hf_version);
-    std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
-
+    std::lock_guard<LockableBase(boost::recursive_mutex)> lock(m_sn_mutex);
     for (data_for_serialization *serialize_entry : data)
     {
       if (serialize_entry->version != serialize_version) m_transient.state_added_to_archive = true;
@@ -1892,6 +1944,7 @@ namespace service_nodes
     m_transient.cache_data_blob.clear();
     if (m_transient.state_added_to_archive)
     {
+      ZoneUniqueNamedNC("store (write archive data to db)", loki::TRACE_SERVICE_NODE_LIST_COLOR, true);
       std::stringstream ss;
       binary_archive<true> ba(ss);
       bool r = ::serialization::serialize(ba, m_transient.cache_long_term_data);
@@ -1906,6 +1959,7 @@ namespace service_nodes
 
     m_transient.cache_data_blob.clear();
     {
+      ZoneUniqueNamedNC("store (write short term data to db)", loki::TRACE_SERVICE_NODE_LIST_COLOR, true);
       std::stringstream ss;
       binary_archive<true> ba(ss);
       bool r = ::serialization::serialize(ba, m_transient.cache_short_term_data);
@@ -1924,6 +1978,7 @@ namespace service_nodes
 
   static crypto::hash hash_uptime_proof(const cryptonote::NOTIFY_UPTIME_PROOF::request &proof, uint8_t hf_version)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     auto buf = tools::memcpy_le(proof.pubkey.data, proof.timestamp, proof.public_ip, proof.storage_port, proof.pubkey_ed25519.data, proof.qnet_port, proof.storage_lmq_port);
     size_t buf_size = buf.size();
 
@@ -1938,6 +1993,7 @@ namespace service_nodes
   cryptonote::NOTIFY_UPTIME_PROOF::request service_node_list::generate_uptime_proof(
       uint32_t public_ip, uint16_t storage_port, uint16_t storage_lmq_port, uint16_t quorumnet_port) const
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     assert(m_service_node_keys);
     const auto& keys = *m_service_node_keys;
     cryptonote::NOTIFY_UPTIME_PROOF::request result = {};
@@ -2040,6 +2096,7 @@ namespace service_nodes
 
   bool service_node_list::handle_uptime_proof(cryptonote::NOTIFY_UPTIME_PROOF::request const &proof, bool &my_uptime_proof_confirmation)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     uint8_t const hf_version = m_blockchain.get_current_hard_fork_version();
     uint64_t const now       = time(nullptr);
 
@@ -2207,7 +2264,8 @@ namespace service_nodes
 
   void service_node_list::record_checkpoint_vote(crypto::public_key const &pubkey, uint64_t height, bool voted)
   {
-    std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
+    std::lock_guard<LockableBase(boost::recursive_mutex)> lock(m_sn_mutex);
     if (!m_state.service_nodes_infos.count(pubkey))
       return;
 
@@ -2219,7 +2277,7 @@ namespace service_nodes
 
   bool service_node_list::set_storage_server_peer_reachable(crypto::public_key const &pubkey, bool value)
   {
-    std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex);
+    std::lock_guard<LockableBase(boost::recursive_mutex)> lock(m_sn_mutex);
 
     if (!m_state.service_nodes_infos.count(pubkey)) {
       LOG_PRINT_L2("No Service Node is known by this pubkey: " << pubkey);
@@ -2284,6 +2342,7 @@ namespace service_nodes
 
   bool service_node_list::load(const uint64_t current_height)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_LIST_COLOR);
     LOG_PRINT_L1("service_node_list::load()");
     reset(false);
     if (!m_blockchain.has_db())

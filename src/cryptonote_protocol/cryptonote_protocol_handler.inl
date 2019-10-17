@@ -557,6 +557,7 @@ namespace cryptonote
   template<class t_core>
   int t_cryptonote_protocol_handler<t_core>::handle_notify_new_fluffy_block(int command, NOTIFY_NEW_FLUFFY_BLOCK::request& arg, cryptonote_connection_context& context)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_PROTOCOL_COLOR);
     MLOGIF_P2P_MESSAGE(crypto::hash hash; cryptonote::block b; bool ret = cryptonote::parse_and_validate_block_from_blob(arg.b.block, b, &hash);, ret, "Received NOTIFY_NEW_FLUFFY_BLOCK " << hash << " (height " << arg.current_blockchain_height << ", " << arg.b.txs.size() << " txes)");
     if(context.m_state != cryptonote_connection_context::state_normal)
       return 1;
@@ -884,6 +885,7 @@ namespace cryptonote
   template<class t_core>
   int t_cryptonote_protocol_handler<t_core>::handle_notify_new_service_node_vote(int command, NOTIFY_NEW_SERVICE_NODE_VOTE::request& arg, cryptonote_connection_context& context)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_PROTOCOL_COLOR);
     MLOG_P2P_MESSAGE("Received NOTIFY_NEW_SERVICE_NODE_VOTE (" << arg.votes.size() << " txes)");
 
     if(context.m_state != cryptonote_connection_context::state_normal)
@@ -927,6 +929,7 @@ namespace cryptonote
   template<class t_core>
   int t_cryptonote_protocol_handler<t_core>::handle_request_fluffy_missing_tx(int command, NOTIFY_REQUEST_FLUFFY_MISSING_TX::request& arg, cryptonote_connection_context& context)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_PROTOCOL_COLOR);
     MLOG_P2P_MESSAGE("Received NOTIFY_REQUEST_FLUFFY_MISSING_TX (" << arg.missing_tx_indices.size() << " txes), block hash " << arg.block_hash);
     
     std::vector<std::pair<cryptonote::blobdata, block>> local_blocks;
@@ -1028,6 +1031,7 @@ namespace cryptonote
   template<class t_core>
   int t_cryptonote_protocol_handler<t_core>::handle_notify_new_transactions(int command, NOTIFY_NEW_TRANSACTIONS::request& arg, cryptonote_connection_context& context)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_PROTOCOL_COLOR);
     MLOG_P2P_MESSAGE("Received NOTIFY_NEW_TRANSACTIONS (" << arg.txs.size() << " txes w/ " << arg.blinks.size() << " blinks)");
     for (const auto &blob: arg.txs)
       MLOGIF_P2P_MESSAGE(cryptonote::transaction tx; crypto::hash hash; bool ret = cryptonote::parse_and_validate_tx_from_blob(blob, tx, hash);, ret, "Including transaction " << hash);
@@ -1163,6 +1167,7 @@ namespace cryptonote
   template<class t_core>
   int t_cryptonote_protocol_handler<t_core>::handle_response_get_blocks(int command, NOTIFY_RESPONSE_GET_BLOCKS::request& arg, cryptonote_connection_context& context)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_PROTOCOL_COLOR);
     MLOG_P2P_MESSAGE("Received NOTIFY_RESPONSE_GET_BLOCKS (" << arg.blocks.size() << " blocks)");
     MLOG_PEER_STATE("received blocks");
 
@@ -1296,8 +1301,8 @@ namespace cryptonote
   template<class t_core>
   int t_cryptonote_protocol_handler<t_core>::try_add_next_blocks(cryptonote_connection_context& context)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_PROTOCOL_COLOR);
     bool force_next_span = false;
-
     {
       // We try to lock the sync lock. If we can, it means no other thread is
       // currently adding blocks, so we do that for as long as we can from the
@@ -1739,6 +1744,7 @@ skip:
   template<class t_core>
   int t_cryptonote_protocol_handler<t_core>::handle_request_chain(int command, NOTIFY_REQUEST_CHAIN::request& arg, cryptonote_connection_context& context)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_PROTOCOL_COLOR);
     MLOG_P2P_MESSAGE("Received NOTIFY_REQUEST_CHAIN (" << arg.block_ids.size() << " blocks");
     NOTIFY_RESPONSE_CHAIN_ENTRY::request r;
     if(!m_core.find_blockchain_supplement(arg.block_ids, r))
@@ -1917,6 +1923,7 @@ skip:
   template<class t_core>
   bool t_cryptonote_protocol_handler<t_core>::request_missing_objects(cryptonote_connection_context& context, bool check_having_blocks, bool force_next_span)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_PROTOCOL_COLOR);
     // flush stale spans
     std::set<boost::uuids::uuid> live_connections;
     m_p2p->for_each_connection([&](cryptonote_connection_context& context, nodetool::peerid_type peer_id, uint32_t support_flags)->bool{
@@ -2297,6 +2304,7 @@ skip:
   template<class t_core>
   int t_cryptonote_protocol_handler<t_core>::handle_response_chain_entry(int command, NOTIFY_RESPONSE_CHAIN_ENTRY::request& arg, cryptonote_connection_context& context)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_PROTOCOL_COLOR);
     MLOG_P2P_MESSAGE("Received NOTIFY_RESPONSE_CHAIN_ENTRY: m_block_ids.size()=" << arg.m_block_ids.size()
       << ", m_start_height=" << arg.start_height << ", m_total_height=" << arg.total_height);
     MLOG_PEER_STATE("received chain");

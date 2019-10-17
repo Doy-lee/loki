@@ -52,6 +52,7 @@ namespace service_nodes
 {
   static crypto::hash make_state_change_vote_hash(uint64_t block_height, uint32_t service_node_index, new_state state)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     uint16_t state_int = static_cast<uint16_t>(state);
 
     auto buf = tools::memcpy_le(block_height, service_node_index, state_int);
@@ -67,6 +68,7 @@ namespace service_nodes
 
   crypto::signature make_signature_from_vote(quorum_vote_t const &vote, const service_node_keys &keys)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     crypto::signature result = {};
     switch(vote.type)
     {
@@ -97,6 +99,7 @@ namespace service_nodes
 
   crypto::signature make_signature_from_tx_state_change(cryptonote::tx_extra_service_node_state_change const &state_change, const service_node_keys &keys)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     crypto::signature result;
     crypto::hash hash = make_state_change_vote_hash(state_change.block_height, state_change.service_node_index, state_change.state);
     crypto::generate_signature(hash, keys.pub, keys.key, result);
@@ -105,6 +108,7 @@ namespace service_nodes
 
   static bool bounds_check_worker_index(service_nodes::quorum const &quorum, uint32_t worker_index, cryptonote::vote_verification_context *vvc)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     if (worker_index >= quorum.workers.size())
     {
       if (vvc) vvc->m_worker_index_out_of_bounds = true;
@@ -116,6 +120,7 @@ namespace service_nodes
 
   static bool bounds_check_validator_index(service_nodes::quorum const &quorum, uint32_t validator_index, cryptonote::vote_verification_context *vvc)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     if (validator_index >= quorum.validators.size())
     {
       if (vvc) vvc->m_validator_index_out_of_bounds = true;
@@ -136,6 +141,7 @@ namespace service_nodes
                               const service_nodes::quorum &quorum,
                               const uint8_t hf_version)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     auto &vvc = tvc.m_vote_ctx;
     if (state_change.state != new_state::deregister && hf_version < cryptonote::network_version_12_checkpointing)
     {
@@ -234,6 +240,7 @@ namespace service_nodes
 
   bool verify_checkpoint(uint8_t hf_version, cryptonote::checkpoint_t const &checkpoint, service_nodes::quorum const &quorum)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     if (checkpoint.type == cryptonote::checkpoint_type::service_node)
     {
       if ((checkpoint.height % service_nodes::CHECKPOINT_INTERVAL) != 0)
@@ -299,6 +306,7 @@ namespace service_nodes
 
   quorum_vote_t make_state_change_vote(uint64_t block_height, uint16_t validator_index, uint16_t worker_index, new_state state, const service_node_keys &keys)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     quorum_vote_t result             = {};
     result.type                      = quorum_type::obligations;
     result.block_height              = block_height;
@@ -361,6 +369,7 @@ namespace service_nodes
 
   bool verify_vote_signature(uint8_t hf_version, const quorum_vote_t &vote, cryptonote::vote_verification_context &vvc, const service_nodes::quorum &quorum)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     bool result = true;
     if (vote.type > tools::enum_top<quorum_type>)
     {
@@ -447,6 +456,7 @@ namespace service_nodes
 
   template <typename T>
   static std::vector<pool_vote_entry> *find_vote_in_pool(std::vector<T> &pool, const quorum_vote_t &vote, bool create) {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     T typed_vote{vote};
     auto it = std::find(pool.begin(), pool.end(), typed_vote);
     if (it != pool.end())
@@ -458,6 +468,7 @@ namespace service_nodes
   }
 
   std::vector<pool_vote_entry> *voting_pool::find_vote_pool(const quorum_vote_t &find_vote, bool create_if_not_found) {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     switch(find_vote.type)
     {
       default:
@@ -475,6 +486,7 @@ namespace service_nodes
 
   void voting_pool::set_relayed(const std::vector<quorum_vote_t>& votes)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     CRITICAL_REGION_LOCAL(m_lock);
     const time_t now = time(NULL);
 
@@ -498,6 +510,7 @@ namespace service_nodes
 
   template <typename T>
   static void append_relayable_votes(std::vector<quorum_vote_t> &result, const T &pool, const uint64_t max_last_sent, uint64_t min_height) {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     for (const auto &pool_entry : pool)
       for (const auto &vote_entry : pool_entry.votes)
         if (vote_entry.vote.block_height >= min_height && vote_entry.time_last_sent_p2p <= max_last_sent)
@@ -506,6 +519,7 @@ namespace service_nodes
 
   std::vector<quorum_vote_t> voting_pool::get_relayable_votes(uint64_t height, uint8_t hf_version, bool quorum_relay) const
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     CRITICAL_REGION_LOCAL(m_lock);
 
     // TODO(doyle): Rate-limiting: A better threshold value that follows suite with transaction relay time back-off
@@ -552,6 +566,7 @@ namespace service_nodes
 
   std::vector<pool_vote_entry> voting_pool::add_pool_vote_if_unique(const quorum_vote_t& vote, cryptonote::vote_verification_context& vvc)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     CRITICAL_REGION_LOCAL(m_lock);
     auto *votes = find_vote_pool(vote, /*create_if_not_found=*/ true);
     if (!votes)
@@ -563,6 +578,7 @@ namespace service_nodes
 
   void voting_pool::remove_used_votes(std::vector<cryptonote::transaction> const &txs, uint8_t hard_fork_version)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     // TODO(doyle): Cull checkpoint votes
     CRITICAL_REGION_LOCAL(m_lock);
     if (m_obligations_pool.empty())
@@ -590,6 +606,7 @@ namespace service_nodes
   template <typename T>
   static void cull_votes(std::vector<T> &vote_pool, uint64_t min_height, uint64_t max_height)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     for (auto it = vote_pool.begin(); it != vote_pool.end(); )
     {
       const T &pool_entry = *it;
@@ -602,6 +619,7 @@ namespace service_nodes
 
   void voting_pool::remove_expired_votes(uint64_t height)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     CRITICAL_REGION_LOCAL(m_lock);
     uint64_t min_height = (height < VOTE_LIFETIME) ? 0 : height - VOTE_LIFETIME;
     cull_votes(m_obligations_pool, min_height, height);
@@ -610,6 +628,7 @@ namespace service_nodes
 
   bool voting_pool::received_checkpoint_vote(uint64_t height, size_t index_in_quorum) const
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_VOTING_COLOR);
     auto pool_it = std::find_if(m_checkpoint_pool.begin(),
                                 m_checkpoint_pool.end(),
                                 [height](checkpoint_pool_entry const &entry) { return entry.height == height; });

@@ -32,6 +32,22 @@
 #define LOKI_HOUR(val) ((val) * LOKI_MINUTES(60))
 #define LOKI_MINUTES(val) val * 60
 
+#define TRACY_ENABLE
+#include "tracy/Tracy.hpp"
+
+// NOTE: Custom helper macro that Tracy doesn't have. Don't want to have to come
+// up with a variable name for each tracing zone. Just generate one for me
+// please.
+#if defined(TRACY_ENABLE)
+  #if defined TRACY_HAS_CALLSTACK && defined TRACY_CALLSTACK
+    #define ZoneUniqueNamedNC(name, color, active) static const tracy::SourceLocationData TracyConcat(__tracy_source_location,__LINE__) { name, __FUNCTION__,  __FILE__, (uint32_t)__LINE__, color }; tracy::ScopedZone TracyConcat(unused_, __LINE__)( &TracyConcat(__tracy_source_location,__LINE__), TRACY_CALLSTACK, active );
+  #else
+    #define ZoneUniqueNamedNC(name, color, active) static const tracy::SourceLocationData TracyConcat(__tracy_source_location,__LINE__) { name, __FUNCTION__,  __FILE__, (uint32_t)__LINE__, color }; tracy::ScopedZone TracyConcat(unused_, __LINE__)( &TracyConcat(__tracy_source_location,__LINE__), active );
+  #endif
+#else
+  #define ZoneUniqueNamedNC(name, color, active)
+#endif
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -39,6 +55,7 @@
 #include <cassert>
 
 #define LOKI_RPC_DOC_INTROSPECT
+
 namespace loki
 {
 double      round           (double);
@@ -76,6 +93,30 @@ struct defer_helper
   template <typename lambda_t>
   deferred<lambda_t> operator+(lambda_t lambda) { return lambda; }
 };
+
+uint32_t constexpr MATERIAL_BLUE_600        = 0x1E88E5;
+uint32_t constexpr MATERIAL_DEEP_PURPLE_600 = 0x5E35B1;
+uint32_t constexpr MATERIAL_PURPLE_600      = 0x8E24AA;
+uint32_t constexpr MATERIAL_LIGHT_BLUE_600  = 0x039BE5;
+
+uint32_t constexpr MATERIAL_RED_600         = 0xE53935;
+uint32_t constexpr MATERIAL_PINK_600        = 0xD81B60;
+uint32_t constexpr MATERIAL_DEEP_ORANGE_600 = 0xF4511E;
+uint32_t constexpr MATERIAL_ORANGE_600      = 0xFB8C00;
+uint32_t constexpr MATERIAL_LIGHT_GREEN_600 = 0x7CB342;
+uint32_t constexpr MATERIAL_LIME_600        = 0xC0CA33;
+
+uint32_t constexpr TRACE_SERVICE_NODE_LIST_COLOR       = MATERIAL_BLUE_600;
+uint32_t constexpr TRACE_SERVICE_NODE_QUORUM_COP_COLOR = MATERIAL_DEEP_PURPLE_600;
+uint32_t constexpr TRACE_SERVICE_NODE_VOTING_COLOR     = MATERIAL_PURPLE_600;
+uint32_t constexpr TRACE_SERVICE_NODE_LIST_SWARM_COLOR = MATERIAL_LIGHT_BLUE_600;
+
+uint32_t constexpr TRACE_CRYPTONOTE_COLOR              = MATERIAL_RED_600;
+uint32_t constexpr TRACE_BLOCKCHAIN_COLOR              = MATERIAL_PINK_600;
+uint32_t constexpr TRACE_CRYPTONOTE_PROTOCOL_COLOR     = MATERIAL_DEEP_ORANGE_600;
+uint32_t constexpr TRACE_TXPOOL_COLOR                  = MATERIAL_ORANGE_600;
+uint32_t constexpr TRACE_DB_LMDB_COLOR                 = MATERIAL_LIGHT_GREEN_600;
+uint32_t constexpr TRACE_BLOCKCHAIN_DB_COLOR           = MATERIAL_LIME_600;
 
 #define LOKI_TOKEN_COMBINE2(x, y) x ## y
 #define LOKI_TOKEN_COMBINE(x, y) LOKI_TOKEN_COMBINE2(x, y)

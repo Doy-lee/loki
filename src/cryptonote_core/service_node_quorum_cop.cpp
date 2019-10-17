@@ -80,6 +80,7 @@ namespace service_nodes
   // has submitted uptime proofs, participated in required quorums, etc.
   service_node_test_results quorum_cop::check_service_node(uint8_t hf_version, const crypto::public_key &pubkey, const service_node_info &info) const
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_QUORUM_COP_COLOR);
     service_node_test_results result; // Defaults to true for individual tests
     bool ss_reachable = true;
     uint64_t timestamp = 0;
@@ -155,6 +156,7 @@ namespace service_nodes
 
   void quorum_cop::blockchain_detached(uint64_t height, bool by_pop_blocks)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_QUORUM_COP_COLOR);
     uint8_t hf_version                        = m_core.get_hard_fork_version(height);
     uint64_t const REORG_SAFETY_BUFFER_BLOCKS = (hf_version >= cryptonote::network_version_12_checkpointing)
                                                     ? REORG_SAFETY_BUFFER_BLOCKS_POST_HF12
@@ -194,6 +196,7 @@ namespace service_nodes
 
   int find_index_in_quorum_group(std::vector<crypto::public_key> const &group, crypto::public_key const &my_pubkey)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_QUORUM_COP_COLOR);
     int result = -1;
     auto it = std::find(group.begin(), group.end(), my_pubkey);
     if (it == group.end()) return result;
@@ -203,6 +206,7 @@ namespace service_nodes
 
   void quorum_cop::process_quorums(cryptonote::block const &block)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_QUORUM_COP_COLOR);
     uint8_t const hf_version = block.major_version;
     if (hf_version < cryptonote::network_version_9_service_nodes)
       return;
@@ -475,6 +479,7 @@ namespace service_nodes
 
   bool quorum_cop::block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, cryptonote::checkpoint_t const * /*checkpoint*/)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_QUORUM_COP_COLOR);
     process_quorums(block);
     uint64_t const height = cryptonote::get_block_height(block) + 1; // chain height = new top block height + 1
     m_vote_pool.remove_expired_votes(height);
@@ -614,6 +619,7 @@ namespace service_nodes
 
   bool quorum_cop::handle_vote(quorum_vote_t const &vote, cryptonote::vote_verification_context &vvc)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_QUORUM_COP_COLOR);
     vvc = {};
     if (!verify_vote_age(vote, m_core.get_current_blockchain_height(), vvc))
       return false;
@@ -658,6 +664,7 @@ namespace service_nodes
   // accumulated blocks.
   int64_t quorum_cop::calculate_decommission_credit(const service_node_info &info, uint64_t current_height)
   {
+    ZoneScopedC(loki::TRACE_SERVICE_NODE_QUORUM_COP_COLOR);
     // If currently decommissioned, we need to know how long it was up before being decommissioned;
     // otherwise we need to know how long since it last become active until now (or 0 if not staked
     // yet).

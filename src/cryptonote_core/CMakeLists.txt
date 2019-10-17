@@ -53,6 +53,7 @@ target_link_libraries(cryptonote_core
     checkpoints
     sqlite3
   PRIVATE
+    Tracy
     Boost::program_options
     Boost::chrono
     systemd
@@ -62,4 +63,3 @@ if(PER_BLOCK_CHECKPOINT)
   target_compile_definitions(cryptonote_core PUBLIC PER_BLOCK_CHECKPOINT)
   target_link_libraries(cryptonote_core PUBLIC blocks)
 endif()
-

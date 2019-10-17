@@ -395,6 +395,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::handle_command_line(const boost::program_options::variables_map& vm)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     if (m_nettype != FAKECHAIN)
     {
       const bool testnet = command_line::get_arg(vm, arg_testnet_on);
@@ -584,6 +585,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::init(const boost::program_options::variables_map& vm, const cryptonote::test_options *test_options, const GetCheckpointsCallback& get_checkpoints/* = nullptr */)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     start_time = std::time(nullptr);
 
 #if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
@@ -1161,6 +1163,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   void core::parse_incoming_tx_pre(tx_verification_batch_info &tx_info)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     if(tx_info.blob->size() > get_max_tx_size())
     {
       LOG_PRINT_L1("WRONG TRANSACTION BLOB, too big size " << tx_info.blob->size() << ", rejected");
@@ -1216,6 +1219,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   void core::parse_incoming_tx_accumulated_batch(std::vector<tx_verification_batch_info> &tx_info, bool kept_by_block)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     if (kept_by_block && get_blockchain_storage().is_within_compiled_block_hash_area())
     {
       MTRACE("Skipping semantics check for txs kept by block in embedded hash area");
@@ -1309,6 +1313,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   std::vector<core::tx_verification_batch_info> core::parse_incoming_txs(const std::vector<blobdata>& tx_blobs, const tx_pool_options &opts)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     // Caller needs to do this around both this *and* handle_parsed_txs
     //auto lock = incoming_tx_lock();
     std::vector<tx_verification_batch_info> tx_info(tx_blobs.size());
@@ -1573,6 +1578,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   std::future<std::pair<blink_result, std::string>> core::handle_blink_tx(const std::string &tx_blob)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     return quorumnet_send_blink(*this, tx_blob);
   }
   //-----------------------------------------------------------------------------------------------
@@ -1589,6 +1595,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::check_tx_semantic(const transaction& tx, bool keeped_by_block) const
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     if (tx.is_transfer())
     {
       if (tx.vin.empty())
@@ -1704,6 +1711,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   std::tuple<uint64_t, uint64_t, uint64_t> core::get_coinbase_tx_sum(const uint64_t start_offset, const size_t count)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     uint64_t emission_amount = 0;
     uint64_t total_fee_amount = 0;
     uint64_t burnt_loki = 0;
@@ -1737,6 +1745,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::check_tx_inputs_keyimages_diff(const transaction& tx) const
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     std::unordered_set<crypto::key_image> ki;
     for(const auto& in: tx.vin)
     {
@@ -1749,6 +1758,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::check_tx_inputs_ring_members_diff(const transaction& tx) const
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     const uint8_t version = m_blockchain_storage.get_current_hard_fork_version();
     if (version >= 6)
     {
@@ -1765,6 +1775,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::check_tx_inputs_keyimages_domain(const transaction& tx) const
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     std::unordered_set<crypto::key_image> ki;
     for(const auto& in: tx.vin)
     {
@@ -1782,6 +1793,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::relay_txpool_transactions()
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     // we attempt to relay txes that should be relayed, but were not
     std::vector<std::pair<crypto::hash, cryptonote::blobdata>> txs;
     if (m_mempool.get_relayable_transactions(txs) && !txs.empty())
@@ -1801,6 +1813,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::submit_uptime_proof()
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     if (!m_service_node)
       return true;
 
@@ -1821,6 +1834,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   crypto::hash core::on_transaction_relayed(const cryptonote::blobdata& tx_blob)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     std::vector<std::pair<crypto::hash, cryptonote::blobdata>> txs;
     cryptonote::transaction tx;
     crypto::hash tx_hash;
@@ -1836,6 +1850,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::relay_service_node_votes()
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     auto height = get_current_blockchain_height();
     auto hf_version = get_hard_fork_version(height);
 
@@ -1916,6 +1931,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   block_complete_entry get_block_complete_entry(block& b, tx_memory_pool &pool)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     block_complete_entry bce;
     bce.block = cryptonote::block_to_blob(b);
     for (const auto &tx_hash: b.tx_hashes)
@@ -1929,6 +1945,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::handle_block_found(block& b, block_verification_context &bvc)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     bvc = {};
     std::vector<block_complete_entry> blocks;
     m_miner.pause();
@@ -1989,6 +2006,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::add_new_block(const block& b, block_verification_context& bvc, checkpoint_t const *checkpoint)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     bool result = m_blockchain_storage.add_new_block(b, bvc, checkpoint);
     if (result)
     {
@@ -1996,11 +2014,13 @@ namespace cryptonote
       // noticeable but could bubble up and cause slowness if the runtime variables align up undesiredly.
       relay_service_node_votes(); // NOTE: nop if synchronising due to not accepting votes whilst syncing
     }
+
     return result;
   }
   //-----------------------------------------------------------------------------------------------
   bool core::prepare_handle_incoming_blocks(const std::vector<block_complete_entry> &blocks_entry, std::vector<block> &blocks)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     m_incoming_tx_lock.lock();
     if (!m_blockchain_storage.prepare_handle_incoming_blocks(blocks_entry, blocks))
     {
@@ -2013,6 +2033,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::cleanup_handle_incoming_blocks(bool force_sync)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     bool success = false;
     try {
       success = m_blockchain_storage.cleanup_handle_incoming_blocks(force_sync);
@@ -2025,6 +2046,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::handle_incoming_block(const blobdata& block_blob, const block *b, block_verification_context& bvc, checkpoint_t *checkpoint, bool update_miner_blocktemplate)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     TRY_ENTRY();
     bvc = {};
 
@@ -2064,6 +2086,7 @@ namespace cryptonote
   // block_blob
   bool core::check_incoming_block_size(const blobdata& block_blob) const
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     // note: we assume block weight is always >= block blob size, so we check incoming
     // blob size against the block weight limit, which acts as a sanity check without
     // having to parse/weigh first; in fact, since the block blob is the block header
@@ -2116,6 +2139,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   static bool check_external_ping(time_t last_ping, time_t lifetime, const char *what)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     const auto elapsed = std::time(nullptr) - last_ping;
     if (elapsed > lifetime)
     {
@@ -2133,6 +2157,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   void core::do_uptime_proof_call()
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     std::vector<service_nodes::service_node_pubkey_info> const states = get_service_node_list_state({ m_service_keys.pub });
 
     // wait one block before starting uptime proofs.
@@ -2195,6 +2220,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::on_idle()
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     if(!m_starter_message_showed)
     {
       std::string main_message;
@@ -2448,6 +2474,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   static double probability(unsigned int blocks, unsigned int expected)
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     double p = 0.0;
     if (blocks <= expected)
     {
@@ -2464,6 +2491,7 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   bool core::check_block_rate()
   {
+    ZoneScopedC(loki::TRACE_CRYPTONOTE_COLOR);
     if (m_offline || m_nettype == FAKECHAIN || m_target_blockchain_height > get_current_blockchain_height())
     {
       MDEBUG("Not checking block rate, offline or syncing");

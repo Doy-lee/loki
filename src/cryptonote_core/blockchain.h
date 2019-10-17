@@ -1079,7 +1079,7 @@ namespace cryptonote
     service_nodes::service_node_list& m_service_node_list;
     lns::name_system_db               m_lns_db;
 
-    mutable boost::recursive_mutex m_blockchain_lock; // TODO: add here reader/writer lock
+    mutable TracyLockable(boost::recursive_mutex, m_blockchain_lock); // TODO: add here reader/writer lock
 
     // main chain
     size_t m_current_block_cumul_weight_limit;
@@ -1114,7 +1114,7 @@ namespace cryptonote
     mutable crypto::hash m_long_term_block_weights_cache_tip_hash;
     mutable epee::misc_utils::rolling_median_t<uint64_t> m_long_term_block_weights_cache_rolling_median;
 
-    std::mutex m_difficulty_lock;
+    TracyLockable(std::mutex, m_difficulty_lock);
     crypto::hash m_difficulty_for_next_block_top_hash;
     difficulty_type m_difficulty_for_next_block;
 

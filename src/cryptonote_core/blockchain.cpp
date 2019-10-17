@@ -156,6 +156,7 @@ bool Blockchain::have_tx_keyimg_as_spent(const crypto::key_image &key_im) const
 template <class visitor_t>
 bool Blockchain::scan_outputkeys_for_indexes(const txin_to_key& tx_in_to_key, visitor_t &vis, const crypto::hash &tx_prefix_hash, uint64_t* pmax_related_block_height) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
 
   // ND: Disable locking and make method private.
@@ -287,6 +288,7 @@ bool Blockchain::scan_outputkeys_for_indexes(const txin_to_key& tx_in_to_key, vi
 //------------------------------------------------------------------
 uint64_t Blockchain::get_current_blockchain_height() const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   // WARNING: this function does not take m_blockchain_lock, and thus should only call read only
   // m_db functions which do not depend on one another (ie, no getheight + gethash(height-1), as
@@ -407,6 +409,7 @@ bool Blockchain::load_missing_blocks_into_loki_subsystems()
 //       dereferencing a null BlockchainDB pointer
 bool Blockchain::init(BlockchainDB* db, sqlite3 *lns_db, const network_type nettype, bool offline, const cryptonote::test_options *test_options, difficulty_type fixed_difficulty, const GetCheckpointsCallback& get_checkpoints/* = nullptr*/)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
 
   CHECK_AND_ASSERT_MES(nettype != FAKECHAIN || test_options, false, "fake chain network type used without options");
@@ -609,6 +612,7 @@ bool Blockchain::init(BlockchainDB* db, HardFork*& hf, sqlite3 *lns_db, const ne
 //------------------------------------------------------------------
 bool Blockchain::store_blockchain()
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   // lock because the rpc_thread command handler also calls this
   auto lock = tools::unique_lock(m_db->m_synchronization_lock);
@@ -639,6 +643,7 @@ bool Blockchain::store_blockchain()
 //------------------------------------------------------------------
 bool Blockchain::deinit()
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
 
   MTRACE("Stopping blockchain read/write activity");
@@ -679,6 +684,7 @@ bool Blockchain::deinit()
 // It starts a batch and calls private method pop_block_from_blockchain().
 void Blockchain::pop_blocks(uint64_t nblocks)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   uint64_t i = 0;
   auto lock = tools::unique_locks(m_tx_pool, *this);
 
@@ -727,6 +733,7 @@ void Blockchain::pop_blocks(uint64_t nblocks)
 // from it to the tx_pool
 block Blockchain::pop_block_from_blockchain()
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
 
@@ -804,6 +811,7 @@ block Blockchain::pop_block_from_blockchain()
 //------------------------------------------------------------------
 bool Blockchain::reset_and_set_genesis_block(const block& b)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
   m_timestamps_and_difficulties_height = 0;
@@ -825,6 +833,7 @@ bool Blockchain::reset_and_set_genesis_block(const block& b)
 //------------------------------------------------------------------
 crypto::hash Blockchain::get_tail_id(uint64_t& height) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
   return m_db->top_block_hash(&height);
@@ -850,6 +859,7 @@ crypto::hash Blockchain::get_tail_id() const
  */
 void Blockchain::get_short_chain_history(std::list<crypto::hash>& ids) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
   uint64_t sz = m_db->height();
@@ -868,6 +878,7 @@ void Blockchain::get_short_chain_history(std::list<crypto::hash>& ids) const
 //------------------------------------------------------------------
 crypto::hash Blockchain::get_block_id_by_height(uint64_t height) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   // WARNING: this function does not take m_blockchain_lock, and thus should only call read only
   // m_db functions which do not depend on one another (ie, no getheight + gethash(height-1), as
@@ -902,6 +913,7 @@ crypto::hash Blockchain::get_pending_block_id_by_height(uint64_t height) const
 //------------------------------------------------------------------
 bool Blockchain::get_block_by_hash(const crypto::hash &h, block &blk, bool *orphan) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
 
@@ -950,6 +962,7 @@ bool Blockchain::get_block_by_hash(const crypto::hash &h, block &blk, bool *orph
 // less blocks than desired if there aren't enough.
 difficulty_type Blockchain::get_difficulty_for_next_block()
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   if (m_fixed_difficulty)
   {
     return m_db->height() ? m_fixed_difficulty : 1;
@@ -1036,6 +1049,7 @@ difficulty_type Blockchain::get_difficulty_for_next_block()
 //------------------------------------------------------------------
 std::vector<time_t> Blockchain::get_last_block_timestamps(unsigned int blocks) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   uint64_t height = m_db->height();
   if (blocks > height)
     blocks = height;
@@ -1050,6 +1064,7 @@ std::vector<time_t> Blockchain::get_last_block_timestamps(unsigned int blocks) c
 // that had been removed.
 bool Blockchain::rollback_blockchain_switching(const std::list<block_and_checkpoint>& original_chain, uint64_t rollback_height)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
 
@@ -1107,6 +1122,7 @@ bool Blockchain::blink_rollback(uint64_t rollback_height)
 // boolean based on success therein.
 bool Blockchain::switch_to_alternative_blockchain(const std::list<block_extended_info>& alt_chain, bool keep_disconnected_chain)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
 
@@ -1210,6 +1226,7 @@ bool Blockchain::switch_to_alternative_blockchain(const std::list<block_extended
 // an alternate chain.
 difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std::list<block_extended_info>& alt_chain, uint64_t alt_block_height) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   if (m_fixed_difficulty)
   {
     return m_db->height() ? m_fixed_difficulty : 1;
@@ -1290,6 +1307,7 @@ difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std:
 //   a non-overflowing tx amount (dubious necessity on this check)
 bool Blockchain::prevalidate_miner_transaction(const block& b, uint64_t height)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   CHECK_AND_ASSERT_MES(b.miner_tx.vin.size() == 1, false, "coinbase transaction in the block has no inputs");
   CHECK_AND_ASSERT_MES(b.miner_tx.vin[0].type() == typeid(txin_gen), false, "coinbase transaction in the block has the wrong type");
@@ -1317,6 +1335,7 @@ bool Blockchain::prevalidate_miner_transaction(const block& b, uint64_t height)
 // This function validates the miner transaction reward
 bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_block_weight, uint64_t fee, uint64_t& base_reward, uint64_t already_generated_coins, uint8_t version)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   //validate reward
   uint64_t money_in_use = 0;
@@ -1412,6 +1431,7 @@ bool Blockchain::validate_miner_transaction(const block& b, size_t cumulative_bl
 // get the block weights of the last <count> blocks, and return by reference <sz>.
 void Blockchain::get_last_n_blocks_weights(std::vector<uint64_t>& weights, size_t count) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
   auto h = m_db->height();
@@ -1427,6 +1447,7 @@ void Blockchain::get_last_n_blocks_weights(std::vector<uint64_t>& weights, size_
 //------------------------------------------------------------------
 uint64_t Blockchain::get_long_term_block_weight_median(uint64_t start_height, size_t count) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
 
@@ -1475,12 +1496,14 @@ uint64_t Blockchain::get_long_term_block_weight_median(uint64_t start_height, si
 //------------------------------------------------------------------
 uint64_t Blockchain::get_current_cumulative_block_weight_limit() const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   return m_current_block_cumul_weight_limit;
 }
 //------------------------------------------------------------------
 uint64_t Blockchain::get_current_cumulative_block_weight_median() const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   return m_current_block_cumul_weight_median;
 }
@@ -1493,6 +1516,7 @@ uint64_t Blockchain::get_current_cumulative_block_weight_median() const
 // This function makes a new block for a miner to mine the hash for
 bool Blockchain::create_block_template(block& b, const crypto::hash *from_block, const account_public_address& miner_address, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   size_t median_weight;
   uint64_t already_generated_coins;
@@ -1669,6 +1693,7 @@ bool Blockchain::create_block_template(block& b, const account_public_address& m
 // the needed number of timestamps for the BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW.
 bool Blockchain::complete_timestamps_vector(uint64_t start_top_height, std::vector<uint64_t>& timestamps) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
 
   if(timestamps.size() >= BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW)
@@ -1694,6 +1719,7 @@ bool Blockchain::build_alt_chain(const crypto::hash &prev_id,
                                  int *num_alt_checkpoints,
                                  int *num_checkpoints)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
     //build alternative subchain, front -> mainchain, back -> alternative head
     cryptonote::alt_block_data_t data;
     cryptonote::blobdata blob;
@@ -1825,6 +1851,7 @@ bool Blockchain::build_alt_chain(const crypto::hash &prev_id,
 // a long forked chain eventually.
 bool Blockchain::handle_alternative_block(const block& b, const crypto::hash& id, block_verification_context& bvc, checkpoint_t const *checkpoint)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
   m_timestamps_and_difficulties_height = 0;
@@ -2066,6 +2093,7 @@ bool Blockchain::handle_alternative_block(const block& b, const crypto::hash& id
 //------------------------------------------------------------------
 bool Blockchain::get_blocks(uint64_t start_offset, size_t count, std::vector<std::pair<cryptonote::blobdata,block>>& blocks, std::vector<cryptonote::blobdata>& txs) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
   if(start_offset >= m_db->height())
@@ -2088,6 +2116,7 @@ bool Blockchain::get_blocks(uint64_t start_offset, size_t count, std::vector<std
 //------------------------------------------------------------------
 bool Blockchain::get_blocks(uint64_t start_offset, size_t count, std::vector<std::pair<cryptonote::blobdata,block>>& blocks) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
   const uint64_t height = m_db->height();
@@ -2117,6 +2146,7 @@ bool Blockchain::get_blocks(uint64_t start_offset, size_t count, std::vector<std
 //       are missing.
 bool Blockchain::handle_get_blocks(NOTIFY_REQUEST_GET_BLOCKS::request& arg, NOTIFY_RESPONSE_GET_BLOCKS::request& rsp)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   std::unique_lock<decltype(m_blockchain_lock)> blockchain_lock{m_blockchain_lock, std::defer_lock};
   auto blink_lock = m_tx_pool.blink_shared_lock(std::defer_lock);
@@ -2229,6 +2259,7 @@ bool Blockchain::handle_get_txs(NOTIFY_REQUEST_GET_TXS::request& arg, NOTIFY_NEW
 //------------------------------------------------------------------
 bool Blockchain::get_alternative_blocks(std::vector<block>& blocks) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
 
@@ -2260,6 +2291,7 @@ size_t Blockchain::get_alternative_blocks_count() const
 // unlocked and other such checks should be done by here.
 uint64_t Blockchain::get_num_mature_outputs(uint64_t amount) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   uint64_t num_outs = m_db->get_num_outputs(amount);
   // ensure we don't include outputs that aren't yet eligible to be used
   // outpouts are sorted by height
@@ -2285,6 +2317,7 @@ crypto::public_key Blockchain::get_output_key(uint64_t amount, uint64_t global_i
 //------------------------------------------------------------------
 bool Blockchain::get_outs(const rpc::GET_OUTPUTS_BIN::request& req, rpc::GET_OUTPUTS_BIN::response& res) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
 
@@ -2329,6 +2362,7 @@ bool Blockchain::get_outs(const rpc::GET_OUTPUTS_BIN::request& req, rpc::GET_OUT
 //------------------------------------------------------------------
 void Blockchain::get_output_key_mask_unlocked(const uint64_t& amount, const uint64_t& index, crypto::public_key& key, rct::key& mask, bool& unlocked) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   const auto o_data = m_db->get_output_key(amount, index);
   key = o_data.pubkey;
   mask = o_data.commitment;
@@ -2337,6 +2371,7 @@ void Blockchain::get_output_key_mask_unlocked(const uint64_t& amount, const uint
 //------------------------------------------------------------------
 bool Blockchain::get_output_distribution(uint64_t amount, uint64_t from_height, uint64_t to_height, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &base) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   // rct outputs don't exist before v4, NOTE(loki): we started from v7 so our start is always 0
   start_height = 0;
   base = 0;
@@ -2377,6 +2412,7 @@ bool Blockchain::get_output_distribution(uint64_t amount, uint64_t from_height, 
 //------------------------------------------------------------------
 bool Blockchain::get_output_blacklist(std::vector<uint64_t> &blacklist) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   return m_db->get_output_blacklist(blacklist);
 }
 //------------------------------------------------------------------
@@ -2385,6 +2421,7 @@ bool Blockchain::get_output_blacklist(std::vector<uint64_t> &blacklist) const
 // This is used to see what to send another node that needs to sync.
 bool Blockchain::find_blockchain_supplement(const std::list<crypto::hash>& qblock_ids, uint64_t& starter_offset) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
 
@@ -2439,6 +2476,7 @@ bool Blockchain::find_blockchain_supplement(const std::list<crypto::hash>& qbloc
 //------------------------------------------------------------------
 uint64_t Blockchain::block_difficulty(uint64_t i) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   // WARNING: this function does not take m_blockchain_lock, and thus should only call read only
   // m_db functions which do not depend on one another (ie, no getheight + gethash(height-1), as
@@ -2459,6 +2497,7 @@ uint64_t Blockchain::block_difficulty(uint64_t i) const
 //       alternatively, return true only if no blocks missed
 bool Blockchain::get_blocks(const std::vector<crypto::hash>& block_ids, std::vector<std::pair<cryptonote::blobdata,block>>& blocks, std::vector<crypto::hash>& missed_bs) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
 
@@ -2493,6 +2532,7 @@ bool Blockchain::get_blocks(const std::vector<crypto::hash>& block_ids, std::vec
 //       alternatively, return true only if no transactions missed
 bool Blockchain::get_transactions_blobs(const std::vector<crypto::hash>& txs_ids, std::vector<cryptonote::blobdata>& txs, std::vector<crypto::hash>& missed_txs, bool pruned) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
 
@@ -2532,6 +2572,7 @@ std::vector<uint64_t> Blockchain::get_transactions_heights(const std::vector<cry
 //------------------------------------------------------------------
 size_t get_transaction_version(const cryptonote::blobdata &bd)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   size_t version;
   const char* begin = static_cast<const char*>(bd.data());
   const char* end = begin + bd.size();
@@ -2543,6 +2584,7 @@ size_t get_transaction_version(const cryptonote::blobdata &bd)
 //------------------------------------------------------------------
 bool Blockchain::get_split_transactions_blobs(const std::vector<crypto::hash>& txs_ids, std::vector<std::tuple<crypto::hash, cryptonote::blobdata, crypto::hash, cryptonote::blobdata>>& txs, std::vector<crypto::hash>& missed_txs) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
 
@@ -2576,6 +2618,7 @@ bool Blockchain::get_split_transactions_blobs(const std::vector<crypto::hash>& t
 //------------------------------------------------------------------
 bool Blockchain::get_transactions(const std::vector<crypto::hash>& txs_ids, std::vector<transaction>& txs, std::vector<crypto::hash>& missed_txs) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
 
@@ -2610,6 +2653,7 @@ bool Blockchain::get_transactions(const std::vector<crypto::hash>& txs_ids, std:
 // BLOCKS_IDS_SYNCHRONIZING_DEFAULT_COUNT additional (more recent) hashes.
 bool Blockchain::find_blockchain_supplement(const std::list<crypto::hash>& qblock_ids, std::vector<crypto::hash>& hashes, uint64_t& start_height, uint64_t& current_height, bool clip_pruned) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
 
@@ -2640,6 +2684,7 @@ bool Blockchain::find_blockchain_supplement(const std::list<crypto::hash>& qbloc
 
 bool Blockchain::find_blockchain_supplement(const std::list<crypto::hash>& qblock_ids, NOTIFY_RESPONSE_CHAIN_ENTRY::request& resp) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
 
@@ -2656,6 +2701,7 @@ bool Blockchain::find_blockchain_supplement(const std::list<crypto::hash>& qbloc
 // blocks by reference.
 bool Blockchain::find_blockchain_supplement(const uint64_t req_start_block, const std::list<crypto::hash>& qblock_ids, std::vector<std::pair<std::pair<cryptonote::blobdata, crypto::hash>, std::vector<std::pair<crypto::hash, cryptonote::blobdata> > > >& blocks, uint64_t& total_height, uint64_t& start_height, bool pruned, bool get_miner_tx_hash, size_t max_count) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
 
@@ -2708,6 +2754,7 @@ bool Blockchain::find_blockchain_supplement(const uint64_t req_start_block, cons
 //------------------------------------------------------------------
 bool Blockchain::add_block_as_invalid(cryptonote::block const &block)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
   auto i_res = m_invalid_blocks.insert(get_block_hash(block));
@@ -2718,6 +2765,7 @@ bool Blockchain::add_block_as_invalid(cryptonote::block const &block)
 //------------------------------------------------------------------
 bool Blockchain::have_block(const crypto::hash& id) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
 
@@ -2744,6 +2792,7 @@ bool Blockchain::have_block(const crypto::hash& id) const
 //------------------------------------------------------------------
 bool Blockchain::handle_block_to_main_chain(const block& bl, block_verification_context& bvc)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
     LOG_PRINT_L3("Blockchain::" << __func__);
     crypto::hash id = get_block_hash(bl);
     return handle_block_to_main_chain(bl, id, bvc, nullptr /*checkpoint*/);
@@ -2767,6 +2816,7 @@ size_t Blockchain::get_total_transactions() const
 // remove them later if the block fails validation.
 bool Blockchain::check_for_double_spend(const transaction& tx, key_images_container& keys_this_block) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
   struct add_transaction_input_visitor: public boost::static_visitor<bool>
@@ -2827,6 +2877,7 @@ bool Blockchain::check_for_double_spend(const transaction& tx, key_images_contai
 //------------------------------------------------------------------
 bool Blockchain::get_tx_outputs_gindexs(const crypto::hash& tx_id, size_t n_txes, std::vector<std::vector<uint64_t>>& indexs) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
   uint64_t tx_index;
@@ -2843,6 +2894,7 @@ bool Blockchain::get_tx_outputs_gindexs(const crypto::hash& tx_id, size_t n_txes
 //------------------------------------------------------------------
 bool Blockchain::get_tx_outputs_gindexs(const crypto::hash& tx_id, std::vector<uint64_t>& indexs) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
   uint64_t tx_index;
@@ -2860,6 +2912,7 @@ bool Blockchain::get_tx_outputs_gindexs(const crypto::hash& tx_id, std::vector<u
 void Blockchain::on_new_tx_from_block(const cryptonote::transaction &tx)
 {
 #if defined(PER_BLOCK_CHECKPOINT)
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   // check if we're doing per-block checkpointing
   if (m_db->height() < m_blocks_hash_check.size())
   {
@@ -2885,6 +2938,7 @@ void Blockchain::on_new_tx_from_block(const cryptonote::transaction &tx)
 // as a return-by-reference.
 bool Blockchain::check_tx_inputs(transaction& tx, uint64_t& max_used_block_height, crypto::hash& max_used_block_id, tx_verification_context &tvc, bool kept_by_block, std::unordered_set<crypto::key_image>* key_image_conflicts)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
 
@@ -2916,6 +2970,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, uint64_t& max_used_block_heigh
 //------------------------------------------------------------------
 bool Blockchain::check_tx_outputs(const transaction& tx, tx_verification_context &tvc)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   auto lock = tools::unique_lock(*this);
 
@@ -2996,6 +3051,7 @@ bool Blockchain::check_tx_outputs(const transaction& tx, tx_verification_context
 //------------------------------------------------------------------
 bool Blockchain::have_tx_keyimges_as_spent(const transaction &tx) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   for (const txin_v& in: tx.vin)
   {
@@ -3007,6 +3063,7 @@ bool Blockchain::have_tx_keyimges_as_spent(const transaction &tx) const
 }
 bool Blockchain::expand_transaction_2(transaction &tx, const crypto::hash &tx_prefix_hash, const std::vector<std::vector<rct::ctkey>> &pubkeys)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   PERF_TIMER(expand_transaction_2);
   CHECK_AND_ASSERT_MES(tx.version >= txversion::v2_ringct, false, "Transaction version is not 2 or greater");
 
@@ -3083,6 +3140,7 @@ bool Blockchain::expand_transaction_2(transaction &tx, const crypto::hash &tx_pr
 //        using threads, etc.)
 bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, uint64_t* pmax_used_block_height, std::unordered_set<crypto::key_image>* key_image_conflicts)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   PERF_TIMER(check_tx_inputs);
   LOG_PRINT_L3("Blockchain::" << __func__);
   if(pmax_used_block_height)
@@ -3107,6 +3165,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
 
   if (tx.is_transfer())
   {
+    ZoneUniqueNamedNC("check_tx_inputs (standard tx verification)", loki::TRACE_BLOCKCHAIN_COLOR, true);
     crypto::hash tx_prefix_hash = get_transaction_prefix_hash(tx);
 
     auto it = m_check_txin_table.find(tx_prefix_hash);
@@ -3131,6 +3190,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
       CHECK_AND_ASSERT_MES(txin.type() == typeid(txin_to_key), false, "wrong type id in tx input at Blockchain::check_tx_inputs");
       const txin_to_key& in_to_key = boost::get<txin_to_key>(txin);
       {
+        ZoneUniqueNamedNC("check_tx_inputs (standard tx monero verification)", loki::TRACE_BLOCKCHAIN_COLOR, true);
         // make sure tx output has key offset(s) (is signed to be used)
         CHECK_AND_ASSERT_MES(in_to_key.key_offsets.size(), false, "empty in_to_key.key_offsets in transaction with id " << get_transaction_hash(tx));
 
@@ -3185,6 +3245,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
       //
       if (hf_version >= cryptonote::network_version_11_infinite_staking)
       {
+        ZoneUniqueNamedNC("check_tx_inputs (standard tx loki verification)", loki::TRACE_BLOCKCHAIN_COLOR, true);
         const auto &blacklist = m_service_node_list.get_blacklisted_key_images();
         for (const auto &entry : blacklist)
         {
@@ -3215,6 +3276,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
     // from version 2, check ringct signatures
     // obviously, the original and simple rct APIs use a mixRing that's indexes
     // in opposite orders, because it'd be too simple otherwise...
+    ZoneUniqueNamedNC("check_tx_inputs (standard tx rct verification)", loki::TRACE_BLOCKCHAIN_COLOR, true);
     const rct::rctSig &rv = tx.rct_signatures;
     switch (rv.type)
     {
@@ -3373,6 +3435,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
   }
   else
   {
+    ZoneUniqueNamedNC("check_tx_inputs (non-standard tx verification)", loki::TRACE_BLOCKCHAIN_COLOR, true);
     CHECK_AND_ASSERT_MES(tx.vin.size() == 0, false, "TX type: " << tx.type << " should have 0 inputs. This should have been rejected in check_tx_semantic!");
 
     if (tx.rct_signatures.txnFee != 0)
@@ -3385,6 +3448,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
 
     if (tx.type == txtype::state_change)
     {
+      ZoneUniqueNamedNC("check_tx_inputs (non-standard tx state-change verification)", loki::TRACE_BLOCKCHAIN_COLOR, true);
       tx_extra_service_node_state_change state_change;
       if (!get_service_node_state_change_from_tx_extra(tx.extra, state_change, hf_version))
       {
@@ -3432,6 +3496,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
     }
     else if (tx.type == txtype::key_image_unlock)
     {
+      ZoneUniqueNamedNC("check_tx_inputs (key image unlock tx verification)", loki::TRACE_BLOCKCHAIN_COLOR, true);
       cryptonote::tx_extra_tx_key_image_unlock unlock;
       if (!cryptonote::get_tx_key_image_unlock_from_tx_extra(tx.extra, unlock))
       {
@@ -3476,6 +3541,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
 //------------------------------------------------------------------
 void Blockchain::check_ring_signature(const crypto::hash &tx_prefix_hash, const crypto::key_image &key_image, const std::vector<rct::ctkey> &pubkeys, const std::vector<crypto::signature>& sig, uint64_t &result)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   std::vector<const crypto::public_key *> p_output_keys;
   p_output_keys.reserve(pubkeys.size());
   for (auto &key : pubkeys)
@@ -3503,6 +3569,7 @@ uint64_t Blockchain::get_fee_quantization_mask()
 //------------------------------------------------------------------
 byte_and_output_fees Blockchain::get_dynamic_base_fee(uint64_t block_reward, size_t median_block_weight, uint8_t version)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   const uint64_t min_block_weight = get_min_block_weight(version);
   if (median_block_weight < min_block_weight)
     median_block_weight = min_block_weight;
@@ -3562,6 +3629,7 @@ byte_and_output_fees Blockchain::get_dynamic_base_fee(uint64_t block_reward, siz
 //------------------------------------------------------------------
 bool Blockchain::check_fee(size_t tx_weight, size_t tx_outs, uint64_t fee, uint64_t burned, const tx_pool_options &opts) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   const uint8_t version = get_current_hard_fork_version();
   const uint64_t blockchain_height = get_current_blockchain_height();
 
@@ -3621,6 +3689,7 @@ bool Blockchain::check_fee(size_t tx_weight, size_t tx_outs, uint64_t fee, uint6
 //------------------------------------------------------------------
 byte_and_output_fees Blockchain::get_dynamic_base_fee_estimate(uint64_t grace_blocks) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   const uint8_t version = get_current_hard_fork_version();
   const uint64_t db_height = m_db->height();
 
@@ -3667,6 +3736,7 @@ bool Blockchain::is_output_spendtime_unlocked(uint64_t unlock_time) const
 // and validates that they exist and are usable.
 bool Blockchain::check_tx_input(const txin_to_key& txin, const crypto::hash& tx_prefix_hash, std::vector<rct::ctkey> &output_keys, uint64_t* pmax_related_block_height)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
 
   // ND:
@@ -3722,6 +3792,7 @@ bool Blockchain::check_tx_input(const txin_to_key& txin, const crypto::hash& tx_
 //TODO: Is this intended to do something else?  Need to look into the todo there.
 uint64_t Blockchain::get_adjusted_time() const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   //TODO: add collecting median time
   return time(NULL);
@@ -3730,6 +3801,7 @@ uint64_t Blockchain::get_adjusted_time() const
 //TODO: revisit, has changed a bit on upstream
 bool Blockchain::check_block_timestamp(std::vector<uint64_t>& timestamps, const block& b, uint64_t& median_ts) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   median_ts = epee::misc_utils::median(timestamps);
 
@@ -3751,6 +3823,7 @@ bool Blockchain::check_block_timestamp(std::vector<uint64_t>& timestamps, const 
 //   false otherwise
 bool Blockchain::check_block_timestamp(const block& b, uint64_t& median_ts) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   uint64_t cryptonote_block_future_time_limit = CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V2;
   if(b.timestamp > get_adjusted_time() + cryptonote_block_future_time_limit)
@@ -3782,6 +3855,7 @@ bool Blockchain::check_block_timestamp(const block& b, uint64_t& median_ts) cons
 //------------------------------------------------------------------
 void Blockchain::return_tx_to_pool(std::vector<std::pair<transaction, blobdata>> &txs)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   uint8_t version = get_current_hard_fork_version();
   for (auto& tx : txs)
   {
@@ -3802,6 +3876,7 @@ void Blockchain::return_tx_to_pool(std::vector<std::pair<transaction, blobdata>>
 //------------------------------------------------------------------
 bool Blockchain::flush_txes_from_pool(const std::vector<crypto::hash> &txids)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   auto lock = tools::unique_lock(m_tx_pool);
 
   bool res = true;
@@ -3827,6 +3902,7 @@ bool Blockchain::flush_txes_from_pool(const std::vector<crypto::hash> &txids)
 //      m_db->add_block()
 bool Blockchain::handle_block_to_main_chain(const block& bl, const crypto::hash& id, block_verification_context& bvc, checkpoint_t const *checkpoint)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
 
   TIME_MEASURE_START(block_processing_time);
@@ -4186,7 +4262,8 @@ bool Blockchain::handle_block_to_main_chain(const block& bl, const crypto::hash&
 
   for (BlockAddedHook* hook : m_block_added_hooks)
   {
-    if (!hook->block_added(bl, only_txs, checkpoint))
+    ZoneScopedNC("block_added_hooks", loki::TRACE_BLOCKCHAIN_COLOR);
+    for (BlockAddedHook *hook : m_block_added_hooks)
     {
       MERROR("Block added hook signalled failure");
       return false;
@@ -4243,6 +4320,7 @@ bool Blockchain::handle_block_to_main_chain(const block& bl, const crypto::hash&
 //------------------------------------------------------------------
 bool Blockchain::prune_blockchain(uint32_t pruning_seed)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   auto lock = tools::unique_locks(m_tx_pool, *this);
   return m_db->prune_blockchain(pruning_seed);
 }
@@ -4261,6 +4339,7 @@ bool Blockchain::check_blockchain_pruning()
 //------------------------------------------------------------------
 uint64_t Blockchain::get_next_long_term_block_weight(uint64_t block_weight) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   PERF_TIMER(get_next_long_term_block_weight);
 
   const uint64_t db_height = m_db->height();
@@ -4281,6 +4360,7 @@ uint64_t Blockchain::get_next_long_term_block_weight(uint64_t block_weight) cons
 //------------------------------------------------------------------
 bool Blockchain::update_next_cumulative_weight_limit(uint64_t *long_term_effective_median_block_weight)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   PERF_TIMER(update_next_cumulative_weight_limit);
 
   LOG_PRINT_L3("Blockchain::" << __func__);
@@ -4355,7 +4435,7 @@ bool Blockchain::update_next_cumulative_weight_limit(uint64_t *long_term_effecti
 //------------------------------------------------------------------
 bool Blockchain::add_new_block(const block& bl, block_verification_context& bvc, checkpoint_t const *checkpoint)
 {
-
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   LOG_PRINT_L3("Blockchain::" << __func__);
   crypto::hash id = get_block_hash(bl);
   auto lock = tools::unique_locks(m_tx_pool, *this);
@@ -4409,6 +4489,7 @@ bool Blockchain::add_new_block(const block& bl, block_verification_context& bvc,
 // with an existing checkpoint.
 bool Blockchain::update_checkpoints_from_json_file(const std::string& file_path)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   std::vector<height_to_hash> checkpoint_hashes;
   if (!cryptonote::load_checkpoints_from_json(file_path, checkpoint_hashes))
     return false;
@@ -4477,6 +4558,7 @@ bool Blockchain::update_checkpoints_from_json_file(const std::string& file_path)
 //------------------------------------------------------------------
 bool Blockchain::update_checkpoint(cryptonote::checkpoint_t const &checkpoint)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   auto lock = tools::unique_lock(*this);
   bool result = m_checkpoints.update_checkpoint(checkpoint);
   return result;
@@ -4490,6 +4572,7 @@ bool Blockchain::get_checkpoint(uint64_t height, checkpoint_t &checkpoint) const
 //------------------------------------------------------------------
 void Blockchain::block_longhash_worker(uint64_t height, const epee::span<const block> &blocks, std::unordered_map<crypto::hash, crypto::hash> &map) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   TIME_MEASURE_START(t);
 
   for (const auto & block : blocks)
@@ -4507,6 +4590,7 @@ void Blockchain::block_longhash_worker(uint64_t height, const epee::span<const b
 //------------------------------------------------------------------
 bool Blockchain::cleanup_handle_incoming_blocks(bool force_sync)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   bool success = false;
 
   MTRACE("Blockchain::" << __func__);
@@ -4578,6 +4662,7 @@ bool Blockchain::cleanup_handle_incoming_blocks(bool force_sync)
 //------------------------------------------------------------------
 void Blockchain::output_scan_worker(const uint64_t amount, const std::vector<uint64_t> &offsets, std::vector<output_data_t> &outputs) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   try
   {
     m_db->get_output_key(epee::span<const uint64_t>(&amount, 1), offsets, outputs, true);
@@ -4594,6 +4679,7 @@ void Blockchain::output_scan_worker(const uint64_t amount, const std::vector<uin
 
 uint64_t Blockchain::prevalidate_block_hashes(uint64_t height, const std::vector<crypto::hash> &hashes)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   // new: . . . . . X X X X X . . . . . .
   // pre: A A A A B B B B C C C C D D D D
 
@@ -4690,6 +4776,7 @@ uint64_t Blockchain::prevalidate_block_hashes(uint64_t height, const std::vector
 
 bool Blockchain::calc_batched_governance_reward(uint64_t height, uint64_t &reward) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   reward = 0;
   auto hard_fork_version = get_ideal_hard_fork_version(height);
   if (hard_fork_version <= network_version_9_service_nodes)
@@ -4752,6 +4839,7 @@ bool Blockchain::calc_batched_governance_reward(uint64_t height, uint64_t &rewar
 //    keys.
 bool Blockchain::prepare_handle_incoming_blocks(const std::vector<block_complete_entry> &blocks_entry, std::vector<block> &blocks)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   MTRACE("Blockchain::" << __func__);
   TIME_MEASURE_START(prepare);
   uint64_t bytes = 0;
@@ -5094,41 +5182,49 @@ bool Blockchain::prepare_handle_incoming_blocks(const std::vector<block_complete
 
 void Blockchain::add_txpool_tx(const crypto::hash &txid, const cryptonote::blobdata &blob, const txpool_tx_meta_t &meta)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   m_db->add_txpool_tx(txid, blob, meta);
 }
 
 void Blockchain::update_txpool_tx(const crypto::hash &txid, const txpool_tx_meta_t &meta)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   m_db->update_txpool_tx(txid, meta);
 }
 
 void Blockchain::remove_txpool_tx(const crypto::hash &txid)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   m_db->remove_txpool_tx(txid);
 }
 
 uint64_t Blockchain::get_txpool_tx_count(bool include_unrelayed_txes) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   return m_db->get_txpool_tx_count(include_unrelayed_txes);
 }
 
 bool Blockchain::get_txpool_tx_meta(const crypto::hash& txid, txpool_tx_meta_t &meta) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   return m_db->get_txpool_tx_meta(txid, meta);
 }
 
 bool Blockchain::get_txpool_tx_blob(const crypto::hash& txid, cryptonote::blobdata &bd) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   return m_db->get_txpool_tx_blob(txid, bd);
 }
 
 cryptonote::blobdata Blockchain::get_txpool_tx_blob(const crypto::hash& txid) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   return m_db->get_txpool_tx_blob(txid);
 }
 
 bool Blockchain::for_all_txpool_txes(std::function<bool(const crypto::hash&, const txpool_tx_meta_t&, const cryptonote::blobdata*)> f, bool include_blob, bool include_unrelayed_txes) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   return m_db->for_all_txpool_txes(f, include_blob, include_unrelayed_txes);
 }
 
@@ -5174,6 +5270,7 @@ HardFork::State Blockchain::get_hard_fork_state() const
 
 bool Blockchain::get_hard_fork_voting_info(uint8_t version, uint32_t &window, uint32_t &votes, uint32_t &threshold, uint64_t &earliest_height, uint8_t &voting) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   return m_hardfork->get_voting_info(version, window, votes, threshold, earliest_height, voting);
 }
 
@@ -5189,6 +5286,7 @@ std::map<uint64_t, std::tuple<uint64_t, uint64_t, uint64_t>> Blockchain:: get_ou
 
 std::list<std::pair<Blockchain::block_extended_info,std::vector<crypto::hash>>> Blockchain::get_alternative_chains() const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   std::list<std::pair<Blockchain::block_extended_info,std::vector<crypto::hash>>> chains;
 
   blocks_ext_by_hash alt_blocks;
@@ -5256,6 +5354,7 @@ void Blockchain::cancel()
 static const char expected_block_hashes_hash[] = "8754309c4501f4b1c547c5c14d41dca30e0836a2942b09584ccc43b287040d07";
 void Blockchain::load_compiled_in_block_hashes(const GetCheckpointsCallback& get_checkpoints)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   if (get_checkpoints == nullptr || !m_fast_sync)
   {
     return;
@@ -5349,26 +5448,31 @@ bool Blockchain::is_within_compiled_block_hash_area(uint64_t height) const
 
 bool Blockchain::for_all_key_images(std::function<bool(const crypto::key_image&)> f) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   return m_db->for_all_key_images(f);
 }
 
 bool Blockchain::for_blocks_range(const uint64_t& h1, const uint64_t& h2, std::function<bool(uint64_t, const crypto::hash&, const block&)> f) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   return m_db->for_blocks_range(h1, h2, f);
 }
 
 bool Blockchain::for_all_transactions(std::function<bool(const crypto::hash&, const cryptonote::transaction&)> f, bool pruned) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   return m_db->for_all_transactions(f, pruned);
 }
 
 bool Blockchain::for_all_outputs(std::function<bool(uint64_t amount, const crypto::hash &tx_hash, uint64_t height, size_t tx_idx)> f) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   return m_db->for_all_outputs(f);;
 }
 
 bool Blockchain::for_all_outputs(uint64_t amount, std::function<bool(uint64_t height)> f) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   return m_db->for_all_outputs(amount, f);;
 }
 
@@ -5380,6 +5484,7 @@ void Blockchain::invalidate_block_template_cache()
 
 void Blockchain::cache_block_template(const block &b, const cryptonote::account_public_address &address, const blobdata &nonce, const difficulty_type &diff, uint64_t height, uint64_t expected_reward, uint64_t pool_cookie)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_COLOR);
   MDEBUG("Setting block template cache");
   m_btc = b;
   m_btc_address = address;

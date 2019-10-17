@@ -119,6 +119,7 @@ void BlockchainDB::init_options(boost::program_options::options_description& des
 
 void BlockchainDB::pop_block()
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_DB_COLOR);
   block blk;
   std::vector<transaction> txs;
   pop_block(blk, txs);
@@ -126,6 +127,7 @@ void BlockchainDB::pop_block()
 
 void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const std::pair<transaction, blobdata>& txp, const crypto::hash* tx_hash_ptr, const crypto::hash* tx_prunable_hash_ptr)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_DB_COLOR);
   const transaction &tx = txp.first;
 
   bool miner_tx = false;
@@ -229,6 +231,7 @@ uint64_t BlockchainDB::add_block( const std::pair<block, blobdata>& blck
                                 , const std::vector<std::pair<transaction, blobdata>>& txs
                                 )
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_DB_COLOR);
   const block &blk = blck.first;
 
   // sanity
@@ -287,6 +290,7 @@ void BlockchainDB::set_hard_fork(HardFork* hf)
 
 void BlockchainDB::pop_block(block& blk, std::vector<transaction>& txs)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_DB_COLOR);
   blk = get_top_block();
 
   remove_block();
@@ -304,6 +308,7 @@ void BlockchainDB::pop_block(block& blk, std::vector<transaction>& txs)
 
 void BlockchainDB::remove_transaction(const crypto::hash& tx_hash)
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_DB_COLOR);
   transaction tx = get_pruned_tx(tx_hash);
 
   for (const txin_v& tx_input : tx.vin)
@@ -320,6 +325,7 @@ void BlockchainDB::remove_transaction(const crypto::hash& tx_hash)
 
 block BlockchainDB::get_block_from_height(const uint64_t& height) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_DB_COLOR);
   blobdata bd = get_block_blob_from_height(height);
   block b;
   if (!parse_and_validate_block_from_blob(bd, b))
@@ -330,6 +336,7 @@ block BlockchainDB::get_block_from_height(const uint64_t& height) const
 
 block BlockchainDB::get_block(const crypto::hash& h) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_DB_COLOR);
   blobdata bd = get_block_blob(h);
   block b;
   if (!parse_and_validate_block_from_blob(bd, b))
@@ -340,6 +347,7 @@ block BlockchainDB::get_block(const crypto::hash& h) const
 
 bool BlockchainDB::get_tx(const crypto::hash& h, cryptonote::transaction &tx) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_DB_COLOR);
   blobdata bd;
   if (!get_tx_blob(h, bd))
     return false;
@@ -351,6 +359,7 @@ bool BlockchainDB::get_tx(const crypto::hash& h, cryptonote::transaction &tx) co
 
 bool BlockchainDB::get_pruned_tx(const crypto::hash& h, cryptonote::transaction &tx) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_DB_COLOR);
   blobdata bd;
   if (!get_pruned_tx_blob(h, bd))
     return false;
@@ -362,6 +371,7 @@ bool BlockchainDB::get_pruned_tx(const crypto::hash& h, cryptonote::transaction 
 
 transaction BlockchainDB::get_tx(const crypto::hash& h) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_DB_COLOR);
   transaction tx;
   if (!get_tx(h, tx))
     throw TX_DNE(std::string("tx with hash ").append(epee::string_tools::pod_to_hex(h)).append(" not found in db").c_str());
@@ -376,6 +386,7 @@ uint64_t BlockchainDB::get_output_unlock_time(const uint64_t amount, const uint6
 
 transaction BlockchainDB::get_pruned_tx(const crypto::hash& h) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_DB_COLOR);
   transaction tx;
   if (!get_pruned_tx(h, tx))
     throw TX_DNE(std::string("pruned tx with hash ").append(epee::string_tools::pod_to_hex(h)).append(" not found in db").c_str());
@@ -419,6 +430,7 @@ void BlockchainDB::fixup(fixup_context const context)
 
 bool BlockchainDB::get_immutable_checkpoint(checkpoint_t *immutable_checkpoint, uint64_t block_height) const
 {
+  ZoneScopedC(loki::TRACE_BLOCKCHAIN_DB_COLOR);
   size_t constexpr NUM_CHECKPOINTS = service_nodes::CHECKPOINT_NUM_CHECKPOINTS_FOR_CHAIN_FINALITY;
   static_assert(NUM_CHECKPOINTS == 2,
                 "Expect checkpoint finality to be 2, otherwise the immutable logic needs to check for any hardcoded "

@@ -32,6 +32,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "common/loki.h"
 #include "crypto/crypto.h"
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "cryptonote_basic/blobdatatype.h"
@@ -199,7 +200,7 @@ namespace service_nodes
     };
     std::vector<checkpoint_pool_entry> m_checkpoint_pool;
 
-    mutable epee::critical_section m_lock;
+    mutable TracyLockable(epee::critical_section, m_lock);
   };
 }; // namespace service_nodes
 
