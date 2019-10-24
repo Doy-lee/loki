@@ -147,7 +147,7 @@ bool Blockchain::have_tx_keyimg_as_spent(const crypto::key_image &key_im) const
 // and collects the public key for each from the transaction it was included in
 // via the visitor passed to it.
 template <class visitor_t>
-bool Blockchain::scan_outputkeys_for_indexes(const txin_to_key& tx_in_to_key, visitor_t &vis, const crypto::hash &tx_prefix_hash, uint64_t* pmax_related_block_height) const
+bool Blockchain::scan_outputkeys_for_indexes(transaction const &tx, const txin_to_key& tx_in_to_key, visitor_t &vis, const crypto::hash &tx_prefix_hash, uint64_t* pmax_related_block_height) const
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
 
@@ -177,20 +177,26 @@ bool Blockchain::scan_outputkeys_for_indexes(const txin_to_key& tx_in_to_key, vi
     }
   }
 
+  // NOTE: amounts_revealed are transactions that expose their amounts. These
+  // transactions are taking a RCT output and using them in a Non RCT
+  // Transaction. So the input/output amount is revealed. Since it is a RCT
+  // output, its output key comes from the 0 Loki group (of keys that can be
+  // mixed in), so we override the amount here.
+  uint64_t amount = (tx.amounts_revealed()) ? 0 : tx_in_to_key.amount;
   if (!found)
   {
     try
     {
-      m_db->get_output_key(epee::span<const uint64_t>(&tx_in_to_key.amount, 1), absolute_offsets, outputs, true);
+      m_db->get_output_key(epee::span<const uint64_t>(&amount, 1), absolute_offsets, outputs, true);
       if (absolute_offsets.size() != outputs.size())
       {
-        MERROR_VER("Output does not exist! amount = " << tx_in_to_key.amount);
+        MERROR_VER("Output does not exist! amount = " << amount);
         return false;
       }
     }
     catch (...)
     {
-      MERROR_VER("Output does not exist! amount = " << tx_in_to_key.amount);
+      MERROR_VER("Output does not exist! amount = " << amount);
       return false;
     }
   }
@@ -207,16 +213,16 @@ bool Blockchain::scan_outputkeys_for_indexes(const txin_to_key& tx_in_to_key, vi
         add_offsets.push_back(absolute_offsets[i]);
       try
       {
-        m_db->get_output_key(epee::span<const uint64_t>(&tx_in_to_key.amount, 1), add_offsets, add_outputs, true);
+        m_db->get_output_key(epee::span<const uint64_t>(&amount, 1), add_offsets, add_outputs, true);
         if (add_offsets.size() != add_outputs.size())
         {
-          MERROR_VER("Output does not exist! amount = " << tx_in_to_key.amount);
+          MERROR_VER("Output does not exist! amount = " << amount);
           return false;
         }
       }
       catch (...)
       {
-        MERROR_VER("Output does not exist! amount = " << tx_in_to_key.amount);
+        MERROR_VER("Output does not exist! amount = " << amount);
         return false;
       }
       outputs.insert(outputs.end(), add_outputs.begin(), add_outputs.end());
@@ -235,7 +241,7 @@ bool Blockchain::scan_outputkeys_for_indexes(const txin_to_key& tx_in_to_key, vi
         if (count < outputs.size())
           output_index = outputs.at(count);
         else
-          output_index = m_db->get_output_key(tx_in_to_key.amount, i);
+          output_index = m_db->get_output_key(amount, i);
 
         // call to the passed boost visitor to grab the public key for the output
         if (!vis.handle_output(output_index.unlock_time, output_index.pubkey, output_index.commitment))
@@ -246,7 +252,7 @@ bool Blockchain::scan_outputkeys_for_indexes(const txin_to_key& tx_in_to_key, vi
       }
       catch (...)
       {
-        MERROR_VER("Output does not exist! amount = " << tx_in_to_key.amount << ", absolute_offset = " << i);
+        MERROR_VER("Output does not exist! amount = " << amount << ", absolute_offset = " << i);
         return false;
       }
 
@@ -2804,7 +2810,7 @@ bool Blockchain::check_tx_outputs(const transaction& tx, tx_verification_context
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
 
   for (const auto &o: tx.vout) {
-    if (o.amount != 0) { // in a v2 tx, all outputs must have 0 amount NOTE(loki): All loki tx's are atleast v2 from the beginning
+    if (!tx.amounts_revealed() && o.amount != 0) { // all outputs must have 0 amount
       tvc.m_invalid_output = true;
       return false;
     }
@@ -2893,6 +2899,12 @@ bool Blockchain::expand_transaction_2(transaction &tx, const crypto::hash &tx_pr
 {
   PERF_TIMER(expand_transaction_2);
   CHECK_AND_ASSERT_MES(tx.version >= txversion::v2_ringct, false, "Transaction version is not 2 or greater");
+
+  if (tx.amounts_revealed())
+  {
+    CHECK_AND_ASSERT_MES(tx.version >= txversion::v4_tx_types, false, "Transaction version is not 4 or greater");
+    return true;
+  }
 
   rct::rctSig &rv = tx.rct_signatures;
 
@@ -3018,10 +3030,11 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
         // make sure tx output has key offset(s) (is signed to be used)
         CHECK_AND_ASSERT_MES(in_to_key.key_offsets.size(), false, "empty in_to_key.key_offsets in transaction with id " << get_transaction_hash(tx));
 
-        // Mixin Check, from hard fork 7, we require mixin at least 9, always.
-        if (in_to_key.key_offsets.size() - 1 != CRYPTONOTE_DEFAULT_TX_MIXIN)
+        // Mixin Check, from hard fork 7, we require mixin of 9, unless we are doing a transaction that reveals the amounts (staking, registration, loki name service)
+        size_t const mixin_count = (tx.amounts_revealed()) ? 0 : CRYPTONOTE_DEFAULT_TX_MIXIN;
+        if (in_to_key.key_offsets.size() - 1 != mixin_count)
         {
-          MERROR_VER("Tx " << get_transaction_hash(tx) << " has incorrect ring size (" << in_to_key.key_offsets.size() - 1 << ", expected (" << CRYPTONOTE_DEFAULT_TX_MIXIN << ")");
+          MERROR_VER("Tx " << get_transaction_hash(tx) << " has incorrect ring size (" << in_to_key.key_offsets.size() - 1 << ", expected (" << mixin_count << ")");
           tvc.m_low_mixin = true;
           return false;
         }
@@ -3046,7 +3059,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
 
         // make sure that output being spent matches up correctly with the
         // signature spending it.
-        if (!check_tx_input(tx.version, in_to_key, tx_prefix_hash, std::vector<crypto::signature>(), tx.rct_signatures, pubkeys[sig_index], pmax_used_block_height))
+        if (!check_tx_input(tx, in_to_key, tx_prefix_hash, std::vector<crypto::signature>(), tx.rct_signatures, pubkeys[sig_index], pmax_used_block_height))
         {
           it->second[in_to_key.k_image] = false;
           MERROR_VER("Failed to check ring signature for tx " << get_transaction_hash(tx) << "  vin key with k_image: " << in_to_key.k_image << "  sig_index: " << sig_index);
@@ -3516,7 +3529,7 @@ bool Blockchain::is_output_spendtime_unlocked(uint64_t unlock_time) const
 // This function locates all outputs associated with a given input (mixins)
 // and validates that they exist and are usable.  It also checks the ring
 // signature for each input.
-bool Blockchain::check_tx_input(txversion tx_version, const txin_to_key& txin, const crypto::hash& tx_prefix_hash, const std::vector<crypto::signature>& sig, const rct::rctSig &rct_signatures, std::vector<rct::ctkey> &output_keys, uint64_t* pmax_related_block_height)
+bool Blockchain::check_tx_input(transaction const &tx, const txin_to_key& txin, const crypto::hash& tx_prefix_hash, const std::vector<crypto::signature>& sig, const rct::rctSig &rct_signatures, std::vector<rct::ctkey> &output_keys, uint64_t* pmax_related_block_height)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
 
@@ -3555,7 +3568,7 @@ bool Blockchain::check_tx_input(txversion tx_version, const txin_to_key& txin, c
 
   // collect output keys
   outputs_visitor vi(output_keys, *this);
-  if (!scan_outputkeys_for_indexes(txin, vi, tx_prefix_hash, pmax_related_block_height))
+  if (!scan_outputkeys_for_indexes(tx, txin, vi, tx_prefix_hash, pmax_related_block_height))
   {
     MERROR_VER("Failed to get output keys for tx with amount = " << print_money(txin.amount) << " and count indexes " << txin.key_offsets.size());
     return false;
@@ -3566,7 +3579,7 @@ bool Blockchain::check_tx_input(txversion tx_version, const txin_to_key& txin, c
     MERROR_VER("Output keys for tx with amount = " << txin.amount << " and count indexes " << txin.key_offsets.size() << " returned wrong keys count " << output_keys.size());
     return false;
   }
-  if (tx_version == txversion::v1) {
+  if (tx.version == txversion::v1) {
     CHECK_AND_ASSERT_MES(sig.size() == output_keys.size(), false, "internal error: tx signatures count=" << sig.size() << " mismatch with outputs keys count for inputs=" << output_keys.size());
   }
   // rct_signatures will be expanded after this

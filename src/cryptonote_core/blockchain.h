@@ -1122,6 +1122,7 @@ namespace cryptonote
      * of the most recent block which contains an output used in the input set
      *
      * @tparam visitor_t a class encapsulating tx is unlocked and collect tx key
+     * @param tx the transaction
      * @param tx_in_to_key a transaction input instance
      * @param vis an instance of the visitor to use
      * @param tx_prefix_hash the hash of the associated transaction_prefix
@@ -1131,7 +1132,7 @@ namespace cryptonote
      * @return false if any keys are not found or any inputs are not unlocked, otherwise true
      */
     template<class visitor_t>
-    bool scan_outputkeys_for_indexes(const txin_to_key& tx_in_to_key, visitor_t &vis, const crypto::hash &tx_prefix_hash, uint64_t* pmax_related_block_height = NULL) const;
+    bool scan_outputkeys_for_indexes(transaction const &tx, const txin_to_key& tx_in_to_key, visitor_t &vis, const crypto::hash &tx_prefix_hash, uint64_t* pmax_related_block_height = NULL) const;
 
     /**
      * @brief collect output public keys of a transaction input set
@@ -1143,7 +1144,7 @@ namespace cryptonote
      * If pmax_related_block_height is not NULL, its value is set to the height
      * of the most recent block which contains an output used in the input set
      *
-     * @param tx_version the transaction version
+     * @param tx the transaction
      * @param txin the transaction input
      * @param tx_prefix_hash the transaction prefix hash, for caching organization
      * @param sig the input signature
@@ -1153,7 +1154,7 @@ namespace cryptonote
      *
      * @return false if any output is not yet unlocked, or is missing, otherwise true
      */
-    bool check_tx_input(txversion tx_version, const txin_to_key& txin, const crypto::hash& tx_prefix_hash, const std::vector<crypto::signature>& sig, const rct::rctSig &rct_signatures, std::vector<rct::ctkey> &output_keys, uint64_t* pmax_related_block_height);
+    bool check_tx_input(transaction const &tx, const txin_to_key& txin, const crypto::hash& tx_prefix_hash, const std::vector<crypto::signature>& sig, const rct::rctSig &rct_signatures, std::vector<rct::ctkey> &output_keys, uint64_t* pmax_related_block_height);
 
     /**
      * @brief validate a transaction's inputs and their keys

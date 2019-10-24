@@ -257,7 +257,7 @@ namespace cryptonote
     // fee per kilobyte, size rounded up.
     uint64_t fee;
 
-    if (tx.version == txversion::v1)
+    if (tx.version == txversion::v1 || tx.amounts_revealed())
     {
       uint64_t inputs_amount = 0;
       if(!get_inputs_money_amount(tx, inputs_amount))

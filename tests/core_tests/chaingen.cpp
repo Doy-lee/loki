@@ -305,6 +305,7 @@ cryptonote::transaction loki_chain_generator::create_registration_tx(const crypt
         .with_tx_type(cryptonote::txtype::stake)
         .with_unlock_time(unlock_time)
         .with_extra(extra)
+        .with_mixins(0)
         .build();
   }
 

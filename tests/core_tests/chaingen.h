@@ -1246,27 +1246,26 @@ class loki_tx_builder {
 
   /// optional fields
   cryptonote::txtype m_tx_type = cryptonote::txtype::standard;
+  int m_mixins                 = CRYPTONOTE_DEFAULT_TX_MIXIN;
+  bool m_finished              = false; /// this makes sure we didn't forget to build it
 
-  /// this makes sure we didn't forget to build it
-  bool m_finished = false;
-
-public:
-  loki_tx_builder(const std::vector<test_event_entry>& events,
-            cryptonote::transaction& tx,
-            const cryptonote::block& head,
-            const cryptonote::account_base& from,
-            const cryptonote::account_base& to,
-            uint64_t amount,
-            uint8_t hf_version)
-    : m_events(events)
-    , m_tx(tx)
-    , m_head(head)
-    , m_from(from)
-    , m_to(to)
-    , m_amount(amount)
-    , m_hf_version(hf_version)
-    , m_fee(TESTS_DEFAULT_FEE)
-    , m_unlock_time(0)
+  public:
+  loki_tx_builder(const std::vector<test_event_entry> &events,
+                  cryptonote::transaction &tx,
+                  const cryptonote::block &head,
+                  const cryptonote::account_base &from,
+                  const cryptonote::account_base &to,
+                  uint64_t amount,
+                  uint8_t hf_version)
+  : m_events(events)
+  , m_tx(tx)
+  , m_head(head)
+  , m_from(from)
+  , m_to(to)
+  , m_amount(amount)
+  , m_hf_version(hf_version)
+  , m_fee(TESTS_DEFAULT_FEE)
+  , m_unlock_time(0)
   {
   }
 
@@ -1290,6 +1289,11 @@ public:
     return std::move(*this);
   }
 
+  loki_tx_builder&& with_mixins(int mixin) {
+    m_mixins = mixin;
+    return std::move(*this);
+  }
+
   ~loki_tx_builder() {
     if (!m_finished) {
       std::cerr << "Tx building not finished\n";
@@ -1306,9 +1310,8 @@ public:
     uint64_t change_amount;
 
     // TODO(loki): Eww we still depend on monero land test code
-    const auto nmix = 9;
     fill_tx_sources_and_destinations(
-      m_events, m_head, m_from, m_to.get_keys().m_account_address, m_amount, m_fee, nmix, sources, destinations, &change_amount);
+      m_events, m_head, m_from, m_to.get_keys().m_account_address, m_amount, m_fee, m_mixins, sources, destinations, &change_amount);
 
     cryptonote::tx_destination_entry change_addr{ change_amount, m_from.get_keys().m_account_address, false /*is_subaddr*/ };
     bool result = cryptonote::construct_tx(m_from.get_keys(), sources, destinations, change_addr, m_extra, m_tx, m_unlock_time, m_hf_version, m_tx_type);

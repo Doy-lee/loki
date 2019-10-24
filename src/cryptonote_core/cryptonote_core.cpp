@@ -1039,7 +1039,7 @@ namespace cryptonote
         continue;
       }
 
-      if (!tx_info[n].tx->is_transfer())
+      if (!tx_info[n].tx->is_transfer() || tx_info[n].tx->amounts_revealed())
         continue;
       const rct::rctSig &rv = tx_info[n].tx->rct_signatures;
       switch (rv.type) {
@@ -1267,7 +1267,7 @@ namespace cryptonote
       return false;
     }
 
-    if (tx.version >= txversion::v2_ringct)
+    if (tx.version >= txversion::v2_ringct && !tx.amounts_revealed())
     {
       if (tx.rct_signatures.outPk.size() != tx.vout.size())
       {
@@ -1282,7 +1282,7 @@ namespace cryptonote
       return false;
     }
 
-    if (tx.version == txversion::v1)
+    if (tx.version == txversion::v1 || tx.amounts_revealed())
     {
       uint64_t amount_in = 0;
       get_inputs_money_amount(tx, amount_in);

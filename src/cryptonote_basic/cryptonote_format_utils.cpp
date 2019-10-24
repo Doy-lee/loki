@@ -129,7 +129,7 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool expand_transaction_1(transaction &tx, bool base_only)
   {
-    if (tx.version >= txversion::v2_ringct && !is_coinbase(tx))
+    if (tx.version >= txversion::v2_ringct && !tx.amounts_revealed())
     {
       rct::rctSig &rv = tx.rct_signatures;
       if (rv.outPk.size() != tx.vout.size())

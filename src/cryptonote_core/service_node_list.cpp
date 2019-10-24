@@ -755,9 +755,16 @@ namespace service_nodes
 
       for (size_t output_index = 0; output_index < tx.vout.size(); ++output_index)
       {
-        uint64_t transferred = get_reg_tx_staking_output_contribution(tx, output_index, derivation, hwdev);
-        if (transferred == 0)
-          continue;
+        uint64_t transferred = 0;
+        if (hf_version >= cryptonote::network_version_14_lns)
+        {
+            transferred = tx.vout[output_index].amount;
+        }
+        else
+        {
+          uint64_t transferred = get_reg_tx_staking_output_contribution(tx, output_index, derivation, hwdev);
+          if (transferred == 0) continue;
+        }
 
         // So prove that the destination stealth address can be decoded using the
         // staker's packed address, which means that the recipient of the
