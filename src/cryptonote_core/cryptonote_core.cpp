@@ -64,6 +64,7 @@ extern "C" {
 #include "common/i18n.h"
 #include "net/local_ip.h"
 #include "cryptonote_protocol/quorumnet.h"
+#include "sqlite/sqlite3.h"
 
 #include "common/loki_integration_test_hooks.h"
 
@@ -625,17 +626,19 @@ namespace cryptonote
     bool sync_on_blocks = true;
     uint64_t sync_threshold = 1;
 
+    std::string const lns_db_file_path = m_config_folder + "/lns.db";
+#if !defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS) // In integration mode, don't delete the DB. This should be explicitly done in the tests. Otherwise the more likely behaviour is persisting the DB across multiple daemons in the same test.
     if (m_nettype == FAKECHAIN)
     {
-#if !defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS) // In integration mode, don't delete the DB. This should be explicitly done in the tests. Otherwise the more likely behaviour is persisting the DB across multiple daemons in the same test.
       // reset the db by removing the database file before opening it
       if (!db->remove_data_file(filename))
       {
         MERROR("Failed to remove data file in " << filename);
         return false;
       }
-#endif
+      boost::filesystem::remove(lns_db_file_path);
     }
+#endif
 
     try
     {
@@ -790,8 +793,11 @@ namespace cryptonote
       m_checkpoints_path = checkpoint_json_hashfile_fullpath.string();
     }
 
+    sqlite3 *lns_db = lns::init_loki_name_system(lns_db_file_path.c_str());
+    if (!lns_db) return false;
+
     const difficulty_type fixed_difficulty = command_line::get_arg(vm, arg_fixed_difficulty);
-    r = m_blockchain_storage.init(initialized_db, m_nettype, m_offline, regtest ? &regtest_test_options : test_options, fixed_difficulty, get_checkpoints);
+    r = m_blockchain_storage.init(initialized_db, lns_db, m_nettype, m_offline, regtest ? &regtest_test_options : test_options, fixed_difficulty, get_checkpoints);
     CHECK_AND_ASSERT_MES(r, false, "Failed to initialize blockchain storage");
 
     if (!command_line::is_arg_defaulted(vm, arg_recalculate_difficulty))

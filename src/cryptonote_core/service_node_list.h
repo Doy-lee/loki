@@ -306,7 +306,6 @@ namespace service_nodes
     bool validate_miner_tx(const crypto::hash& prev_id, const cryptonote::transaction& miner_tx, uint64_t height, int hard_fork_version, cryptonote::block_reward_parts const &base_reward) const override;
     bool alt_block_added(const cryptonote::block& block, const std::vector<cryptonote::transaction>& txs, cryptonote::checkpoint_t const *checkpoint) override;
     block_winner get_block_winner() const { std::lock_guard<boost::recursive_mutex> lock(m_sn_mutex); return m_state.get_block_winner(); }
-
     bool is_service_node(const crypto::public_key& pubkey, bool require_active = true) const;
     bool is_key_image_locked(crypto::key_image const &check_image, uint64_t *unlock_height = nullptr, service_node_info::contribution_t *the_locked_contribution = nullptr) const;
 
@@ -412,12 +411,12 @@ namespace service_nodes
     using block_height = uint64_t;
     struct state_t
     {
-      crypto::hash                           block_hash;
-      bool                                   only_loaded_quorums;
-      service_nodes_infos_t                  service_nodes_infos;
-      std::vector<key_image_blacklist_entry> key_image_blacklist;
-      block_height                           height{0};
-      mutable quorum_manager                 quorums;          // Mutable because we are allowed to (and need to) change it via std::set iterator
+      crypto::hash                                   block_hash;
+      bool                                           only_loaded_quorums;
+      service_nodes_infos_t                          service_nodes_infos;
+      std::vector<key_image_blacklist_entry>         key_image_blacklist;
+      block_height                                   height{0};
+      mutable quorum_manager                         quorums;          // Mutable because we are allowed to (and need to) change it via std::set iterator
 
       state_t() = default;
       state_t(block_height height) : height{height} {}
@@ -452,6 +451,7 @@ namespace service_nodes
           const service_node_keys *my_keys);
       bool process_key_image_unlock_tx(cryptonote::network_type nettype, uint64_t block_height, const cryptonote::transaction &tx);
       block_winner get_block_winner() const;
+
     };
 
     // Can be set to true (via --dev-allow-local-ips) for debugging a new testnet on a local private network.

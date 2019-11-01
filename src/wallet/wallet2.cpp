@@ -88,6 +88,7 @@ extern "C"
 {
 #include "crypto/keccak.h"
 #include "crypto/crypto-ops.h"
+#include <sodium.h>
 }
 
 using namespace std;
