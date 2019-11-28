@@ -37,6 +37,7 @@ using namespace epee;
 
 #include <unordered_set>
 #include <iomanip>
+#include <shared_mutex>
 
 extern "C" {
 #include <sodium.h>
