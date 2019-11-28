@@ -993,6 +993,7 @@ uint64_t get_amount(const cryptonote::account_base& account, const cryptonote::t
     {
     case rct::RCTTypeSimple:
     case rct::RCTTypeBulletproof:
+      case rct::RCTTypeBulletproof2:
       money_transferred = rct::decodeRctSimple(tx.rct_signatures, rct::sk2rct(scalar1), i, mask, hwdev);
       break;
     case rct::RCTTypeFull:

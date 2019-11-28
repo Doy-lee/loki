@@ -33,6 +33,7 @@
 #include <boost/filesystem.hpp>
 #include <unordered_set>
 #include <vector>
+#include <shared_mutex>
 
 #include "tx_pool.h"
 #include "cryptonote_tx_utils.h"
