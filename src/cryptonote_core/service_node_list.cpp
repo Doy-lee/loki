@@ -439,7 +439,7 @@ namespace service_nodes
         money_transferred = rct::decodeRct(tx.rct_signatures, rct::sk2rct(scalar1), i, mask, hwdev);
         break;
       default:
-        LOG_PRINT_L0("Unsupported rct type: " << tx.rct_signatures.type);
+        LOG_PRINT_L0(__func__ << ": Unsupported rct type: " << (int)tx.rct_signatures.type);
         return 0;
       }
     }

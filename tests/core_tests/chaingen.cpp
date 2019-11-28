@@ -993,7 +993,7 @@ uint64_t get_amount(const cryptonote::account_base& account, const cryptonote::t
     {
     case rct::RCTTypeSimple:
     case rct::RCTTypeBulletproof:
-      case rct::RCTTypeBulletproof2:
+    case rct::RCTTypeBulletproof2:
       money_transferred = rct::decodeRctSimple(tx.rct_signatures, rct::sk2rct(scalar1), i, mask, hwdev);
       break;
     case rct::RCTTypeFull:
@@ -1003,7 +1003,7 @@ uint64_t get_amount(const cryptonote::account_base& account, const cryptonote::t
       money_transferred = tx.vout[i].amount;
       break;
     default:
-      LOG_PRINT_L0("Unsupported rct type: " << tx.rct_signatures.type);
+      LOG_PRINT_L0(__func__ << ": Unsupported rct type: " << (int)tx.rct_signatures.type);
       return 0;
     }
   }
