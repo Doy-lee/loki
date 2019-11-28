@@ -3868,7 +3868,6 @@ void wallet2::setup_keys(const epee::wipeable_string &password)
 {
   crypto::chacha_key key;
   crypto::generate_chacha_key(password.data(), password.size(), key, m_kdf_rounds);
-
   // re-encrypt, but keep viewkey unencrypted
   if (m_ask_password == AskPasswordToDecrypt && !m_unattended && !m_watch_only)
   {
@@ -4198,7 +4197,9 @@ bool wallet2::load_keys(const std::string& keys_file_name, const epee::wipeable_
     {
       m_account.decrypt_keys(key);
     }
-    else
+
+    m_account.derive_ed25519_keys();
+    if (!encrypted_secret_keys)
     {
       // rewrite with encrypted keys, ignore errors
       if (m_ask_password == AskPasswordToDecrypt && !m_unattended && !m_watch_only)
@@ -8445,6 +8446,65 @@ wallet2::request_stake_unlock_result wallet2::can_request_stake_unlock(const cry
   }
 
   result.success = true;
+  return result;
+}
+
+std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t type,
+                                                                    std::string const &name,
+                                                                    std::string const &value,
+                                                                    std::string *reason,
+                                                                    uint32_t priority,
+                                                                    uint32_t account_index,
+                                                                    std::set<uint32_t> subaddr_indices)
+{
+  if (!lns::validate_lns_name_value_mapping_lengths(nettype(), type, name.data(), name.size(), value.data(), value.size()))
+  {
+    // TODO(doyle): Better error messaging
+    if (reason) *reason = "Failed to validate lns name/value argument";
+    return {};
+  }
+
+  tx_extra_loki_name_system lns_data = {};
+  lns_data.owner     = get_account().get_keys().m_spend_ed25519_public_key;
+  lns_data.type      = type;
+  lns_data.name      = name;
+  lns_data.value     = value;
+  lns_data.signature = lns_data.make_signature(get_account().get_keys().m_spend_ed25519_secret_key);
+
+  std::vector<uint8_t> extra;
+  add_loki_name_system_to_tx_extra(extra, lns_data);
+
+  std::vector<cryptonote::tx_destination_entry> dsts;
+  cryptonote::tx_destination_entry de = {};
+  de.addr                             = get_subaddress({account_index, 0});
+  de.is_subaddress                    = account_index != 0;
+  de.amount                           = 0;
+  dsts.push_back(de);
+
+  auto result = create_transactions_2(dsts,
+                                      CRYPTONOTE_DEFAULT_TX_MIXIN,
+                                      0 /*unlock_at_block*/,
+                                      priority,
+                                      extra,
+                                      account_index,
+                                      subaddr_indices,
+                                      txtype::loki_name_system);
+  return result;
+}
+
+std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(std::string const &type,
+                                                                    std::string const &name,
+                                                                    std::string const &value,
+                                                                    std::string *reason,
+                                                                    uint32_t priority,
+                                                                    uint32_t account_index,
+                                                                    std::set<uint32_t> subaddr_indices)
+{
+  uint16_t mapping_type = 0;
+  if (!lns::validate_mapping_type(type, &mapping_type, reason))
+    return {};
+
+  std::vector<wallet2::pending_tx> result = create_buy_lns_mapping_tx(mapping_type, name, value, reason, priority, account_index, subaddr_indices);
   return result;
 }
 

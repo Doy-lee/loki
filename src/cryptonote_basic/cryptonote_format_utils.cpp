@@ -47,6 +47,11 @@
 
 #include <boost/endian/conversion.hpp>
 
+extern "C"
+{
+#include <sodium.h>
+};
+
 using namespace epee;
 
 #undef LOKI_DEFAULT_LOG_CATEGORY
@@ -905,6 +910,14 @@ namespace cryptonote
     size_t buf_size = buf_ptr - buf;
     crypto::hash result;
     crypto::cn_fast_hash(buf, buf_size, result);
+    return result;
+  }
+  //---------------------------------------------------------------
+  crypto::ed25519_signature tx_extra_loki_name_system::make_signature(crypto::ed25519_secret_key const &key) const
+  {
+    crypto::hash hash                = make_signature_hash();
+    crypto::ed25519_signature result = {};
+    crypto_sign_ed25519_detached(result.data, nullptr, reinterpret_cast<const unsigned char *>(hash.data), sizeof(hash.data), key.data);
     return result;
   }
   //---------------------------------------------------------------

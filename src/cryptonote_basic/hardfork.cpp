@@ -73,6 +73,8 @@ static constexpr HardFork::Params mainnet_hard_forks[] =
   { network_version_13_enforce_checkpoints, 385824, 0, 1571850000 }, // 2019-10-23 19:00AEDT
 };
 
+
+#if 1
 static constexpr HardFork::Params testnet_hard_forks[] =
 {
   { network_version_7,                      1,      0, 1533631121 },
@@ -84,6 +86,19 @@ static constexpr HardFork::Params testnet_hard_forks[] =
   { network_version_13_enforce_checkpoints, 127028, 0, 1568440800 }, // 2019-09-13 16:00AEDT
   { network_version_14_blink_lns,           174630, 0, 1575075600 }, // 2019-11-30 07:00UTC
 };
+#else
+static constexpr HardFork::Params testnet_hard_forks[] =
+{
+  { network_version_7,                      1, 0, 1533631121 },
+  { network_version_8,                      2, 0, 1533631122 },
+  { network_version_9_service_nodes,        3, 0, 1533631123 },
+  { network_version_10_bulletproofs,        4, 0, 1542681077 },
+  { network_version_11_infinite_staking,    5, 0, 1551223964 },
+  { network_version_12_checkpointing,       6, 0, 1561608000 }, // 2019-06-28 14:00AEDT
+  { network_version_13_enforce_checkpoints, 7, 0, 1568440800 }, // 2019-09-13 16:00AEDT
+  { network_version_14_blink_lns,           8, 0, 1568440801 }, // 2019-09-13 16:00AEDT
+};
+#endif
 
 static constexpr HardFork::Params stagenet_hard_forks[] =
 {

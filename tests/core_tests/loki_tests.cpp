@@ -31,11 +31,6 @@
 #include "loki_tests.h"
 #include "cryptonote_core/service_node_list.h"
 
-extern "C"
-{
-#include <sodium.h>
-};
-
 #undef LOKI_DEFAULT_LOG_CATEGORY
 #define LOKI_DEFAULT_LOG_CATEGORY "sn_core_tests"
 
@@ -1239,13 +1234,7 @@ bool loki_name_system_invalid_tx_extra_params::generate(std::vector<test_event_e
                                             bool valid,
                                             char const *reason) -> void {
 
-      crypto::hash hash = data.make_signature_hash();
-      crypto_sign_ed25519_detached(data.signature.data,
-                                   nullptr,
-                                   reinterpret_cast<const unsigned char *>(hash.data),
-                                   sizeof(hash.data),
-                                   src.get_keys().m_spend_ed25519_secret_key.data);
-
+      data.signature = data.make_signature(src.get_keys().m_spend_ed25519_secret_key);
       std::vector<uint8_t> extra;
       cryptonote::add_loki_name_system_to_tx_extra(extra, data);
 
@@ -1282,18 +1271,11 @@ bool loki_name_system_invalid_tx_extra_params::generate(std::vector<test_event_e
       make_lns_tx_with_custom_extra(gen, events, miner, data, false, "(Blockchain) Empty wallet name in LNS is invalid");
     }
 
-    // Blockchain value (wallet address) is too long
+    // Blockchain value (wallet address) is invalid
     {
       cryptonote::tx_extra_loki_name_system data = valid_data;
-      data.value                                  = std::string(lns::BLOCKCHAIN_WALLET_ADDRESS_LENGTH + 1, 'A');
+      data.value                                  = std::string(64, 'A');
       make_lns_tx_with_custom_extra(gen, events, miner, data, false, "(Blockchain) Wallet value in LNS too long");
-    }
-
-    // Blockchain value (wallet address) is too short
-    {
-      cryptonote::tx_extra_loki_name_system data = valid_data;
-      data.value                                  = std::string(lns::BLOCKCHAIN_WALLET_ADDRESS_LENGTH - 1, 'A');
-      make_lns_tx_with_custom_extra(gen, events, miner, data, false, "(Blockchain) Wallet value in LNS too short");
     }
 
     valid_data.type = static_cast<uint16_t>(lns::mapping_type::lokinet);
@@ -1536,13 +1518,7 @@ bool loki_name_system_name_value_max_lengths::generate(std::vector<test_event_en
                                           cryptonote::account_base const &src,
                                           cryptonote::tx_extra_loki_name_system &data) -> void {
 
-    crypto::hash hash = data.make_signature_hash();
-    crypto_sign_ed25519_detached(data.signature.data,
-                                 nullptr,
-                                 reinterpret_cast<const unsigned char *>(hash.data),
-                                 sizeof(hash.data),
-                                 src.get_keys().m_spend_ed25519_secret_key.data);
-
+    data.signature = data.make_signature(src.get_keys().m_spend_ed25519_secret_key);
     std::vector<uint8_t> extra;
     cryptonote::add_loki_name_system_to_tx_extra(extra, data);
 
@@ -1567,7 +1543,7 @@ bool loki_name_system_name_value_max_lengths::generate(std::vector<test_event_en
   {
     data.type                                  = static_cast<uint16_t>(lns::mapping_type::blockchain);
     data.name                                  = std::string(lns::BLOCKCHAIN_NAME_MAX, 'A');
-    data.value                                 = std::string(lns::BLOCKCHAIN_WALLET_ADDRESS_LENGTH, 'Z');
+    data.value                                 = miner.get_public_address_str(cryptonote::FAKECHAIN);
     make_lns_tx_with_custom_extra(gen, events, miner, data);
   }
 

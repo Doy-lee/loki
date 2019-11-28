@@ -317,8 +317,10 @@ bool Blockchain::load_missing_blocks_into_loki_subsystems(loki_subsystem subsyst
       end_height   = std::max(end_height, lns_end_height);
     }
 
-    if (start_height >= end_height)
+    // NOTE: (end_height > chain_height) can occur when querying immutable checkpoints that are hardcoded in
+    if (start_height >= end_height || end_height > chain_height)
       return true;
+
     int64_t const total_blocks = static_cast<int64_t>(end_height) - static_cast<int64_t>(start_height);
 
     if (total_blocks > 1)
@@ -3394,7 +3396,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
         return false;
       }
 
-      if (!lns::validate_lns_entry(tx, data))
+      if (!lns::validate_lns_entry(nettype(), tx, data))
       {
         MERROR_VER("TX: " << tx.type << " " << get_transaction_hash(tx) << ", owner = " << data.owner << ", type = " << (int)data.type << ", name = " << data.name);
         return false;

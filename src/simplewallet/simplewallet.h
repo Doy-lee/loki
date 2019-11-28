@@ -165,12 +165,14 @@ namespace cryptonote
     bool transfer_main(Transfer transfer_type, const std::vector<std::string> &args, bool called_by_mms);
     bool transfer(const std::vector<std::string> &args);
     bool locked_transfer(const std::vector<std::string> &args);
+    bool locked_sweep_all(const std::vector<std::string> &args);
+
     bool stake(const std::vector<std::string> &args_);
     bool register_service_node(const std::vector<std::string> &args_);
     bool request_stake_unlock(const std::vector<std::string> &args_);
     bool print_locked_stakes(const std::vector<std::string>& /*args*/);
     bool query_locked_stakes(bool print_result);
-    bool locked_sweep_all(const std::vector<std::string> &args);
+    bool buy_lns_mapping(const std::vector<std::string> &args);
 
     enum class sweep_type_t { stake, register_stake, all_or_below, single };
     bool sweep_main_internal(sweep_type_t sweep_type, std::vector<tools::wallet2::pending_tx> &ptx_vector, cryptonote::address_parse_info const &dest, bool blink);
