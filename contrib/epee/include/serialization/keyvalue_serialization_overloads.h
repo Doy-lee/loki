@@ -158,7 +158,7 @@ namespace epee
     template<typename T, size_t Size, class t_storage>
     static bool unserialize_stl_container_t_val(std::array<T, Size>& array, t_storage& stg, typename t_storage::hsection hparent_section, const char* pname)
     {
-      static_assert(array.size() > 0, "cannot deserialize empty std::array");
+      static_assert(Size, "cannot deserialize empty std::array");
       size_t next_i = 0;
       T exchange_val;
       typename t_storage::harray hval_array = stg.get_first_value(pname, exchange_val, hparent_section);
@@ -251,7 +251,7 @@ namespace epee
     template<typename T, size_t Size, class t_storage>
     static bool unserialize_stl_container_t_obj(std::array<T, Size>& array, t_storage& stg, typename t_storage::hsection hparent_section, const char* pname)
     {
-      static_assert(array.size() > 0, "cannot deserialize empty std::array");
+      static_assert(Size, "cannot deserialize empty std::array");
       size_t next_i = 0;
       bool res = false;
       T val = T{};
