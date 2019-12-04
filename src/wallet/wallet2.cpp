@@ -8474,11 +8474,10 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
   std::vector<uint8_t> extra;
   add_loki_name_system_to_tx_extra(extra, lns_data);
 
-  std::vector<cryptonote::tx_destination_entry> dsts;
+  std::vector<cryptonote::tx_destination_entry> dsts{};
   cryptonote::tx_destination_entry de = {};
   de.addr                             = get_subaddress({account_index, 0});
   de.is_subaddress                    = account_index != 0;
-  de.amount                           = 0;
   dsts.push_back(de);
 
   auto result = create_transactions_2(dsts,
@@ -11135,7 +11134,7 @@ void wallet2::cold_tx_aux_import(const std::vector<pending_tx> & ptx, const std:
   }
 }
 //----------------------------------------------------------------------------------------------------
-void wallet2::cold_sign_tx(const std::vector<pending_tx>& ptx_vector, signed_tx_set &exported_txs, std::vector<cryptonote::address_parse_info> &dsts_info, std::vector<std::string> & tx_device_aux)
+void wallet2::cold_sign_tx(const std::vector<pending_tx>& ptx_vector, signed_tx_set &exported_txs, std::vector<cryptonote::address_parse_info> const &dsts_info, std::vector<std::string> & tx_device_aux)
 {
   auto & hwdev = get_account().get_device();
   if (!hwdev.has_tx_cold_sign()){
