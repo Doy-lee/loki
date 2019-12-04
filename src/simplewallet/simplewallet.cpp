@@ -5656,7 +5656,26 @@ static bool locked_blocks_arg_valid(const std::string& arg, uint64_t& duration)
 
   return true;
 }
+//----------------------------------------------------------------------------------------------------
+static bool parse_subaddr_indices_and_priority(tools::wallet2 &wallet, std::vector<std::string> &args, std::set<uint32_t> &subaddr_indices, uint32_t &priority)
+{
+  if (args.size() > 0 && args[0].substr(0, 6) == "index=")
+  {
+    std::string parse_subaddr_err;
+    if (!tools::parse_subaddress_indices(args[0], subaddr_indices, &parse_subaddr_err))
+    {
+      fail_msg_writer() << parse_subaddr_err;
+      return false;
+    }
+    args.erase(args.begin());
+  }
 
+  if (args.size() > 0 && tools::parse_priority(args[0], priority))
+    args.erase(args.begin());
+
+  priority = wallet.adjust_priority(priority);
+  return true;
+}
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::transfer_main(Transfer transfer_type, const std::vector<std::string> &args_, bool called_by_mms)
 {
@@ -5665,24 +5684,9 @@ bool simple_wallet::transfer_main(Transfer transfer_type, const std::vector<std:
     return false;
 
   std::vector<std::string> local_args = args_;
-
-  std::set<uint32_t> subaddr_indices;
-  if (local_args.size() > 0 && local_args[0].substr(0, 6) == "index=")
-  {
-    std::string parse_subaddr_err;
-    if (!tools::parse_subaddress_indices(local_args[0], subaddr_indices, &parse_subaddr_err))
-    {
-      fail_msg_writer() << parse_subaddr_err;
-      return true;
-    }
-    local_args.erase(local_args.begin());
-  }
-
   uint32_t priority = 0;
-  if (local_args.size() > 0 && tools::parse_priority(local_args[0], priority))
-    local_args.erase(local_args.begin());
-
-  priority = m_wallet->adjust_priority(priority);
+  std::set<uint32_t> subaddr_indices  = {};
+  if (!parse_subaddr_indices_and_priority(*m_wallet, local_args, subaddr_indices, priority)) return false;
 
   const size_t min_args = (transfer_type == Transfer::Locked) ? 2 : 1;
   if(local_args.size() < min_args)
@@ -6163,20 +6167,10 @@ bool simple_wallet::stake(const std::vector<std::string> &args_)
   double amount_fraction = 0;
   {
     std::vector<std::string> local_args = args_;
-    if (local_args.size() > 0 && local_args[0].substr(0, 6) == "index=")
-    {
-      std::string parse_subaddr_err;
-      if (!tools::parse_subaddress_indices(local_args[0], subaddr_indices, &parse_subaddr_err))
-      {
-        fail_msg_writer() << parse_subaddr_err;
-        return true;
-      }
-      local_args.erase(local_args.begin());
-    }
-
-    if (local_args.size() > 0 && tools::parse_priority(local_args[0], priority))
-      local_args.erase(local_args.begin());
-    priority = m_wallet->adjust_priority(priority);
+    uint32_t priority                   = 0;
+    std::set<uint32_t> subaddr_indices  = {};
+    if (!parse_subaddr_indices_and_priority(*m_wallet, local_args, subaddr_indices, priority))
+      return false;
 
     if (local_args.size() < 2)
     {
@@ -6484,26 +6478,6 @@ bool simple_wallet::query_locked_stakes(bool print_result)
   return has_locked_stakes;
 }
 //----------------------------------------------------------------------------------------------------
-static bool parse_subaddr_indices_and_priority(tools::wallet2 &wallet, std::vector<std::string> &args, std::set<uint32_t> &subaddr_indices, uint32_t &priority)
-{
-  if (args.size() > 0 && args[0].substr(0, 6) == "index=")
-  {
-    std::string parse_subaddr_err;
-    if (!tools::parse_subaddress_indices(args[0], subaddr_indices, &parse_subaddr_err))
-    {
-      fail_msg_writer() << parse_subaddr_err;
-      return false;
-    }
-    args.erase(args.begin());
-  }
-
-  if (args.size() > 0 && tools::parse_priority(args[0], priority))
-    args.erase(args.begin());
-
-  priority = wallet.adjust_priority(priority);
-  return true;
-}
-//----------------------------------------------------------------------------------------------------
 bool simple_wallet::print_locked_stakes(const std::vector<std::string>& /*args*/)
 {
   SCOPED_WALLET_UNLOCK();
@@ -6513,9 +6487,9 @@ bool simple_wallet::print_locked_stakes(const std::vector<std::string>& /*args*/
 //----------------------------------------------------------------------------------------------------
 bool simple_wallet::buy_lns_mapping(const std::vector<std::string>& args)
 {
+  std::vector<std::string> local_args = args;
   uint32_t priority = 0;
   std::set<uint32_t> subaddr_indices  = {};
-  std::vector<std::string> local_args = args;
   if (!parse_subaddr_indices_and_priority(*m_wallet, local_args, subaddr_indices, priority)) return false;
 
   if (args.size() < 3)
@@ -6745,7 +6719,7 @@ bool simple_wallet::buy_lns_mapping(const std::vector<std::string>& args)
         return false;
       }
 
-      commit_or_save(signed_tx.ptx, m_do_not_relay);
+      commit_or_save(signed_tx.ptx, m_do_not_relay, priority == tools::wallet2::BLINK_PRIORITY);
     }
     catch (const std::exception& e)
     {
@@ -6774,7 +6748,7 @@ bool simple_wallet::buy_lns_mapping(const std::vector<std::string>& args)
   }
   else
   {
-    commit_or_save(ptx_vector, m_do_not_relay);
+    commit_or_save(ptx_vector, m_do_not_relay, priority == tools::wallet2::BLINK_PRIORITY);
   }
 
   return true;
@@ -7046,25 +7020,10 @@ bool simple_wallet::sweep_main(uint64_t below, Transfer transfer_type, const std
     return true;
 
   std::vector<std::string> local_args = args_;
-
-  std::set<uint32_t> subaddr_indices;
-  if (local_args.size() > 0 && local_args[0].substr(0, 6) == "index=")
-  {
-    std::string parse_subaddr_err;
-    if (!tools::parse_subaddress_indices(local_args[0], subaddr_indices, &parse_subaddr_err))
-    {
-      fail_msg_writer() << parse_subaddr_err;
-      print_usage();
-      return true;
-    }
-    local_args.erase(local_args.begin());
-  }
-
   uint32_t priority = 0;
-  if (local_args.size() > 0 && tools::parse_priority(local_args[0], priority))
-    local_args.erase(local_args.begin());
+  std::set<uint32_t> subaddr_indices  = {};
+  if (!parse_subaddr_indices_and_priority(*m_wallet, local_args, subaddr_indices, priority)) return false;
 
-  priority = m_wallet->adjust_priority(priority);
   uint64_t unlock_block = 0;
   if (transfer_type == Transfer::Locked) {
     if (priority == tools::wallet2::BLINK_PRIORITY) {
