@@ -291,11 +291,13 @@ uint64_t Blockchain::get_current_blockchain_height() const
 bool Blockchain::load_missing_blocks_into_loki_subsystems(loki_subsystem subsystems)
 {
   if (!subsystems) return true;
+  if (!m_lns_db.db) subsystems = static_cast<decltype(subsystems)>(static_cast<uint8_t>(subsystems) & ~loki_subsystem_lns);
 
   uint64_t chain_height     = m_db->height();
   uint64_t const snl_height = std::max(m_hardfork->get_earliest_ideal_height_for_version(network_version_9_service_nodes), m_service_node_list.height() + 1);
   uint64_t const lns_height = std::max(m_hardfork->get_earliest_ideal_height_for_version(network_version_14_blink_lns),    m_lns_db.height() + 1);
   uint64_t lns_end_height   = 0;
+  if (subsystems & loki_subsystem_lns)
   {
     checkpoint_t immutable_checkpoint = {};
     if (m_db->get_immutable_checkpoint(&immutable_checkpoint, chain_height))
@@ -602,7 +604,7 @@ bool Blockchain::init(BlockchainDB* db, sqlite3 *lns_db, const network_type nett
 
   uint64_t tail_height   = 0;
   crypto::hash tail_hash = get_tail_id(tail_height);
-  if (!m_lns_db.init(nettype, lns_db, tail_height, tail_hash))
+  if (lns_db && !m_lns_db.init(nettype, lns_db, tail_height, tail_hash))
   {
     MERROR("LNS failed to initialise");
     return false;

@@ -1419,7 +1419,7 @@ bool loki_name_system_name_renewal::generate(std::vector<test_event_entry> &even
     {
       gen.add_blocks_until_next_checkpointable_height();
       std::shared_ptr<const service_nodes::quorum> quorum = gen.get_quorum(service_nodes::quorum_type::checkpointing, gen.height());
-      if (quorum && quorum->validators.size()) break;
+     if (quorum && quorum->validators.size()) break;
     }
     assert(tries != MAX_TRIES);
     gen.add_service_node_checkpoint(gen.height(), service_nodes::CHECKPOINT_MIN_VOTES);
