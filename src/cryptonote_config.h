@@ -105,7 +105,6 @@ static_assert(STAKING_PORTIONS % 3 == 0, "Use a multiple of three, so that it di
 #define BLINK_MINER_TX_FEE_PERCENT                      100 // The blink miner tx fee (as a percentage of the minimum tx fee)
 #define BLINK_BURN_FIXED                                0   // A fixed amount (in atomic currency units) that the sender must burn
 #define BLINK_BURN_TX_FEE_PERCENT                       400 // A percentage of the minimum miner tx fee that the sender must burn.  (Adds to BLINK_BURN_FIXED)
-
 static_assert(BLINK_MINER_TX_FEE_PERCENT >= 100, "blink miner fee cannot be smaller than the base tx fee");
 static_assert(BLINK_BURN_FIXED >= 0, "fixed blink burn amount cannot be negative");
 static_assert(BLINK_BURN_TX_FEE_PERCENT >= 0, "blink burn tx percent cannot be negative");

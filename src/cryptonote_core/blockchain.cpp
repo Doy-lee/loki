@@ -296,7 +296,11 @@ bool Blockchain::load_missing_blocks_into_loki_subsystems(loki_subsystem subsyst
   uint64_t chain_height     = m_db->height();
   uint64_t const snl_height = std::max(m_hardfork->get_earliest_ideal_height_for_version(network_version_9_service_nodes), m_service_node_list.height() + 1);
   uint64_t const lns_height = std::max(m_hardfork->get_earliest_ideal_height_for_version(network_version_14_blink_lns),    m_lns_db.height() + 1);
+#if 0
   uint64_t lns_end_height   = 0;
+#else
+  uint64_t lns_end_height   = chain_height;
+#endif
   if (subsystems & loki_subsystem_lns)
   {
     checkpoint_t immutable_checkpoint = {};
@@ -313,7 +317,7 @@ bool Blockchain::load_missing_blocks_into_loki_subsystems(loki_subsystem subsyst
       end_height   = chain_height;
     }
 
-    if (subsystems & loki_subsystem_lns)
+    if ((subsystems & loki_subsystem_lns) && (lns_end_height != 0))
     {
       start_height = std::min(start_height, lns_height);
       end_height   = std::max(end_height, lns_end_height);

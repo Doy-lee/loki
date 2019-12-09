@@ -19,14 +19,14 @@ struct account_address;
 
 namespace lns
 {
-constexpr uint64_t BURN_REQUIREMENT    = 100 * COIN;
+constexpr uint64_t BURN_REQUIREMENT    = 1000 * COIN;
 constexpr uint64_t BLOCKCHAIN_NAME_MAX = 96;
 
-constexpr uint64_t LOKINET_DOMAIN_NAME_MAX          = 253;
-constexpr uint64_t LOKINET_ADDRESS_LENGTH           = 32;
+constexpr uint64_t LOKINET_DOMAIN_NAME_MAX = 253;
+constexpr uint64_t LOKINET_ADDRESS_LENGTH  = 32;
 
-constexpr uint64_t MESSENGER_DISPLAY_NAME_MAX       = 64;
-constexpr uint64_t MESSENGER_PUBLIC_KEY_LENGTH      = 33;
+constexpr uint64_t MESSENGER_DISPLAY_NAME_MAX  = 64;
+constexpr uint64_t MESSENGER_PUBLIC_KEY_LENGTH = 33;
 
 constexpr uint64_t GENERIC_NAME_MAX  = 255;
 constexpr uint64_t GENERIC_VALUE_MAX = 255;

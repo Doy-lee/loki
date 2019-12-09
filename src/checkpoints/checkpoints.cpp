@@ -332,11 +332,13 @@ namespace cryptonote
     }
     else if (nettype == TESTNET)
     {
+#if 0
       for (size_t i = 0; i < loki::array_count(HARDCODED_TESTNET_CHECKPOINTS); ++i)
       {
         height_to_hash const &checkpoint = HARDCODED_TESTNET_CHECKPOINTS[i];
         ADD_CHECKPOINT(checkpoint.height, checkpoint.hash);
       }
+#endif
     }
 #endif
 

@@ -91,6 +91,11 @@
   #define PAUSE_READLINE()
 #endif
 
+extern "C"
+{
+#include <sodium.h>
+}
+
 using namespace std;
 using namespace epee;
 using namespace cryptonote;
@@ -6541,7 +6546,7 @@ bool simple_wallet::buy_lns_mapping(const std::vector<std::string>& args)
       else
         name.append(word);
 
-      if (i != first_word_index)
+      if (i != last_word_index)
         name.append(" ");
     }
   }
@@ -8671,9 +8676,7 @@ bool simple_wallet::print_address(const std::vector<std::string> &args/* = std::
         return td.m_subaddr_index == cryptonote::subaddress_index{ m_current_subaddress_account, index };
       }) != transfers.end();
 
-    // TODO(loki): Support subaddresses for LNS
     success_msg_writer() << index << "  " << m_wallet->get_subaddress_as_str({m_current_subaddress_account, index}) << "  " << (index == 0 ? tr("Primary address") : m_wallet->get_subaddress_label({m_current_subaddress_account, index})) << " " << (used ? tr("(used)") : "");
-    success_msg_writer() << index << "  " << m_wallet->get_account().get_keys().m_spend_ed25519_public_key          << "  " << tr("LNS Address");
   };
 
   uint32_t index = 0;

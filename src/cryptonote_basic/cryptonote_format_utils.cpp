@@ -893,7 +893,7 @@ namespace cryptonote
 
     char *buf_ptr = buf;
     memcpy(buf_ptr, owner.data, sizeof(owner));
-    buf_ptr += owner;
+    buf_ptr += sizeof(owner);
 
     uint16_t type_le = boost::endian::native_to_little(type);
     memcpy(buf_ptr, &type_le, sizeof(type_le));

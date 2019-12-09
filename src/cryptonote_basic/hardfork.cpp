@@ -74,7 +74,7 @@ static constexpr HardFork::Params mainnet_hard_forks[] =
 };
 
 
-#if 1
+#if 0
 static constexpr HardFork::Params testnet_hard_forks[] =
 {
   { network_version_7,                      1,      0, 1533631121 },

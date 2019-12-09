@@ -109,7 +109,6 @@ namespace cryptonote
     void encrypt_viewkey(const crypto::chacha_key &key) { m_keys.encrypt_viewkey(key); }
     void decrypt_viewkey(const crypto::chacha_key &key) { m_keys.decrypt_viewkey(key); }
 
-    void derive_ed25519_keys();
     template <class t_archive>
     inline void serialize(t_archive &a, const unsigned int /*ver*/)
     {

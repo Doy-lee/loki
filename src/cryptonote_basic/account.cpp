@@ -187,7 +187,6 @@ DISABLE_VS_WARNINGS(4244 4345)
       m_creation_timestamp = time(NULL);
     }
 
-    derive_ed25519_keys();
     return first;
   }
   //-----------------------------------------------------------------
@@ -209,7 +208,6 @@ DISABLE_VS_WARNINGS(4244 4345)
     if (m_creation_timestamp == (uint64_t)-1) // failure
       m_creation_timestamp = 0; // lowest value
 
-    derive_ed25519_keys();
   }
 
   //-----------------------------------------------------------------
@@ -245,7 +243,6 @@ DISABLE_VS_WARNINGS(4244 4345)
     if (m_creation_timestamp == (uint64_t)-1) // failure
       m_creation_timestamp = 0; // lowest value
 
-    derive_ed25519_keys();
   }
 
   //-----------------------------------------------------------------
@@ -263,14 +260,12 @@ DISABLE_VS_WARNINGS(4244 4345)
     m_keys.m_spend_secret_key = spend_secret_key;
     m_keys.m_multisig_keys = multisig_keys;
     bool result = crypto::secret_key_to_public_key(view_secret_key, m_keys.m_account_address.m_view_public_key);
-    derive_ed25519_keys();
     return result;
   }
   //-----------------------------------------------------------------
   void account_base::finalize_multisig(const crypto::public_key &spend_public_key)
   {
     m_keys.m_account_address.m_spend_public_key = spend_public_key;
-    derive_ed25519_keys();
   }
   //-----------------------------------------------------------------
   const account_keys& account_base::get_keys() const
@@ -288,13 +283,5 @@ DISABLE_VS_WARNINGS(4244 4345)
   {
     //TODO: change this code into base 58
     return get_account_integrated_address_as_str(nettype, m_keys.m_account_address, payment_id);
-  }
-  //-----------------------------------------------------------------
-  void account_base::derive_ed25519_keys()
-  {
-    crypto::ec_scalar const &unwrapped = unwrap(unwrap(m_keys.m_spend_secret_key));
-    crypto_sign_ed25519_seed_keypair(m_keys.m_spend_ed25519_public_key.data,
-                                     m_keys.m_spend_ed25519_secret_key.data,
-                                     reinterpret_cast<unsigned char const *>(unwrapped.data));
   }
 }
