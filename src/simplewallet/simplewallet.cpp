@@ -91,11 +91,6 @@
   #define PAUSE_READLINE()
 #endif
 
-extern "C"
-{
-#include <sodium.h>
-}
-
 using namespace std;
 using namespace epee;
 using namespace cryptonote;
@@ -8653,8 +8648,6 @@ void simple_wallet::print_accounts(const std::string& tag)
   success_msg_writer() << boost::format(tr("%15s %21s %21s")) % "Total" % print_money(total_balance) % print_money(total_unlocked_balance);
 }
 //----------------------------------------------------------------------------------------------------
-
-// TODO(loki): Support subaddresses for LNS. This function was for quickly converting subaddress spend keys to ed keys.
 bool simple_wallet::print_address(const std::vector<std::string> &args/* = std::vector<std::string>()*/)
 {
   // Usage:

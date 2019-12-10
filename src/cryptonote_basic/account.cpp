@@ -38,7 +38,6 @@
 extern "C"
 {
 #include "crypto/keccak.h"
-#include "sodium.h"
 }
 #include "cryptonote_basic_impl.h"
 #include "cryptonote_format_utils.h"
@@ -55,6 +54,7 @@ DISABLE_VS_WARNINGS(4244 4345)
 
   namespace cryptonote
 {
+
   //-----------------------------------------------------------------
   hw::device& account_keys::get_device() const  {
     return *m_device;
@@ -101,8 +101,6 @@ DISABLE_VS_WARNINGS(4244 4345)
       for (size_t i = 0; i < sizeof(crypto::secret_key); ++i)
         k.data[i] ^= *ptr++;
     }
-    for (size_t i = 0; i < sizeof(m_spend_ed25519_secret_key); ++i)
-      m_spend_ed25519_secret_key.data[i] ^= *ptr++;
   }
   //-----------------------------------------------------------------
   void account_keys::encrypt(const crypto::chacha_key &key)
@@ -153,7 +151,6 @@ DISABLE_VS_WARNINGS(4244 4345)
   //-----------------------------------------------------------------
   void account_base::forget_spend_key()
   {
-    sodium_memzero(m_keys.m_spend_ed25519_secret_key.data, sizeof(m_keys.m_spend_ed25519_secret_key));
     m_keys.m_spend_secret_key = crypto::secret_key();
     m_keys.m_multisig_keys.clear();
   }

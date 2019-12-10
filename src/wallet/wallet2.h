@@ -2201,6 +2201,7 @@ namespace boost
 
       if (ver < 2)
         return;
+      a & x.selected_transfers;
       if (ver < 3)
         return;
       if (ver < 5)

@@ -263,7 +263,6 @@ namespace crypto {
     epee::to_hex::formatted(o, epee::as_byte_span(v)); return o;
   }
 
-  crypto::ed25519_secret_key secret_key_to_ed25519_keys(crypto::secret_key const &skey);
   const extern crypto::public_key null_pkey;
   const extern crypto::secret_key null_skey;
 }
