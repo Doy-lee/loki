@@ -46,10 +46,10 @@ for arch in ${archs[@]}; do
     mkdir -p $OUTPUT_DIR
     cd $OUTPUT_DIR
 
+    export PKG_CONFIG_PATH="/opt/android/build/libsodium/$arch/lib/pkgconfig:/opt/android/build/libzmq/$arch/lib/pkgconfig"
     PATH=/opt/android/tool/$arch/$target_host/bin:/opt/android/tool/$arch/bin:$PATH \
     CC=clang CXX=clang++ \
     cmake \
-      -D CMAKE_LIBRARY_PATH=/opt/android/build/libsodium/$arch/lib \
       -D BUILD_GUI_DEPS=1 \
       -D BUILD_TESTS=OFF \
       -D ARCH="$xarch" \
