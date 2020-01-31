@@ -2890,6 +2890,12 @@ bool wallet2::long_poll_pool_state()
     r = epee::net_utils::invoke_http_json("/get_transaction_pool_hashes.bin", req, res, m_long_poll_client, cryptonote::rpc_long_poll_timeout, "GET");
   }
 
+  if (m_long_poll_client.m_net_client.m_long_poll_shutdown) // Shutdown triggered from deinit
+  {
+    m_long_poll_disabled = true;
+    return false;
+  }
+
   bool maxed_out_connections = res.status == CORE_RPC_STATUS_TX_LONG_POLL_MAX_CONNECTIONS;
   bool timed_out             = res.status == CORE_RPC_STATUS_TX_LONG_POLL_TIMED_OUT;
   if (maxed_out_connections || timed_out)
@@ -3666,6 +3672,7 @@ bool wallet2::deinit()
   m_is_initialized=false;
   unlock_keys_file();
   m_account.deinit();
+  m_long_poll_client.m_net_client.m_long_poll_shutdown = true; // Trigger a shutdown in the long poll's http client's async_read
   return true;
 }
 //----------------------------------------------------------------------------------------------------

@@ -85,6 +85,15 @@ namespace
 
 namespace tools
 {
+  static void remove_wallet2_instance(wallet2 **wallet)
+  {
+    if (wallet && *wallet)
+    {
+      (*wallet)->deinit();
+      delete (*wallet);
+      *wallet = nullptr;
+    }
+  }
   const char* wallet_rpc_server::tr(const char* str)
   {
     return i18n_translate(str, "tools::wallet_rpc_server");
@@ -97,8 +106,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   wallet_rpc_server::~wallet_rpc_server()
   {
-    if (m_wallet)
-      delete m_wallet;
+    remove_wallet2_instance(&m_wallet);
   }
   //------------------------------------------------------------------------------------------------------------------------------
   void wallet_rpc_server::set_wallet(wallet2 *cr)
@@ -138,6 +146,7 @@ namespace tools
       return true;
     }, 500);
 
+
     m_long_poll_thread = boost::thread([&] {
       for (;;)
       {
@@ -171,8 +180,7 @@ namespace tools
     if (m_wallet)
     {
       m_wallet->store();
-      delete m_wallet;
-      m_wallet = NULL;
+      remove_wallet2_instance(&m_wallet);
     }
   }
   //------------------------------------------------------------------------------------------------------------------------------
@@ -2978,7 +2986,7 @@ namespace tools
         handle_rpc_exception(std::current_exception(), er, WALLET_RPC_ERROR_CODE_UNKNOWN_ERROR);
         return false;
       }
-      delete m_wallet;
+      remove_wallet2_instance(&m_wallet);
     }
     m_wallet = wal.release();
     return true;
@@ -3049,8 +3057,7 @@ namespace tools
       return false;
     }
 
-    if (m_wallet)
-      delete m_wallet;
+    remove_wallet2_instance(&m_wallet);
     m_wallet = wal.release();
     return true;
   }
@@ -3071,8 +3078,7 @@ namespace tools
         return false;
       }
     }
-    delete m_wallet;
-    m_wallet = NULL;
+    remove_wallet2_instance(&m_wallet);
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
@@ -3352,8 +3358,7 @@ namespace tools
       return false;
     }
 
-    if (m_wallet)
-      delete m_wallet;
+    remove_wallet2_instance(&m_wallet);
     m_wallet = wal.release();
     res.address = m_wallet->get_account().get_public_address_str(m_wallet->nettype());
     return true;
@@ -3540,8 +3545,7 @@ namespace tools
       return false;
     }
 
-    if (m_wallet)
-      delete m_wallet;
+    remove_wallet2_instance(&m_wallet);
     m_wallet = wal.release();
     res.address = m_wallet->get_account().get_public_address_str(m_wallet->nettype());
     res.info = "Wallet has been restored successfully.";

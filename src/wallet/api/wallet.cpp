@@ -458,7 +458,7 @@ WalletImpl::WalletImpl(NetworkType nettype, uint64_t kdf_rounds)
     });
 
     m_longPollThread = boost::thread([this]() {
-      for (;;)
+      for (; !m_wallet->long_poll_disabled;)
       {
         if (!m_refreshEnabled)
         {
@@ -810,6 +810,7 @@ bool WalletImpl::close(bool store)
         m_wallet->stop();
         LOG_PRINT_L1("wallet::stop done");
         m_wallet->deinit();
+        m_longPollThread.join();
         result = true;
         clearStatus();
     } catch (const std::exception &e) {

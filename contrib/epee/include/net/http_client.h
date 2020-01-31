@@ -261,7 +261,6 @@ namespace net_utils
 			};
 
 
-			net_client_type m_net_client;
 			std::string m_host_buff;
 			std::string m_port;
 			http_client_auth m_auth;
@@ -278,6 +277,7 @@ namespace net_utils
 			mutable critical_section m_lock;
 
 		public:
+			net_client_type m_net_client;
 			explicit http_simple_client_template()
 				: i_target_handler()
 				, m_net_client()

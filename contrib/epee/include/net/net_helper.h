@@ -98,6 +98,7 @@ namespace net_utils
 				};
 
 	public:
+        std::atomic<bool> m_long_poll_shutdown;
 		inline
 			blocked_mode_client() :
 				m_io_service(),
@@ -110,9 +111,11 @@ namespace net_utils
 				m_deadline(m_io_service),
 				m_shutdowned(0),
 				m_bytes_sent(0),
+				m_long_poll_shutdown(false),
 				m_bytes_received(0)
 		{
 		}
+
 
 		/*! The first/second parameters are host/port respectively. The third
 		    parameter is for setting the timeout callback - the timer is
@@ -161,7 +164,13 @@ namespace net_utils
 				for (;;)
 				{
 					m_io_service.reset();
-					m_io_service.run_one();
+                    while(m_io_service.run_one_for(std::chrono::milliseconds(500)) == 0)
+                    {
+                      if (m_long_poll_shutdown)
+                        break;
+                    }
+                    if (m_long_poll_shutdown)
+                      break;
 
 					if (connection.is_ready())
 						break;
@@ -302,7 +311,13 @@ namespace net_utils
 				while (ec == boost::asio::error::would_block)
 				{
 					m_io_service.reset();
-					m_io_service.run_one(); 
+                    while(m_io_service.run_one_for(std::chrono::milliseconds(500)) == 0)
+                    {
+                      if (m_long_poll_shutdown)
+                        break;
+                    }
+                    if (m_long_poll_shutdown)
+                      return false;
 				}
 
 				if (ec)
@@ -435,8 +450,14 @@ namespace net_utils
 				while (ec == boost::asio::error::would_block && !boost::interprocess::ipcdetail::atomic_read32(&m_shutdowned))
 				{
 					m_io_service.reset();
-					m_io_service.run_one(); 
-				}
+                    while(m_io_service.run_one_for(std::chrono::milliseconds(500)) == 0)
+                    {
+                      if (m_long_poll_shutdown)
+                        return false;
+                    }
+                    if (m_long_poll_shutdown)
+                      return false;
+                }
 
 
 				if (ec)
@@ -518,7 +539,13 @@ namespace net_utils
 				// Block until the asynchronous operation has completed.
 				while (ec == boost::asio::error::would_block && !boost::interprocess::ipcdetail::atomic_read32(&m_shutdowned))
 				{
-					m_io_service.run_one(); 
+                    while(m_io_service.run_one_for(std::chrono::milliseconds(500)) == 0)
+                    {
+                      if (m_long_poll_shutdown)
+                        return false;
+                    }
+                    if (m_long_poll_shutdown)
+                      return false;
 				}
 
 				if (ec)
@@ -631,7 +658,13 @@ namespace net_utils
 			while (ec == boost::asio::error::would_block)
 			{
 				m_io_service.reset();
-				m_io_service.run_one();
+                while(m_io_service.run_one_for(std::chrono::milliseconds(500)) == 0)
+                {
+                  if (m_long_poll_shutdown)
+                    break;
+                }
+                if (m_long_poll_shutdown)
+                  return;
 			}
 			// Ignore "short read" error
 			if (ec.category() == boost::asio::error::get_ssl_category() &&
