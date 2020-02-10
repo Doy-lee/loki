@@ -64,6 +64,7 @@ bool         validate_lns_name(uint16_t type, std::string const &name, std::stri
 bool         validate_lns_value(cryptonote::network_type nettype, uint16_t type, std::string const &value, lns_value *blob = nullptr, std::string *reason = nullptr);
 bool         validate_lns_value_binary(uint16_t type, std::string const &value, std::string *reason = nullptr);
 bool         validate_mapping_type(std::string const &type, uint16_t *mapping_type, std::string *reason);
+crypto::hash name_to_hash(std::string const &name);
 
 struct owner_record
 {
@@ -96,7 +97,7 @@ struct mapping_record
 
   bool                       loaded;
   uint16_t                   type; // alias to lns::mapping_type
-  std::string                name;
+  crypto::hash               name_hash;
   std::string                value;
   uint64_t                   register_height;
   int64_t                    owner_id;
@@ -121,8 +122,8 @@ struct name_system_db
 
   owner_record                get_owner_by_key      (crypto::ed25519_public_key const &key) const;
   owner_record                get_owner_by_id       (int64_t owner_id) const;
-  mapping_record              get_mapping           (uint16_t type, std::string const &name) const;
-  std::vector<mapping_record> get_mappings          (std::vector<uint16_t> const &types, std::string const &name) const;
+  mapping_record              get_mapping           (uint16_t type, crypto::hash const &name_hash) const;
+  std::vector<mapping_record> get_mappings          (std::vector<uint16_t> const &types, crypto::hash const &name) const;
   std::vector<mapping_record> get_mappings_by_owner (crypto::ed25519_public_key const &key) const;
   std::vector<mapping_record> get_mappings_by_owners(std::vector<crypto::ed25519_public_key> const &keys) const;
   settings_record             get_settings          () const;

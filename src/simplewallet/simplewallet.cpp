@@ -3229,10 +3229,10 @@ simple_wallet::simple_wallet()
                            tr(USAGE_BUY_LNS_MAPPING),
                            tr(stream.str().c_str()));
 
-  m_cmd_binder.set_handler("print_lns_owners_to_names",
-                           boost::bind(&simple_wallet::print_lns_owners_to_names, this, _1),
+  m_cmd_binder.set_handler("print_lns_owners_to_name_hashes",
+                           boost::bind(&simple_wallet::print_lns_owners_to_name_hashes, this, _1),
                            tr(USAGE_PRINT_LNS_OWNERS_TO_NAMES),
-                           tr("Query the Loki Name Service names that the keys have purchased. If no keys are specified, it defaults to the current wallet."));
+                           tr("Query the Loki Name Service names that the owners have purchased. If no keys are specified, it defaults to the current wallet."));
 
   m_cmd_binder.set_handler("print_lns_name_to_owners",
                            boost::bind(&simple_wallet::print_lns_name_to_owners, this, _1),
@@ -6697,7 +6697,7 @@ bool simple_wallet::print_lns_name_to_owners(const std::vector<std::string>& arg
   return true;
 }
 //----------------------------------------------------------------------------------------------------
-bool simple_wallet::print_lns_owners_to_names(const std::vector<std::string>& args)
+bool simple_wallet::print_lns_owners_to_name_hashes(const std::vector<std::string>& args)
 {
   if (!try_connect_to_daemon())
     return false;
@@ -6761,7 +6761,7 @@ bool simple_wallet::print_lns_owners_to_names(const std::vector<std::string>& ar
       }
     }
 
-    tools::msg_writer() << "owner=" << *owner << ", height=" << entry.register_height << ", name=\"" << entry.name << "\", value=" << entry.value << ", prev_txid=" << entry.prev_txid;
+    tools::msg_writer() << "owner=" << *owner << ", height=" << entry.register_height << ", name_hash=\"" << entry.name_hash << "\", value=" << entry.value << ", prev_txid=" << entry.prev_txid;
   }
   return true;
 }

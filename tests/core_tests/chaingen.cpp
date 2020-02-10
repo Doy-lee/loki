@@ -507,7 +507,7 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
                                                                          crypto::ed25519_public_key const *owner,
                                                                          uint64_t burn) const
 {
-  crypto::ed25519_public_key pkey;
+  crypto::ed25519_public_key pkey = {};
   if (owner)
   {
     pkey = *owner;
@@ -515,7 +515,7 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
   else
   {
     crypto::ed25519_secret_key skey;
-    crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(src.get_keys().m_spend_secret_key.data));
+    crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(&src.get_keys().m_spend_secret_key));
   }
 
   cryptonote::block const &head = top().block;
@@ -525,12 +525,14 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
     burn = lns::burn_requirement_in_atomic_loki(new_hf_version,
                                                 lns::mapping_type_to_burn_type(static_cast<lns::mapping_type>(type)));
 
+  crypto::hash name_hash = lns::name_to_hash(name);
   crypto::hash prev_txid = crypto::null_hash;
-  if (lns::mapping_record mapping = lns_db_.get_mapping(type, name))
+  if (lns::mapping_record mapping = lns_db_.get_mapping(type, name_hash))
     prev_txid = mapping.txid;
 
   std::vector<uint8_t> extra;
-  cryptonote::tx_extra_loki_name_system data(pkey, type, name, value, prev_txid);
+  cryptonote::tx_extra_loki_name_system data(pkey, type, name_hash, value, prev_txid);
+
   cryptonote::add_loki_name_system_to_tx_extra(extra, data);
   cryptonote::add_burned_amount_to_tx_extra(extra, burn);
   cryptonote::transaction result = {};
