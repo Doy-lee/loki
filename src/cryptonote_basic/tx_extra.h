@@ -388,15 +388,15 @@ namespace cryptonote
     crypto::ed25519_public_key owner;
     uint16_t                   type;
     crypto::hash               name_hash;
-    std::string                value; // binary format of the name->value mapping
+    std::string                encrypted_value; // encrypted binary format of the value in the name->value mapping
     crypto::hash               prev_txid = crypto::null_hash; // previous txid that purchased the mapping
 
     tx_extra_loki_name_system() = default;
-    tx_extra_loki_name_system(crypto::ed25519_public_key const &owner, uint16_t type, crypto::hash const &name_hash, std::string const &value, crypto::hash const &prev_txid)
+    tx_extra_loki_name_system(crypto::ed25519_public_key const &owner, uint16_t type, crypto::hash const &name_hash, std::string const &encrypted_value, crypto::hash const &prev_txid)
     : owner(owner)
     , type(type)
     , name_hash(name_hash)
-    , value(value)
+    , encrypted_value(encrypted_value)
     , prev_txid(prev_txid)
     {
     }
@@ -406,7 +406,7 @@ namespace cryptonote
       FIELD(owner);
       FIELD(type);
       FIELD(name_hash);
-      FIELD(value);
+      FIELD(encrypted_value);
       FIELD(prev_txid);
     END_SERIALIZE()
   };

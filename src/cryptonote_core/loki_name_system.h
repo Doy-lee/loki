@@ -3,6 +3,7 @@
 
 #include "crypto/crypto.h"
 #include "cryptonote_config.h"
+#include "common/hex.h"
 
 #include <string>
 
@@ -27,12 +28,16 @@ constexpr size_t LOKINET_ADDRESS_BINARY_LENGTH    = sizeof(crypto::ed25519_publi
 constexpr size_t SESSION_DISPLAY_NAME_MAX         = 64;
 constexpr size_t SESSION_PUBLIC_KEY_BINARY_LENGTH = 1 + sizeof(crypto::ed25519_public_key); // Session keys at prefixed with 0x05 + ed25519 key
 
-struct lns_value
+struct mapping_value
 {
   static size_t constexpr BUFFER_SIZE = 255;
   std::array<uint8_t, BUFFER_SIZE> buffer;
   size_t len;
+
+  std::string to_string() const { return std::string(reinterpret_cast<char const *>(buffer.data()), len); }
+  bool operator==(mapping_value const &other) const { return other.len == len && memcmp(buffer.data(), other.buffer.data(), len) == 0; }
 };
+inline std::ostream &operator<<(std::ostream &os, mapping_value const &v) { return os << hex::from_hex(v.buffer.begin(), v.buffer.begin() + v.len); }
 
 enum struct mapping_type : uint16_t
 {
@@ -57,13 +62,19 @@ burn_type    mapping_type_to_burn_type(mapping_type in);
 uint64_t     burn_requirement_in_atomic_loki(uint8_t hf_version, burn_type type);
 sqlite3     *init_loki_name_system(char const *file_path);
 uint64_t     lokinet_expiry_blocks(cryptonote::network_type nettype, uint64_t *renew_window = nullptr);
-bool         validate_lns_name(uint16_t type, std::string const &name, std::string *reason = nullptr);
 
-// blob: if set, validate_lns_value will convert the value into the binary format suitable for storing into the LNS DB.
-bool         validate_lns_value(cryptonote::network_type nettype, uint16_t type, std::string const &value, lns_value *blob = nullptr, std::string *reason = nullptr);
-bool         validate_lns_value_binary(uint16_t type, std::string const &value, std::string *reason = nullptr);
+bool         validate_lns_name(uint16_t type, std::string const &name, std::string *reason = nullptr);
+// blob: if set, validate_mapping_value will convert the value into the binary format suitable for encryption
+bool         validate_mapping_value(cryptonote::network_type nettype, uint16_t type, std::string const &value, mapping_value *blob = nullptr, std::string *reason = nullptr);
+bool         validate_encrypted_mapping_value(uint16_t type, std::string const &value, std::string *reason = nullptr);
 bool         validate_mapping_type(std::string const &type, uint16_t *mapping_type, std::string *reason);
+
 crypto::hash name_to_hash(std::string const &name);
+
+// Takes a binary value and encrypts it using 'name' as a secret key or vice versa, suitable for storing into the LNS DB.
+// Only basic overflow validation is attempted, values should be pre-validated in the validate* functions
+bool         encrypt_mapping_value(std::string const &name, mapping_value const &value, mapping_value &encrypted_value);
+bool         decrypt_mapping_value(std::string const &name, mapping_value const &encrypted_value, mapping_value &value);
 
 struct owner_record
 {
@@ -97,7 +108,7 @@ struct mapping_record
   bool                       loaded;
   uint16_t                   type; // alias to lns::mapping_type
   crypto::hash               name_hash;
-  std::string                value;
+  mapping_value              encrypted_value;
   uint64_t                   register_height;
   int64_t                    owner_id;
   crypto::ed25519_public_key owner;

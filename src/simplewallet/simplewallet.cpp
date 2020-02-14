@@ -269,7 +269,7 @@ namespace
   const char* USAGE_REQUEST_STAKE_UNLOCK("request_stake_unlock <service_node_pubkey>");
   const char* USAGE_PRINT_LOCKED_STAKES("print_locked_stakes");
   const char* USAGE_BUY_LNS_MAPPING("buy_lns_mapping [index=<N1>[,<N2>,...]] [<priority>] [owner] \"<name>\" <value>");
-  const char* USAGE_PRINT_LNS_OWNERS_TO_NAMES("print_lns_owners_to_names [<64 hex character ed25519 public key>]");
+  const char* USAGE_PRINT_LNS_OWNERS_TO_NAMES_HASHES("print_lns_owners_to_names_hashes [<64 hex character ed25519 public key>]");
   const char* USAGE_PRINT_LNS_NAME_TO_OWNERS("print_lns_name_to_owners [type=<N1|all>[,<N2>...]] \"name\"");
 
 #if defined (LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
@@ -3231,7 +3231,7 @@ simple_wallet::simple_wallet()
 
   m_cmd_binder.set_handler("print_lns_owners_to_name_hashes",
                            boost::bind(&simple_wallet::print_lns_owners_to_name_hashes, this, _1),
-                           tr(USAGE_PRINT_LNS_OWNERS_TO_NAMES),
+                           tr(USAGE_PRINT_LNS_OWNERS_TO_NAMES_HASHES),
                            tr("Query the Loki Name Service names that the owners have purchased. If no keys are specified, it defaults to the current wallet."));
 
   m_cmd_binder.set_handler("print_lns_name_to_owners",
@@ -6761,7 +6761,7 @@ bool simple_wallet::print_lns_owners_to_name_hashes(const std::vector<std::strin
       }
     }
 
-    tools::msg_writer() << "owner=" << *owner << ", height=" << entry.register_height << ", name_hash=\"" << entry.name_hash << "\", value=" << entry.value << ", prev_txid=" << entry.prev_txid;
+    tools::msg_writer() << "owner=" << *owner << ", height=" << entry.register_height << ", name_hash=\"" << entry.name_hash << "\", encrypted_value=" << entry.encrypted_value << ", prev_txid=" << entry.prev_txid;
   }
   return true;
 }

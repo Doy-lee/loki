@@ -8551,13 +8551,6 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
                                                                     uint32_t account_index,
                                                                     std::set<uint32_t> subaddr_indices)
 {
-  if (!lns::validate_lns_name(type, name, reason))
-    return {};
-
-  lns::lns_value value_blob;
-  if (!lns::validate_lns_value(nettype(), type, value, &value_blob, reason))
-    return {};
-
   if (priority == tools::tx_priority_blink)
   {
     if (reason) *reason = "Can not request a blink TX for Loki Name Service transactions";
@@ -8579,12 +8572,34 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
     crypto_sign_ed25519_seed_keypair(pkey.data, skey.data, reinterpret_cast<const unsigned char *>(&m_account.get_keys().m_spend_secret_key));
   }
 
-  if (!lns::validate_lns_name(type, name, reason))
+  boost::optional<uint8_t> hf_version = get_hard_fork_version();
+  if (!hf_version)
+  {
+    if (reason) *reason = ERR_MSG_NETWORK_VERSION_QUERY_FAILED;
     return {};
+  }
 
-  lns::lns_value blob;
-  if (!lns::validate_lns_value(nettype(), type, value, &blob, reason))
-    return {};
+  lns::mapping_value encrypted_value = {};
+  {
+    if (!lns::validate_lns_name(type, name, reason))
+      return {};
+
+    if (!lns::mapping_type_allowed(*hf_version, type))
+    {
+      if (reason) *reason = "Mapping type=" + std::to_string(type) + ", not allowed";
+      return {};
+    }
+
+    lns::mapping_value blob = {};
+    if (!lns::validate_mapping_value(nettype(), type, value, &blob, reason))
+      return {};
+
+    if (!lns::encrypt_mapping_value(name, blob, encrypted_value))
+    {
+      if (reason) *reason = "Failed to encrypt LNS value=" + value;
+       return {};
+    }
+  }
 
   crypto::hash prev_txid = crypto::null_hash;
   {
@@ -8619,15 +8634,8 @@ std::vector<wallet2::pending_tx> wallet2::create_buy_lns_mapping_tx(uint16_t typ
     }
   }
 
-  boost::optional<uint8_t> hf_version = get_hard_fork_version();
-  if (!hf_version)
-  {
-    if (reason) *reason = ERR_MSG_NETWORK_VERSION_QUERY_FAILED;
-    return {};
-  }
-
   std::vector<uint8_t> extra;
-  tx_extra_loki_name_system entry(pkey, type, lns::name_to_hash(name), std::string(reinterpret_cast<char const *>(blob.buffer.data()), blob.len), prev_txid);
+  tx_extra_loki_name_system entry(pkey, type, lns::name_to_hash(name), encrypted_value.to_string(), prev_txid);
   add_loki_name_system_to_tx_extra(extra, entry);
 
   loki_construct_tx_params tx_params = wallet2::construct_params(*hf_version, txtype::loki_name_system, priority, lns::mapping_type_to_burn_type(static_cast<lns::mapping_type>(type)));

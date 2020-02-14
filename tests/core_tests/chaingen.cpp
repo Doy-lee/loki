@@ -284,7 +284,7 @@ void loki_chain_generator::add_tx(cryptonote::transaction const &tx, bool can_be
 cryptonote::transaction
 loki_chain_generator::create_and_add_loki_name_system_tx(cryptonote::account_base const &src,
                                                           uint16_t type,
-                                                          std::string const &value,
+                                                          lns::mapping_value const &value,
                                                           std::string const &name,
                                                           crypto::ed25519_public_key const *owner,
                                                           bool kept_by_block)
@@ -502,7 +502,7 @@ cryptonote::checkpoint_t loki_chain_generator::create_service_node_checkpoint(ui
 
 cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(cryptonote::account_base const &src,
                                                                          uint16_t type,
-                                                                         std::string const &value,
+                                                                         lns::mapping_value const &value,
                                                                          std::string const &name,
                                                                          crypto::ed25519_public_key const *owner,
                                                                          uint64_t burn) const
@@ -530,8 +530,12 @@ cryptonote::transaction loki_chain_generator::create_loki_name_system_tx(crypton
   if (lns::mapping_record mapping = lns_db_.get_mapping(type, name_hash))
     prev_txid = mapping.txid;
 
+  lns::mapping_value encrypted_value = {};
+  bool encrypted = lns::encrypt_mapping_value(name, value, encrypted_value);
+  assert(encrypted);
+
   std::vector<uint8_t> extra;
-  cryptonote::tx_extra_loki_name_system data(pkey, type, name_hash, value, prev_txid);
+  cryptonote::tx_extra_loki_name_system data(pkey, type, name_hash, encrypted_value.to_string(), prev_txid);
 
   cryptonote::add_loki_name_system_to_tx_extra(extra, data);
   cryptonote::add_burned_amount_to_tx_extra(extra, burn);
