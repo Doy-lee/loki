@@ -318,12 +318,14 @@ class Wallet(RPCDaemon):
         returns the 'result' key."""
         if blink and priority:
             raise RuntimeError("Wallet.transfer: priority and blink are mutually exclusive")
+        elif blink == True:
+            priority = 5
         elif priority is None:
             priority = 0
         if sweep and not amount:
-            r = self.json_rpc("sweep_all", {"address": to.address(), "priority": priority, "blink": blink})
+            r = self.json_rpc("sweep_all", {"address": to.address(), "priority": priority})
         elif amount and not sweep:
-            r = self.json_rpc("transfer_split", {"destinations": [{"address": to.address(), "amount": amount}], "priority": priority, "blink": blink})
+            r = self.json_rpc("transfer_split", {"destinations": [{"address": to.address(), "amount": amount}], "priority": priority})
         else:
             raise RuntimeError("Wallet.transfer: either `sweep` or `amount` must be given")
 
@@ -346,8 +348,8 @@ class Wallet(RPCDaemon):
     def register_sn(self, sn):
         r = sn.json_rpc("get_service_node_registration_cmd", {
             "operator_cut": "100",
-            "contributions": [{"address": self.address(), "amount": 100000000000}],
-            "staking_requirement": 100000000000
+            "contributions": [{"address": self.address(), "amount": 200000000000}],
+            "staking_requirement": 200000000000
         }).json()
         if 'error' in r:
             raise RuntimeError("Registration cmd generation failed: {}".format(r['error']['message']))

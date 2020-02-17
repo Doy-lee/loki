@@ -177,7 +177,7 @@ def test_blink_fail_mempool(net, mike, alice, bob):
 
     from daemons import TransferFailed
     with pytest.raises(TransferFailed, match='rejected by quorum') as exc_info:
-        double_spend = alice.transfer(bob, coins(5), blink=True)  # Has to spend the same input, since we only have one input
+        double_spend = alice.transfer(bob, coins(5), priority=True)  # Has to spend the same input, since we only have one input
 
 
 def test_blink_replacement(net, mike, alice, chuck, chuck_double_spend):
