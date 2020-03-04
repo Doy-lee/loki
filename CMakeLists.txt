@@ -357,6 +357,7 @@ endif()
 
 if (UNIX AND NOT APPLE)
   # Note that at the time of this writing the -Wstrict-prototypes flag added below will make this fail
+  set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
   set(THREADS_PREFER_PTHREAD_FLAG ON)
   find_package(Threads)
 endif()
