@@ -45,6 +45,7 @@ message(STATUS "CMake version ${CMAKE_VERSION}")
 
 project(loki)
 
+set(Boost_DEBUG ON)
 function (add_c_flag_if_supported flag var)
   string(REPLACE "-" "_" supported ${flag}_c)
   check_c_compiler_flag(${flag} ${supported})
@@ -370,6 +371,13 @@ endif()
 
 find_package(OpenSSL REQUIRED)
 message(STATUS "Using OpenSSL include dir at ${OPENSSL_INCLUDE_DIR}")
+
+# TODO(loki): This is a hack. When building with static OpenSSL 1.1.X on Windows we require linkage to Crypt32 and Ws2_32 on Windows.
+# So add the libraries here. Unbound requires this otherwise blockchain utilities fail to build.
+# See: https://gitlab.kitware.com/cmake/cmake/issues/19263
+if (MINGW AND DEPENDS)
+  set(OPENSSL_LIBRARIES ${OPENSSL_LIBRARIES} crypt32 ws2_32)
+endif()
 
 add_definition_if_library_exists(c memset_s "string.h" HAVE_MEMSET_S)
 add_definition_if_library_exists(c explicit_bzero "strings.h" HAVE_EXPLICIT_BZERO)
