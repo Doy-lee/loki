@@ -10,7 +10,7 @@ base_dir=`pwd`
 build_type=release # or debug
 android_api=21
 archs=(arm arm64 x86 x86_64)
-#archs=(x86)
+#archs=(arm64)
 
 orig_cxx_flags=$CXXFLAGS
 for arch in ${archs[@]}; do
@@ -43,10 +43,12 @@ for arch in ${archs[@]}; do
     esac
 
     OUTPUT_DIR=$base_dir/build/$build_type.$arch
+    rm -rf $OUTPUT_DIR
     mkdir -p $OUTPUT_DIR
     cd $OUTPUT_DIR
 
-    export PKG_CONFIG_PATH="/opt/android/build/libsodium/$arch/lib/pkgconfig:/opt/android/build/libzmq/$arch/lib/pkgconfig"
+    export PKG_CONFIG_PATH="/opt/android/build/libsodium/$arch/lib/pkgconfig:/opt/android/build/libzmq/$arch/lib/pkgconfig:/opt/android/build/sqlite/$arch/lib/pkgconfig"
+    export CPLUS_INCLUDE_PATH=$CPLUS_INCLUDE_PATH:/opt/android/build/boost/$arch/include
     PATH=/opt/android/tool/$arch/$target_host/bin:/opt/android/tool/$arch/bin:$PATH \
     CC=clang CXX=clang++ \
     cmake \
@@ -69,8 +71,9 @@ for arch in ${archs[@]}; do
        $extra_cmake_flags \
       ../..
 
-    make -j4 wallet_api
-    find . -path ./lib -prune -o -name '*.a' -exec cp '{}' lib \;
+    make -j24 wallet_api VERBOSE=1
+    mkdir -p $OUTPUT_DIR/lib
+    find $OUTPUT_DIR -name '*.a' -exec cp '{}' $OUTPUT_DIR/lib \;
 
     TARGET_LIB_DIR=/opt/android/build/monero/$arch/lib
     rm -rf $TARGET_LIB_DIR
