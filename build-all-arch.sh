@@ -72,13 +72,11 @@ for arch in ${archs[@]}; do
       ../..
 
     make -j24 wallet_api VERBOSE=1
-    mkdir -p $OUTPUT_DIR/lib
-    find $OUTPUT_DIR -name '*.a' -exec cp '{}' $OUTPUT_DIR/lib \;
 
     TARGET_LIB_DIR=/opt/android/build/monero/$arch/lib
     rm -rf $TARGET_LIB_DIR
     mkdir -p $TARGET_LIB_DIR
-    cp $OUTPUT_DIR/lib/*.a $TARGET_LIB_DIR
+    find $OUTPUT_DIR -name '*.a' -exec cp '{}' $TARGET_LIB_DIR \;
 
     TARGET_INC_DIR=/opt/android/build/monero/include
     rm -rf $TARGET_INC_DIR

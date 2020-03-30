@@ -479,6 +479,24 @@ else()
   elseif(IOS AND ARCH STREQUAL "arm64")
     message(STATUS "IOS: Changing arch from arm64 to armv8")
     set(ARCH_FLAG "-march=armv8")
+  elseif(ANDROID AND ARCH STREQUAL "armv8-a")
+
+    # Android Hack: Ideally we would keep the hacks out of cmake and in
+    # build-all-arch.sh, but setting armv8-a+crypto too early messes with the
+    # randomx build that needs arch to be exactly "armv8-a" to include and
+    # compile with jit_compiler_a64.* files.
+
+    # This is a hack because ideally we don't want to change target
+    # architectures on behalf of users if they set a architecture explicitly.
+    # Even if the architecture doesn't support it our PoW files don't properly
+    # use preprocessors to avoid linking against +crypto extensions like
+    # vaeseq_u8.
+
+    # Instead they want to link to the functions but at run-time query the CPU
+    # feature flags and use the software implementation otherwise.
+
+    message(STATUS "Android: Changing arch from armv8")
+    set(ARCH_FLAG "-march=armv8+crypto")
   elseif(IOS AND ARCH STREQUAL "x86_64")
     message(STATUS "IOS: Changing arch from x86_64 to x86-64")
     set(ARCH_FLAG "-march=x86-64")
