@@ -27,7 +27,7 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-add_library(cryptonote_core
+set (SOURCE_FILES
   blockchain.cpp
   cryptonote_core.cpp
   service_node_rules.cpp
@@ -39,8 +39,13 @@ add_library(cryptonote_core
   loki_name_system.cpp
   tx_pool.cpp
   tx_sanity_check.cpp
-  miner.cpp
   cryptonote_tx_utils.cpp)
+
+if (NOT (ANDROID OR IOS))
+  set(SOURCE_FILES miner.cpp ${SOURCE_FILES})
+endif()
+
+add_library(cryptonote_core ${SOURCE_FILES})
 
 target_link_libraries(cryptonote_core
   PUBLIC
