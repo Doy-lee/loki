@@ -68,7 +68,7 @@ add_dependencies(common generate_translations_header)
 
 target_link_libraries(common
   PUBLIC
-    Tracy
+    tracy
     cncrypto
     lokimq::lokimq
   PRIVATE

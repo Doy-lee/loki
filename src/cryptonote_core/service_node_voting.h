@@ -200,7 +200,7 @@ namespace service_nodes
     };
     std::vector<checkpoint_pool_entry> m_checkpoint_pool;
 
-    mutable TracyLockable(epee::critical_section, m_lock);
+    mutable epee::critical_section m_lock;
   };
 }; // namespace service_nodes
 

@@ -98,6 +98,7 @@ static char const *mapping_record_column_string(mapping_record_column col)
 
 std::string lns::mapping_value::to_readable_value(cryptonote::network_type nettype, lns::mapping_type type) const
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   std::string result;
   if (is_lokinet_type(type))
   {
@@ -128,6 +129,7 @@ namespace {
 
 std::string lns_extra_string(cryptonote::network_type nettype, cryptonote::tx_extra_loki_name_system const &data)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   std::stringstream stream;
   stream << "LNS Extra={";
   if (data.is_buying())
@@ -348,6 +350,7 @@ lokimq::string_view get_blob(sql_compiled_statement& s, I index)
 template <typename I>
 bool sql_copy_blob(sql_compiled_statement& statement, I column, void *dest, size_t dest_size)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   auto blob = get_blob(statement, column);
   if (blob.size() != dest_size)
   {
@@ -362,6 +365,7 @@ bool sql_copy_blob(sql_compiled_statement& statement, I column, void *dest, size
 
 mapping_record sql_get_mapping_from_statement(sql_compiled_statement& statement)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   mapping_record result = {};
   auto type_int = get<uint16_t>(statement, mapping_record_column::type);
   if (type_int >= tools::enum_count<mapping_type>)
@@ -414,6 +418,7 @@ mapping_record sql_get_mapping_from_statement(sql_compiled_statement& statement)
 
 bool sql_run_statement(lns_sql_type type, sql_compiled_statement& statement, void *context)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   assert(statement);
   bool data_loaded = false;
   bool result      = false;
@@ -523,6 +528,7 @@ bool mapping_record::active(cryptonote::network_type nettype, uint64_t blockchai
 
 bool sql_compiled_statement::compile(lokimq::string_view query, bool optimise_for_multiple_usage)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   sqlite3_stmt* st;
 #if SQLITE_VERSION_NUMBER >= 3020000
   int prepare_result = sqlite3_prepare_v3(nsdb.db, query.data(), query.size(), optimise_for_multiple_usage ? SQLITE_PREPARE_PERSISTENT : 0, &st, nullptr /*pzTail*/);
@@ -554,6 +560,7 @@ sql_compiled_statement::~sql_compiled_statement()
 
 sqlite3 *init_loki_name_system(char const *file_path)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   sqlite3 *result = nullptr;
   int sql_init    = sqlite3_initialize();
   if (sql_init != SQLITE_OK)
@@ -574,6 +581,7 @@ sqlite3 *init_loki_name_system(char const *file_path)
 
 uint64_t expiry_blocks(cryptonote::network_type nettype, mapping_type type, uint64_t *renew_window)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   uint64_t renew_window_ = 0;
   uint64_t result        = NO_EXPIRY;
   if (is_lokinet_type(type))
@@ -604,12 +612,14 @@ uint64_t expiry_blocks(cryptonote::network_type nettype, mapping_type type, uint
 
 static uint8_t *memcpy_helper(uint8_t *dest, void const *src, size_t size)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   memcpy(reinterpret_cast<uint8_t *>(dest), src, size);
   return dest + size;
 }
 
 static uint8_t *memcpy_generic_owner_helper(uint8_t *dest, lns::generic_owner const *owner)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   if (!owner) return dest;
 
   uint8_t *result = memcpy_helper(dest, reinterpret_cast<uint8_t const *>(&owner->type), sizeof(owner->type));
@@ -627,6 +637,7 @@ static uint8_t *memcpy_generic_owner_helper(uint8_t *dest, lns::generic_owner co
 
 crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> value, lns::generic_owner const *owner, lns::generic_owner const *backup_owner, crypto::hash const &prev_txid)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   static_assert(sizeof(crypto::hash) == crypto_generichash_BYTES, "Using libsodium generichash for signature hash, require we fit into crypto::hash");
   crypto::hash result = {};
   if (value.size() > mapping_value::BUFFER_SIZE)
@@ -657,6 +668,7 @@ crypto::hash tx_extra_signature_hash(epee::span<const uint8_t> value, lns::gener
 
 lns::generic_signature make_monero_signature(crypto::hash const &hash, crypto::public_key const &pkey, crypto::secret_key const &skey)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   lns::generic_signature result = {};
   result.type                   = lns::generic_owner_sig_type::monero;
   generate_signature(hash, pkey, skey, result.monero);
@@ -665,6 +677,7 @@ lns::generic_signature make_monero_signature(crypto::hash const &hash, crypto::p
 
 lns::generic_signature make_ed25519_signature(crypto::hash const &hash, crypto::ed25519_secret_key const &skey)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   lns::generic_signature result = {};
   result.type                   = lns::generic_owner_sig_type::ed25519;
   crypto_sign_detached(result.ed25519.data, NULL, reinterpret_cast<unsigned char const *>(hash.data), sizeof(hash), skey.data);
@@ -673,6 +686,7 @@ lns::generic_signature make_ed25519_signature(crypto::hash const &hash, crypto::
 
 lns::generic_owner make_monero_owner(cryptonote::account_public_address const &owner, bool is_subaddress)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   lns::generic_owner result   = {};
   result.type                 = lns::generic_owner_sig_type::monero;
   result.wallet.address       = owner;
@@ -682,6 +696,7 @@ lns::generic_owner make_monero_owner(cryptonote::account_public_address const &o
 
 lns::generic_owner make_ed25519_owner(crypto::ed25519_public_key const &pkey)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   lns::generic_owner result = {};
   result.type               = lns::generic_owner_sig_type::ed25519;
   result.ed25519            = pkey;
@@ -690,6 +705,7 @@ lns::generic_owner make_ed25519_owner(crypto::ed25519_public_key const &pkey)
 
 bool parse_owner_to_generic_owner(cryptonote::network_type nettype, std::string const &owner, generic_owner &result, std::string *reason)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   cryptonote::address_parse_info parsed_addr;
   crypto::ed25519_public_key ed_owner;
   if (cryptonote::get_account_address_from_str(parsed_addr, nettype, owner))
@@ -717,24 +733,28 @@ bool parse_owner_to_generic_owner(cryptonote::network_type nettype, std::string 
 
 static bool char_is_num(char c)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   bool result = c >= '0' && c <= '9';
   return result;
 }
 
 static bool char_is_alpha(char c)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   bool result = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
   return result;
 }
 
 static bool char_is_alphanum(char c)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   bool result = char_is_num(c) || char_is_alpha(c);
   return result;
 }
 
 template <typename... T>
 static bool check_condition(bool condition, std::string* reason, T&&... args) {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   if (condition && reason)
   {
     std::ostringstream os;
@@ -750,6 +770,7 @@ static bool check_condition(bool condition, std::string* reason, T&&... args) {
 
 bool validate_lns_name(mapping_type type, std::string name, std::string *reason)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   std::stringstream err_stream;
   LOKI_DEFER { if (reason) *reason = err_stream.str(); };
 
@@ -835,6 +856,7 @@ bool validate_lns_name(mapping_type type, std::string name, std::string *reason)
 
 static bool check_lengths(mapping_type type, std::string const &value, size_t max, bool binary_val, std::string *reason)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   bool result = (value.size() == max);
   if (!result)
   {
@@ -853,6 +875,7 @@ static bool check_lengths(mapping_type type, std::string const &value, size_t ma
 
 bool validate_mapping_value(cryptonote::network_type nettype, mapping_type type, std::string const &value, mapping_value *blob, std::string *reason)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   if (blob) *blob = {};
 
   // Check length of the value
@@ -948,6 +971,7 @@ bool validate_mapping_value(cryptonote::network_type nettype, mapping_type type,
 
 bool validate_encrypted_mapping_value(mapping_type type, std::string const &value, std::string *reason)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   std::stringstream err_stream;
   int max_value_len = crypto_secretbox_MACBYTES;
   if (is_lokinet_type(type)) max_value_len              += LOKINET_ADDRESS_BINARY_LENGTH;
@@ -970,12 +994,14 @@ bool validate_encrypted_mapping_value(mapping_type type, std::string const &valu
 
 static std::string hash_to_base64(crypto::hash const &hash)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   std::string result = epee::string_encoding::base64_encode(reinterpret_cast<unsigned char const *>(hash.data), sizeof(hash));
   return result;
 }
 
 static bool verify_lns_signature(crypto::hash const &hash, lns::generic_signature const &signature, lns::generic_owner const &owner)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   if (!owner || !signature) return false;
   if (owner.type != signature.type) return false;
   if (signature.type == lns::generic_owner_sig_type::monero)
@@ -990,6 +1016,7 @@ static bool verify_lns_signature(crypto::hash const &hash, lns::generic_signatur
 
 static bool validate_against_previous_mapping(lns::name_system_db &lns_db, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system const &lns_extra, std::string *reason = nullptr)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   std::stringstream err_stream;
   LOKI_DEFER { if (reason && reason->empty()) *reason = err_stream.str(); };
 
@@ -1005,6 +1032,7 @@ static bool validate_against_previous_mapping(lns::name_system_db &lns_db, uint6
     expected_prev_txid = mapping.txid;
     if (lns_extra.is_updating())
     {
+      ZoneUniqueNamedNC("Validate against previous mapping (LNS is updating)", loki::TRACE_LOKI_NAME_SYSTEM, true);
       if (check_condition(is_lokinet_type(lns_extra.type) && !mapping.active(lns_db.network_type(), blockchain_height), reason, tx, ", ", lns_extra_string(lns_db.network_type(), lns_extra), " TX requested to update mapping that has already expired"))
         return false;
 
@@ -1040,6 +1068,7 @@ static bool validate_against_previous_mapping(lns::name_system_db &lns_db, uint6
     }
     else
     {
+      ZoneUniqueNamedNC("Validate against previous mapping (LNS is buying)", loki::TRACE_LOKI_NAME_SYSTEM, true);
       if (!is_lokinet_type(lns_extra.type))
       {
         if (check_condition(true, reason, tx, ", ", lns_extra_string(lns_db.network_type(), lns_extra), " non-lokinet entries can NOT be renewed, mapping already exists with name_hash=", mapping.name_hash, ", owner=", mapping.owner.to_string(lns_db.network_type()), ", type=", mapping.type))
@@ -1088,11 +1117,13 @@ static bool validate_against_previous_mapping(lns::name_system_db &lns_db, uint6
 
 bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_height, cryptonote::transaction const &tx, cryptonote::tx_extra_loki_name_system *lns_extra, std::string *reason)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   // -----------------------------------------------------------------------------------------------
   // Pull out LNS Extra from TX
   // -----------------------------------------------------------------------------------------------
   cryptonote::tx_extra_loki_name_system lns_extra_;
   {
+    ZoneUniqueNamedNC("Get LNS Extra from TX", loki::TRACE_LOKI_NAME_SYSTEM, true);
     if (!lns_extra) lns_extra = &lns_extra_;
     if (check_condition(tx.type != cryptonote::txtype::loki_name_system, reason, tx, ", uses wrong tx type, expected=", cryptonote::txtype::loki_name_system))
       return false;
@@ -1106,6 +1137,7 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   // Check TX LNS Serialized Fields are NULL if they are not specified
   // -----------------------------------------------------------------------------------------------
   {
+    ZoneUniqueNamedNC("Serialized Field Check", loki::TRACE_LOKI_NAME_SYSTEM, true);
     char const VALUE_SPECIFIED_BUT_NOT_REQUESTED[] = ", given field but field is not requested to be serialised=";
     if (check_condition(!lns_extra->field_is_set(lns::extra_field::encrypted_value) && lns_extra->encrypted_value.size(), reason, tx, ", ", lns_extra_string(nettype, *lns_extra), VALUE_SPECIFIED_BUT_NOT_REQUESTED, "encrypted_value"))
       return false;
@@ -1124,6 +1156,7 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   // Simple LNS Extra Validation
   // -----------------------------------------------------------------------------------------------
   {
+    ZoneUniqueNamedNC("Simple LNS Validation", loki::TRACE_LOKI_NAME_SYSTEM, true);
     if (check_condition(lns_extra->version != 0, reason, tx, ", ", lns_extra_string(nettype, *lns_extra), " unexpected version=", std::to_string(lns_extra->version), ", expected=0"))
       return false;
 
@@ -1149,6 +1182,7 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   // LNS Field(s) Validation
   // -----------------------------------------------------------------------------------------------
   {
+    ZoneUniqueNamedNC("LNS Field validation", loki::TRACE_LOKI_NAME_SYSTEM, true);
     static const crypto::hash null_name_hash = name_to_hash(""); // Sanity check the empty name hash
     if (check_condition((lns_extra->name_hash == null_name_hash || lns_extra->name_hash == crypto::null_hash), reason, tx, ", ", lns_extra_string(nettype, *lns_extra), " specified the null name hash"))
         return false;
@@ -1167,6 +1201,7 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
   // Burn Validation
   // -----------------------------------------------------------------------------------------------
   {
+    ZoneUniqueNamedNC("Burn Validation", loki::TRACE_LOKI_NAME_SYSTEM, true);
     uint64_t burn                = cryptonote::get_burned_amount_from_tx_extra(tx.extra);
     uint64_t const burn_required = lns_extra->is_buying() ? burn_needed(hf_version, lns_extra->type) : 0;
     if (burn != burn_required)
@@ -1182,6 +1217,7 @@ bool name_system_db::validate_lns_tx(uint8_t hf_version, uint64_t blockchain_hei
 
 bool validate_mapping_type(std::string const &mapping_type_str, lns::mapping_type *mapping_type, std::string *reason)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   std::string mapping = tools::lowercase_ascii_string(mapping_type_str);
   lns::mapping_type mapping_type_;
   if (mapping == "session") mapping_type_ = lns::mapping_type::session;
@@ -1197,6 +1233,7 @@ bool validate_mapping_type(std::string const &mapping_type_str, lns::mapping_typ
 
 crypto::hash name_to_hash(std::string const &name)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   crypto::hash result = {};
   static_assert(sizeof(result) >= crypto_generichash_BYTES, "Sodium can generate arbitrary length hashes, but recommend the minimum size for a secure hash must be >= crypto_generichash_BYTES");
   crypto_generichash_blake2b(reinterpret_cast<unsigned char *>(result.data),
@@ -1210,6 +1247,7 @@ crypto::hash name_to_hash(std::string const &name)
 
 std::string name_to_base64_hash(std::string const &name)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   crypto::hash hash  = name_to_hash(name);
   std::string result = hash_to_base64(hash);
   return result;
@@ -1220,6 +1258,7 @@ using secretbox_secret_key = epee::mlocked<tools::scrubbed<secretbox_secret_key_
 
 static bool name_to_encryption_key(std::string const &name, secretbox_secret_key &out)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   static_assert(sizeof(out) >= crypto_secretbox_KEYBYTES, "Encrypting key needs to have sufficient space for running encryption functions via libsodium");
   static unsigned char constexpr SALT[crypto_pwhash_SALTBYTES] = {};
   bool result = (crypto_pwhash(out.data, sizeof(out), name.data(), name.size(), SALT, crypto_pwhash_OPSLIMIT_MODERATE, crypto_pwhash_MEMLIMIT_MODERATE, crypto_pwhash_ALG_ARGON2ID13) == 0);
@@ -1229,6 +1268,7 @@ static bool name_to_encryption_key(std::string const &name, secretbox_secret_key
 static unsigned char const ENCRYPTION_NONCE[crypto_secretbox_NONCEBYTES] = {}; // NOTE: Not meant to be extremely secure, just use an empty nonce
 bool encrypt_mapping_value(std::string const &name, mapping_value const &value, mapping_value &encrypted_value)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   static_assert(mapping_value::BUFFER_SIZE >= SESSION_PUBLIC_KEY_BINARY_LENGTH + crypto_secretbox_MACBYTES, "Value blob assumes the largest size required, all other values should be able to fit into this buffer");
   static_assert(mapping_value::BUFFER_SIZE >= LOKINET_ADDRESS_BINARY_LENGTH    + crypto_secretbox_MACBYTES, "Value blob assumes the largest size required, all other values should be able to fit into this buffer");
   static_assert(mapping_value::BUFFER_SIZE >= WALLET_ACCOUNT_BINARY_LENGTH     + crypto_secretbox_MACBYTES, "Value blob assumes the largest size required, all other values should be able to fit into this buffer");
@@ -1252,6 +1292,7 @@ bool encrypt_mapping_value(std::string const &name, mapping_value const &value, 
 
 bool decrypt_mapping_value(std::string const &name, mapping_value const &encrypted_value, mapping_value &value)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   bool result = false;
   if (encrypted_value.len <= crypto_secretbox_MACBYTES)
   {
@@ -1271,6 +1312,7 @@ bool decrypt_mapping_value(std::string const &name, mapping_value const &encrypt
 
 static bool build_default_tables(sqlite3 *db)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   constexpr char BUILD_TABLE_SQL[] = R"(
 CREATE TABLE IF NOT EXISTS "owner"(
     "id" INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1315,6 +1357,7 @@ CREATE INDEX IF NOT EXISTS "backup_owner_id_index" ON mappings("backup_owner_ind
 
 static std::string sql_cmd_combine_mappings_and_owner_table(char const *suffix = nullptr)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   std::stringstream stream;
   stream <<
 R"(SELECT "mappings".*, "o1"."address", "o2"."address" FROM "mappings"
@@ -1339,12 +1382,14 @@ struct scoped_db_transaction
 scoped_db_transaction::scoped_db_transaction(name_system_db &lns_db)
 : lns_db(lns_db)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   if (lns_db.transaction_begun)
   {
     MERROR("Failed to begin transaction, transaction exists previously that was not closed properly");
     return;
   }
 
+#if 0
   char *sql_err = nullptr;
   if (sqlite3_exec(lns_db.db, "BEGIN;", nullptr, nullptr, &sql_err) != SQLITE_OK)
   {
@@ -1352,6 +1397,7 @@ scoped_db_transaction::scoped_db_transaction(name_system_db &lns_db)
     sqlite3_free(sql_err);
     return;
   }
+#endif
 
   initialised              = true;
   lns_db.transaction_begun = true;
@@ -1359,6 +1405,7 @@ scoped_db_transaction::scoped_db_transaction(name_system_db &lns_db)
 
 scoped_db_transaction::~scoped_db_transaction()
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   if (!initialised) return;
   if (!lns_db.transaction_begun)
   {
@@ -1366,6 +1413,7 @@ scoped_db_transaction::~scoped_db_transaction()
     return;
   }
 
+#if 0
   char *sql_err = nullptr;
   if (sqlite3_exec(lns_db.db, commit ? "END;" : "ROLLBACK;", NULL, NULL, &sql_err) != SQLITE_OK)
   {
@@ -1373,6 +1421,7 @@ scoped_db_transaction::~scoped_db_transaction()
     sqlite3_free(sql_err);
     return;
   }
+#endif
 
   lns_db.transaction_begun = false;
 }
@@ -1382,6 +1431,7 @@ enum struct db_version { v0, v1_track_updates };
 auto constexpr DB_VERSION = db_version::v1_track_updates;
 bool name_system_db::init(cryptonote::Blockchain const *blockchain, cryptonote::network_type nettype, sqlite3 *db)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   if (!db) return false;
   this->db      = db;
   this->nettype = nettype;
@@ -1528,12 +1578,14 @@ AND NOT EXISTS   (SELECT * FROM "mappings" WHERE "owner"."id" = "mappings"."back
       }
     }
 
+#if 0
     if (settings.top_height == lns_height && settings.top_hash == lns_hash)
     {
       this->last_processed_height = settings.top_height;
       assert(settings.version == static_cast<int>(DB_VERSION));
     }
     else
+#endif
     {
       char constexpr DROP_TABLE_SQL[] = R"(DROP TABLE IF EXISTS "owner"; DROP TABLE IF EXISTS "settings"; DROP TABLE IF EXISTS "mappings")";
       sqlite3_exec(db, DROP_TABLE_SQL, nullptr /*callback*/, nullptr /*callback context*/, nullptr);
@@ -1553,6 +1605,7 @@ name_system_db::~name_system_db()
 
 static int64_t add_or_get_owner_id(lns::name_system_db &lns_db, crypto::hash const &tx_hash, cryptonote::tx_extra_loki_name_system const &entry, lns::generic_owner const &key)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   int64_t result = 0;
   if (owner_record owner = lns_db.get_owner_by_key(key)) result = owner.id;
   if (result == 0)
@@ -1568,6 +1621,7 @@ static int64_t add_or_get_owner_id(lns::name_system_db &lns_db, crypto::hash con
 
 static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptonote::tx_extra_loki_name_system const &entry, crypto::hash const &tx_hash)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   // -----------------------------------------------------------------------------------------------
   // New Mapping Insert or Completely Replace
   // -----------------------------------------------------------------------------------------------
@@ -1697,6 +1751,7 @@ static bool add_lns_entry(lns::name_system_db &lns_db, uint64_t height, cryptono
 
 bool name_system_db::add_block(const cryptonote::block &block, const std::vector<cryptonote::transaction> &txs)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   uint64_t height = cryptonote::get_block_height(block);
   if (last_processed_height >= height)
       return true;
@@ -1728,13 +1783,16 @@ bool name_system_db::add_block(const cryptonote::block &block, const std::vector
   }
 
   last_processed_height = height;
+#if 0
   save_settings(height, cryptonote::get_block_hash(block), static_cast<int>(DB_VERSION));
+#endif
   db_transaction.commit = true;
   return true;
 }
 
 static bool get_txid_lns_entry(cryptonote::Blockchain const &blockchain, crypto::hash txid, cryptonote::tx_extra_loki_name_system &extra)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   if (txid == crypto::null_hash) return false;
   std::vector<cryptonote::transaction> txs;
   std::vector<crypto::hash> missed_txs;
@@ -1756,6 +1814,7 @@ struct lns_update_history
 
 void lns_update_history::update(uint64_t height, cryptonote::tx_extra_loki_name_system const &lns_extra)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   if (lns_extra.field_is_set(lns::extra_field::encrypted_value))
     value_last_update_height = height;
 
@@ -1781,6 +1840,7 @@ struct replay_lns_tx
 
 static std::vector<replay_lns_tx> find_lns_txs_to_replay(cryptonote::Blockchain const &blockchain, lns::mapping_record const &mapping, uint64_t blockchain_height)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   /*
      Detach Logic
      -----------------------------------------------------------------------------------------------
@@ -1844,6 +1904,7 @@ static std::vector<replay_lns_tx> find_lns_txs_to_replay(cryptonote::Blockchain 
 
 void name_system_db::block_detach(cryptonote::Blockchain const &blockchain, uint64_t new_blockchain_height)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   std::vector<mapping_record> new_mappings = {};
   bind_and_run(lns_sql_type::get_mappings_on_height_and_newer, get_mappings_on_height_and_newer_sql, &new_mappings,
       new_blockchain_height);
@@ -1866,6 +1927,7 @@ void name_system_db::block_detach(cryptonote::Blockchain const &blockchain, uint
 
 bool name_system_db::save_owner(lns::generic_owner const &owner, int64_t *row_id)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   bool result = bind_and_run(lns_sql_type::save_owner, save_owner_sql, nullptr,
       blob_view{reinterpret_cast<const char*>(&owner), sizeof(owner)});
 
@@ -1875,6 +1937,7 @@ bool name_system_db::save_owner(lns::generic_owner const &owner, int64_t *row_id
 
 bool name_system_db::save_mapping(crypto::hash const &tx_hash, cryptonote::tx_extra_loki_name_system const &src, uint64_t height, int64_t owner_id, int64_t backup_owner_id)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   if (!src.is_buying())
     return false;
 
@@ -1900,6 +1963,7 @@ bool name_system_db::save_mapping(crypto::hash const &tx_hash, cryptonote::tx_ex
 
 bool name_system_db::save_settings(uint64_t top_height, crypto::hash const &top_hash, int version)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   auto& statement = save_settings_sql;
   bind(statement, lns_db_setting_column::top_height, top_height);
   bind(statement, lns_db_setting_column::top_hash, blob_view{top_hash.data, sizeof(top_hash)});
@@ -1910,6 +1974,7 @@ bool name_system_db::save_settings(uint64_t top_height, crypto::hash const &top_
 
 bool name_system_db::prune_db(uint64_t height)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   if (!bind_and_run(lns_sql_type::pruning, prune_mappings_sql, nullptr, height)) return false;
   if (!sql_run_statement(lns_sql_type::pruning, prune_owners_sql, nullptr)) return false;
 
@@ -1919,6 +1984,7 @@ bool name_system_db::prune_db(uint64_t height)
 
 owner_record name_system_db::get_owner_by_key(lns::generic_owner const &owner)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   owner_record result = {};
   result.loaded       = bind_and_run(lns_sql_type::get_owner, get_owner_by_key_sql, &result,
       blob_view{reinterpret_cast<const char*>(&owner), sizeof(owner)});
@@ -1927,6 +1993,7 @@ owner_record name_system_db::get_owner_by_key(lns::generic_owner const &owner)
 
 owner_record name_system_db::get_owner_by_id(int64_t owner_id)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   owner_record result = {};
   result.loaded       = bind_and_run(lns_sql_type::get_owner, get_owner_by_id_sql, &result,
       owner_id);
@@ -1935,6 +2002,7 @@ owner_record name_system_db::get_owner_by_id(int64_t owner_id)
 
 mapping_record name_system_db::get_mapping(mapping_type type, std::string const &name_base64_hash)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   mapping_record result = {};
   result.loaded         = bind_and_run(lns_sql_type::get_mapping, get_mapping_sql, &result,
       static_cast<uint16_t>(type), name_base64_hash);
@@ -1943,6 +2011,7 @@ mapping_record name_system_db::get_mapping(mapping_type type, std::string const 
 
 std::vector<mapping_record> name_system_db::get_mappings(std::vector<uint16_t> const &types, std::string const &name_base64_hash)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   std::vector<mapping_record> result;
   if (types.empty())
     return result;
@@ -1979,6 +2048,7 @@ std::vector<mapping_record> name_system_db::get_mappings(std::vector<uint16_t> c
 
 std::vector<mapping_record> name_system_db::get_mappings_by_owners(std::vector<generic_owner> const &owners)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   std::string sql_statement;
   // Generate string statement
   {
@@ -2017,6 +2087,7 @@ std::vector<mapping_record> name_system_db::get_mappings_by_owners(std::vector<g
 
 std::vector<mapping_record> name_system_db::get_mappings_by_owner(generic_owner const &owner)
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   std::vector<mapping_record> result = {};
   blob_view ownerblob{reinterpret_cast<const char*>(&owner), sizeof(owner)};
   bind_and_run(lns_sql_type::get_mappings_by_owner, get_mappings_by_owner_sql, &result,
@@ -2026,6 +2097,7 @@ std::vector<mapping_record> name_system_db::get_mappings_by_owner(generic_owner 
 
 settings_record name_system_db::get_settings()
 {
+  ZoneScopedC(loki::TRACE_LOKI_NAME_SYSTEM);
   settings_record result  = {};
   result.loaded           = sql_run_statement(lns_sql_type::get_setting, get_settings_sql, &result);
   return result;

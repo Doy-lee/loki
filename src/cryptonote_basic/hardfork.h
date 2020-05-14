@@ -280,7 +280,7 @@ namespace cryptonote
     unsigned int last_versions[256]; /* count of the block versions in the last N blocks */
     uint32_t current_fork_index;
 
-    mutable TracyLockable(epee::critical_section, lock);
+    mutable epee::critical_section lock;
   };
 
 }  // namespace cryptonote
