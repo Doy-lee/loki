@@ -30,12 +30,14 @@
 
 #pragma once
 #include "serialization/keyvalue_serialization.h"
+#include "common/loki.h"
 
 namespace cryptonote
 {
   /************************************************************************/
   /*                                                                      */
   /************************************************************************/
+  LOKI_RPC_DOC_INTROSPECT
   struct vote_verification_context
   {
     bool m_verification_failed;
@@ -65,6 +67,7 @@ namespace cryptonote
     END_KV_SERIALIZE_MAP()
   };
 
+  LOKI_RPC_DOC_INTROSPECT
   struct tx_verification_context
   {
     bool m_should_be_relayed;

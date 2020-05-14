@@ -33,6 +33,7 @@
 #include <string>
 #include <vector>
 #include "crypto/hash.h"
+#include "common/loki.h"
 
 namespace cryptonote
 {
@@ -41,6 +42,7 @@ class core;
 namespace rpc
 {
 
+LOKI_RPC_DOC_INTROSPECT
 struct output_distribution_data
 {
   std::vector<std::uint64_t> distribution;

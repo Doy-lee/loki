@@ -55,6 +55,7 @@ namespace cryptonote
   /************************************************************************/
   /* P2P connection info, serializable to json                            */
   /************************************************************************/
+  LOKI_RPC_DOC_INTROSPECT
   struct connection_info
   {
     bool incoming;
