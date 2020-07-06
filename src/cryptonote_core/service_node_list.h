@@ -300,7 +300,6 @@ namespace service_nodes
   {
     cryptonote::account_public_address address;
     uint64_t portions;
-
     constexpr bool operator==(const payout_entry& x) const { return portions == x.portions && address == x.address; }
   };
 
@@ -308,8 +307,6 @@ namespace service_nodes
   {
     crypto::public_key key;
     std::vector<payout_entry> payouts;
-
-    bool operator==(const block_winner& x) const { return key == x.key && payouts == x.payouts; }
   };
 
   /// Collection of keys used by a service node
