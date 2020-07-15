@@ -968,6 +968,16 @@ namespace cryptonote
         if (block_producer != m_service_keys.pub)
           return;
 
+        std::vector<service_nodes::service_node_pubkey_info> list_state = m_service_node_list.get_service_node_list_state({block_producer});
+        if (list_state.empty())
+            return;
+
+        std::shared_ptr<const service_nodes::service_node_info> info = list_state[0].info;
+        if (!info->is_active())
+            return;
+
+        service_nodes::payout block_producer_payouts = service_nodes::service_node_info_to_payout(block_producer, *info);
+
 #if 0
         struct pulse_candidate_block
         {
