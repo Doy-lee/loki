@@ -918,10 +918,10 @@ namespace cryptonote
       }
     }
 
+    if (m_service_node)
     {
       m_lmq->add_timer([this]() {
         // NOTE: Check we are at HF16
-        constexpr auto PULSE_TIME_PER_BLOCK = 2min;
         static uint64_t hf16_height = HardFork::get_hardcoded_hard_fork_height(m_nettype, cryptonote::network_version_16);
 
         uint64_t base_pulse_block_height = std::max(hf16_height, m_last_miner_block.load());
@@ -938,15 +938,15 @@ namespace cryptonote
         uint64_t next_block_height = m_blockchain_storage.get_current_blockchain_height();
         uint64_t delta_height      = next_block_height - base_pulse_block_height;
 
-        auto const next_block_round_0_timestamp = base_pulse_block_timestamp + (delta_height * PULSE_TIME_PER_BLOCK);
+        auto const next_block_round_0_timestamp = base_pulse_block_timestamp + (delta_height * service_nodes::PULSE_TIME_PER_BLOCK);
         auto const now = std::chrono::system_clock::now();
         if (now < next_block_round_0_timestamp)
           return;
 
         auto const time_since_round_0 = now - next_block_round_0_timestamp;
-        size_t pulse_round_usize      = time_since_round_0 / PULSE_TIME_PER_BLOCK;
+        size_t pulse_round_usize      = time_since_round_0 / service_nodes::PULSE_TIME_PER_BLOCK;
         uint8_t pulse_round           = static_cast<uint8_t>(pulse_round_usize);
-        assert(pulse_round_usize < static_cast<uint8_t>(-1));
+        // assert(pulse_round_usize < static_cast<uint8_t>(-1));
 
         uint64_t height                    = next_block_height - 1;
         service_nodes::payout block_leader = m_service_node_list.get_block_leader();
@@ -977,28 +977,19 @@ namespace cryptonote
             return;
 
         service_nodes::payout block_producer_payouts = service_nodes::service_node_info_to_payout(block_producer, *info);
+        cryptonote::block block = {};
+        uint64_t expected_reward = 0;
+        m_blockchain_storage.create_next_pulse_block_template(block, block_producer_payouts, height, expected_reward);
+
+        block_verification_context bvc = {};
+        handle_block_found(block, bvc);
 
 #if 0
-        struct pulse_candidate_block
-        {
-          cryptonote::block block;
-          crypto::signature signature;
-        };
-        pulse_candidate_block candidate_block = {};
-
-        // NOTE: Get Block Template
-        cryptonote::account_public_address null_address = {};
-        cryptonote::difficulty_type difficulty          = {};
-        height                                          = 0;
-        uint64_t expected_reward                        = 0;
-        if (!m_blockchain_storage.create_block_template(candidate_block.block, null_address, difficulty, height, expected_reward, /*blobdata*/{}))
-          return;
-
-        // NOTE: Sign Block Template 
+        // NOTE: Sign Block Template
         crypto::hash hash;
         crypto::signature signature;
 
-        blobdata blob = block_to_blob(candidate_block.block);
+        blobdata blob = block_to_blob(block);
         crypto::cn_fast_hash(blob.data(), blob.size(), hash.data);
         crypto::generate_signature(hash, m_service_keys.pub, m_service_keys.key, candidate_block.signature);
 #endif
@@ -1943,14 +1934,14 @@ namespace cryptonote
     m_quorum_cop.set_votes_relayed(votes);
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::get_next_block_template(block& b, const account_public_address& adr, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce)
+  bool core::create_next_miner_block_template(block& b, const account_public_address& adr, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce)
   {
-    return m_blockchain_storage.create_next_block_template(b, adr, diffic, height, expected_reward, ex_nonce);
+    return m_blockchain_storage.create_next_miner_block_template(b, adr, diffic, height, expected_reward, ex_nonce);
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::get_block_template(block& b, const crypto::hash *prev_block, const account_public_address& adr, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce)
+  bool core::create_miner_block_template(block& b, const crypto::hash *prev_block, const account_public_address& adr, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce)
   {
-    return m_blockchain_storage.create_block_template(b, prev_block, adr, diffic, height, expected_reward, ex_nonce);
+    return m_blockchain_storage.create_miner_block_template(b, prev_block, adr, diffic, height, expected_reward, ex_nonce);
   }
   //-----------------------------------------------------------------------------------------------
   bool core::find_blockchain_supplement(const std::list<crypto::hash>& qblock_ids, NOTIFY_RESPONSE_CHAIN_ENTRY::request& resp) const
