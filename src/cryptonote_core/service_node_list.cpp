@@ -2011,7 +2011,7 @@ namespace service_nodes
       {
         if (pulse_quorum.workers.empty())
         {
-          MERROR("The block specified pulse signatures but there is no block producer for this height: " << height);
+          MERROR("The block specified pulse signatures but there is no producer specified in the Pulse Quorum for this height: " << height);
           return false;
         }
 
@@ -2045,7 +2045,7 @@ namespace service_nodes
       auto info_it = m_state.service_nodes_infos.find(block_producer_key);
       if (info_it == m_state.service_nodes_infos.end())
       {
-        MERROR("Block producer is not a Service Node: " << block_producer_key);
+        MERROR("The pulse block producer for round: " << +block.pulse.round << " is not currently a Service Node: " << block_producer_key);
         return false;
       }
 
@@ -2063,7 +2063,10 @@ namespace service_nodes
 
     if (miner_tx.vout.size() != expected_vouts_size)
     {
-      MERROR("Miner TX specifies a different amount of outputs vs the expected: " << expected_vouts_size << ", miner tx outputs: " << miner_tx.vout.size());
+      char const *type = mode == verify_mode::miner
+                             ? "miner"
+                             : mode == verify_mode::pulse_block_leader_is_producer ? "pulse" : "pulse alt round";
+      MERROR("Expected " << type << " block, the miner TX specifies a different amount of outputs vs the expected: " << expected_vouts_size << ", miner tx outputs: " << miner_tx.vout.size());
       return false;
     }
 
