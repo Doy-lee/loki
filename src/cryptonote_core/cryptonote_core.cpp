@@ -70,7 +70,6 @@ extern "C" {
 #include "memwipe.h"
 #include "common/i18n.h"
 #include "net/local_ip.h"
-#include "cryptonote_protocol/quorumnet.h"
 
 #include "common/loki_integration_test_hooks.h"
 
@@ -282,6 +281,13 @@ namespace cryptonote
   quorumnet_delete_proc *quorumnet_delete = [](void*&) { need_core_init(); };
   quorumnet_relay_obligation_votes_proc *quorumnet_relay_obligation_votes = [](void*, const std::vector<service_nodes::quorum_vote_t>&) { need_core_init(); };
   quorumnet_send_blink_proc *quorumnet_send_blink = [](core&, const std::string&) -> std::future<std::pair<blink_result, std::string>> { need_core_init(); };
+
+  quorumnet_send_pulse_validator_handshake_bit_proc    *quorumnet_send_pulse_validator_handshake_bit = [](void *, service_nodes::quorum const &, crypto::hash const &) -> void { need_core_init(); };
+  quorumnet_send_pulse_validator_handshake_bitset_proc *quorumnet_send_pulse_validator_handshake_bitset = [](void *, service_nodes::quorum const &, crypto::hash const &, uint16_t) -> void { need_core_init(); };
+
+  quorumnet_pulse_pump_messages_proc *quorumnet_pulse_pump_messages = [](void*, pulse::message &, pulse::time_point) -> bool { need_core_init();  return false; };
+
+  quorumnet_pulse_relay_message_to_quorum_proc *quorumnet_pulse_relay_message_to_quorum = [](void *, pulse::message const &, service_nodes::quorum const &) -> void { need_core_init(); };
 
   //-----------------------------------------------------------------------------------------------
   core::core()
@@ -911,84 +917,6 @@ namespace cryptonote
       }
     }
 
-    if (m_service_node)
-    {
-      m_lmq->add_timer([this]() {
-        // NOTE: Check we are at HF16
-        static uint64_t hf16_height = HardFork::get_hardcoded_hard_fork_height(m_nettype, cryptonote::network_version_16);
-
-        uint64_t base_pulse_block_height = std::max(hf16_height, m_last_miner_block.load());
-        std::chrono::time_point<std::chrono::system_clock> base_pulse_block_timestamp;
-        {
-          std::vector<std::pair<cryptonote::blobdata, block>> block;
-          if (!get_blocks(base_pulse_block_height, 1, block))
-            return;
-
-          base_pulse_block_timestamp = std::chrono::time_point<std::chrono::system_clock>(std::chrono::seconds(block[0].second.timestamp));
-        }
-
-        // NOTE: Calculate next pulse block timestamp
-        uint64_t next_block_height = m_blockchain_storage.get_current_blockchain_height();
-        uint64_t delta_height      = next_block_height - base_pulse_block_height;
-
-        auto const next_block_round_0_timestamp = base_pulse_block_timestamp + (delta_height * service_nodes::PULSE_TIME_PER_BLOCK);
-        auto const now = std::chrono::system_clock::now();
-        if (now < next_block_round_0_timestamp)
-          return;
-
-        auto const time_since_round_0 = now - next_block_round_0_timestamp;
-        size_t pulse_round_usize      = time_since_round_0 / service_nodes::PULSE_TIME_PER_BLOCK;
-        uint8_t pulse_round           = static_cast<uint8_t>(pulse_round_usize);
-        // assert(pulse_round_usize < static_cast<uint8_t>(-1));
-
-        uint64_t height                    = next_block_height - 1;
-        service_nodes::payout block_leader = m_service_node_list.get_block_leader();
-        service_nodes::quorum quorum =
-            service_nodes::generate_pulse_quorum(m_nettype,
-                                                 m_blockchain_storage.get_db(),
-                                                 height,
-                                                 block_leader.key,
-                                                 m_blockchain_storage.get_current_hard_fork_version(),
-                                                 m_service_node_list.active_service_nodes_infos(),
-                                                 pulse_round);
-
-        // NOTE: Insufficient Service Nodes for quorum
-        if (!service_nodes::verify_pulse_quorum_sizes(quorum))
-          return;
-
-        // NOTE: Check if we are the block producer, if so, produce a template
-        crypto::public_key const &block_producer = quorum.workers[0];
-        if (block_producer != m_service_keys.pub)
-          return;
-
-        std::vector<service_nodes::service_node_pubkey_info> list_state = m_service_node_list.get_service_node_list_state({block_producer});
-        if (list_state.empty())
-            return;
-
-        std::shared_ptr<const service_nodes::service_node_info> info = list_state[0].info;
-        if (!info->is_active())
-            return;
-
-        service_nodes::payout block_producer_payouts = service_nodes::service_node_info_to_payout(block_producer, *info);
-        cryptonote::block block = {};
-        uint64_t expected_reward = 0;
-        m_blockchain_storage.create_next_pulse_block_template(block, block_producer_payouts, height, expected_reward);
-
-        block_verification_context bvc = {};
-        handle_block_found(block, bvc);
-
-#if 0
-        // NOTE: Sign Block Template
-        crypto::hash hash;
-        crypto::signature signature;
-
-        blobdata blob = block_to_blob(block);
-        crypto::cn_fast_hash(blob.data(), blob.size(), hash.data);
-        crypto::generate_signature(hash, m_service_keys.pub, m_service_keys.key, candidate_block.signature);
-#endif
-      }, 5s);
-    }
-
     return true;
   }
 
@@ -1188,7 +1116,18 @@ namespace cryptonote
 
   void core::start_lokimq() {
       update_lmq_sns(); // Ensure we have SNs set for the current block before starting
-      m_lmq->start();
+
+      if (m_service_node)
+      {
+        m_blockchain_storage.hook_block_added(m_pulse_state);
+        lokimq::TaggedThreadID pulse_thread_id = m_lmq->add_tagged_thread("pulse");
+        m_lmq->start();
+        m_lmq->job([this]() { pulse::main(m_pulse_state, m_quorumnet_state, *this); }, pulse_thread_id);
+      }
+      else
+      {
+        m_lmq->start();
+      }
   }
 
   //-----------------------------------------------------------------------------------------------
@@ -2063,8 +2002,6 @@ namespace cryptonote
       // TODO(loki): PERF(loki): This causes perf problems in integration mode, so in real-time operation it may not be
       // noticeable but could bubble up and cause slowness if the runtime variables align up undesiredly.
       relay_service_node_votes(); // NOTE: nop if synchronising due to not accepting votes whilst syncing
-      if (b.signatures.empty())
-        m_last_miner_block = cryptonote::get_block_height(b);
     }
     return result;
   }
