@@ -84,15 +84,6 @@ namespace cryptonote
     void do_print_hashrate(bool do_hr);
     uint64_t get_block_reward() const { return m_block_reward; }
 
-    std::atomic<bool> m_debug_mine_singular_block;
-    bool debug_mine_singular_block(const account_public_address& adr)
-    {
-      m_debug_mine_singular_block = true;
-      bool result = start(adr, 1 /*thread_counts*/);
-      while(is_mining()) { }
-      return result;
-    }
-
   private:
     bool worker_thread(bool slow_mining = false);
     bool request_block_template();
@@ -111,6 +102,7 @@ namespace cryptonote
 
     std::atomic<bool> m_stop;
     uint64_t m_stop_height = std::numeric_limits<uint64_t>::max();
+    std::condition_variable m_stop_height_wakeup_cv;
     std::mutex m_template_lock;
     block m_template;
     std::atomic<uint32_t> m_template_no;

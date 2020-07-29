@@ -335,9 +335,6 @@ namespace cryptonote
     m_stop = false;
     m_thread_index = 0;
     m_stop_height = stop_after ? m_height + stop_after : std::numeric_limits<uint64_t>::max();
-    if (stop_after)
-      MGINFO("Mining until height " << m_stop_height);
-    
     for(size_t i = 0; i != m_threads_total; i++)
     {
       m_threads.emplace_back([=] { return worker_thread(slow_mining); });
@@ -347,6 +344,14 @@ namespace cryptonote
       MINFO("Mining has started, autodetecting optimal number of threads, good luck!" );
     else
       MINFO("Mining has started with " << threads_count << " threads, good luck!" );
+
+    if (stop_after)
+    {
+      MGINFO("Mining until height " << m_stop_height);
+      m_stop_height_wakeup_cv.wait(lock, [this]() { return m_stop.load(); });
+      lock.unlock();
+      stop();
+    }
 
     return true;
   }
@@ -449,10 +454,6 @@ namespace cryptonote
     block b;
     rx_slow_hash_allocate_state();
     ++m_threads_active;
-    bool call_stop = false;
-#if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
-    call_stop = true;
-#endif
 
     while(!m_stop)
     {
@@ -482,11 +483,7 @@ namespace cryptonote
       }
 
       if (height >= m_stop_height)
-      {
-        m_stop = true;
-        call_stop = true;
         break;
-      }
 
       b.nonce = nonce;
       crypto::hash h;
@@ -507,14 +504,6 @@ namespace cryptonote
           if (!m_config_folder_path.empty())
             epee::serialization::store_t_to_json_file(m_config, m_config_folder_path + "/" + MINER_CONFIG_FILE_NAME);
         }
-
-#if defined(LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
-        if (m_debug_mine_singular_block)
-        {
-          m_debug_mine_singular_block = false;
-          break;
-        }
-#endif
       }
 
       nonce+=m_threads_total;
@@ -523,9 +512,11 @@ namespace cryptonote
     }
     rx_slow_hash_free_state();
     MGINFO("Miner thread stopped ["<< th_local_index << "]");
-    --m_threads_active;
-    if (call_stop)
-      stop();
+    if (--m_threads_active == 0)
+    {
+      m_stop = true;
+      m_stop_height_wakeup_cv.notify_one();
+    }
     return true;
   }
 }

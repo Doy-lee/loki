@@ -287,15 +287,11 @@ namespace cryptonote { namespace rpc {
         return;
       }
 
-      for (uint64_t i = 0; i < num_blocks; i++)
+      if (!miner.start(info.address, 1, num_blocks))
       {
-        if(!miner.debug_mine_singular_block(info.address))
-        {
-          std::cout << "Failed, mining not started";
-          return;
-        }
+        std::cout << "Failed, mining not started";
+        return;
       }
-
       std::cout << "Mining stopped in daemon";
     }
 #endif
