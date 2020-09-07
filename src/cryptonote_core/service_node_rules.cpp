@@ -18,8 +18,13 @@ uint64_t get_staking_requirement(cryptonote::network_type m_nettype, uint64_t he
 
   // For devnet we use the 10% of mainnet requirement at height (650k + H) so that we follow the
   // same linear approximation but stay a bit ahead of it (devnet launched at ~600k mainnet height).
+#if 0
   if (m_nettype == cryptonote::DEVNET)
       return get_staking_requirement(cryptonote::MAINNET, 600000 + height, hf_version) / 10;
+#else
+  if (m_nettype == cryptonote::DEVNET)
+      return COIN * 100;
+#endif
 
   if (hf_version >= cryptonote::network_version_13_enforce_checkpoints)
   {

@@ -65,7 +65,7 @@ namespace {
 
   std::string input_line(std::string const &prompt)
   {
-    std::cout << prompt << std::flush;
+    std::cout << prompt << std::endl;
     std::string result;
 #if defined (LOKI_ENABLE_INTEGRATION_TEST_HOOKS)
     integration_test::write_buffered_stdout();
