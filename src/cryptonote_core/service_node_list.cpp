@@ -1933,6 +1933,8 @@ namespace service_nodes
                                                      const std::vector<cryptonote::transaction> &txs,
                                                      const service_node_keys *my_keys)
   {
+    MGINFO_RED("DUMPING BLOCK !!!!!!!!!!!!!!!!!!\n" << cryptonote::obj_to_json_str((cryptonote::block&)block));
+
     ++height;
     bool need_swarm_update = false;
     uint64_t block_height  = cryptonote::get_block_height(block);
@@ -1940,8 +1942,6 @@ namespace service_nodes
     quorums                  = {};
     block_hash               = cryptonote::get_block_hash(block);
     uint8_t const hf_version = block.major_version;
-
-    MGINFO_RED("DUMPING BLOCK !!!!!!!!!!!!!!!!!!\n" << cryptonote::obj_to_json_str((cryptonote::block&)block));
 
     //
     // Generate Pulse Quorum before any SN changes are applied to the list because,
