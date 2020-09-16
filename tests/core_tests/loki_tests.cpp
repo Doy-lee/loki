@@ -3099,7 +3099,6 @@ bool loki_pulse_fallback_to_pow_and_back::generate(std::vector<test_event_entry>
     gen.create_and_add_next_block({tx});
   }
 
-#if 0
   gen.add_event_msg("Check that we accept a PoW block");
   {
     loki_create_block_params block_params = gen.next_block_params();
@@ -3107,9 +3106,12 @@ bool loki_pulse_fallback_to_pow_and_back::generate(std::vector<test_event_entry>
 
     loki_blockchain_entry entry = {};
     assert(gen.create_block(entry, block_params, {}));
+#if 0
     gen.add_block(entry, true, "Can add a Miner block, we have insufficient nodes for Pulse so we fall back to PoW blocks.");
+#endif
   }
 
+#if 0
   loki_register_callback(events, "check_no_pulse_quorum_exists", [](cryptonote::core &c, size_t ev_index)
   {
     DEFINE_TESTS_ERROR_CONTEXT("check_no_pulse_quorum_exists");
