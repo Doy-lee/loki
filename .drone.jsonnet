@@ -174,39 +174,30 @@ local static_build_deps='autoconf automake make qttools5-dev file libtool gperf 
 [
     // Various debian builds
     debian_pipeline("Debian (w/ tests) (amd64)", "debian:testing", lto=true, run_tests=true),
-    debian_pipeline("Debian Debug (amd64)", "debian:testing", build_type='Debug'),
-    debian_pipeline("Debian clang-10 (amd64)", "debian:testing", deps='clang-10 '+default_deps_base,
-                    cmake_extra='-DCMAKE_C_COMPILER=clang-10 -DCMAKE_CXX_COMPILER=clang++-10 ', lto=true),
-    debian_pipeline("Debian gcc-10 (amd64)", "debian:testing", deps='g++-10 '+default_deps_base,
-                    cmake_extra='-DCMAKE_C_COMPILER=gcc-10 -DCMAKE_CXX_COMPILER=g++-10 -DBUILD_DEBUG_UTILS=ON'),
-    debian_pipeline("Debian buster (i386)", "i386/debian:buster", cmake_extra='-DDOWNLOAD_SODIUM=ON -DARCH_ID=i386'),
-    debian_pipeline("Ubuntu focal (amd64)", "ubuntu:focal"),
+    // debian_pipeline("Debian Debug (amd64)", "debian:testing", build_type='Debug'),
+    // debian_pipeline("Debian clang-10 (amd64)", "debian:testing", deps='clang-10 '+default_deps_base, cmake_extra='-DCMAKE_C_COMPILER=clang-10 -DCMAKE_CXX_COMPILER=clang++-10 ', lto=true),
+    // debian_pipeline("Debian gcc-10 (amd64)", "debian:testing", deps='g++-10 '+default_deps_base, cmake_extra='-DCMAKE_C_COMPILER=gcc-10 -DCMAKE_CXX_COMPILER=g++-10 -DBUILD_DEBUG_UTILS=ON'),
+    // debian_pipeline("Debian buster (i386)", "i386/debian:buster", cmake_extra='-DDOWNLOAD_SODIUM=ON -DARCH_ID=i386'),
+    // debian_pipeline("Ubuntu focal (amd64)", "ubuntu:focal"),
 
     // ARM builds (ARM64 and armhf)
-    debian_pipeline("Ubuntu bionic (ARM64)", "ubuntu:bionic", arch="arm64", build_tests=false, deps='g++-8 ' + default_deps_base,
-                    cmake_extra='-DCMAKE_C_COMPILER=gcc-8 -DCMAKE_CXX_COMPILER=g++-8 -DDOWNLOAD_SODIUM=ON'),
-    debian_pipeline("Debian (ARM64)", "debian:testing", arch="arm64", build_tests=false),
-    debian_pipeline("Debian buster (armhf)", "arm32v7/debian:buster", arch="arm64", build_tests=false, cmake_extra='-DDOWNLOAD_SODIUM=ON -DARCH_ID=armhf'),
+    // debian_pipeline("Ubuntu bionic (ARM64)", "ubuntu:bionic", arch="arm64", build_tests=false, deps='g++-8 ' + default_deps_base, cmake_extra='-DCMAKE_C_COMPILER=gcc-8 -DCMAKE_CXX_COMPILER=g++-8 -DDOWNLOAD_SODIUM=ON'),
+    // debian_pipeline("Debian (ARM64)", "debian:testing", arch="arm64", build_tests=false),
+    // debian_pipeline("Debian buster (armhf)", "arm32v7/debian:buster", arch="arm64", build_tests=false, cmake_extra='-DDOWNLOAD_SODIUM=ON -DARCH_ID=armhf'),
 
     // Static build (on bionic) which gets uploaded to builds.lokinet.dev:
-    debian_pipeline("Static (bionic amd64)", "ubuntu:bionic", deps='g++-8 '+static_build_deps,
-                    cmake_extra='-DBUILD_STATIC_DEPS=ON -DCMAKE_C_COMPILER=gcc-8 -DCMAKE_CXX_COMPILER=g++-8',
-                    build_tests=false, lto=true, extra_cmds=static_check_and_upload),
+    // debian_pipeline("Static (bionic amd64)", "ubuntu:bionic", deps='g++-8 '+static_build_deps, cmake_extra='-DBUILD_STATIC_DEPS=ON -DCMAKE_C_COMPILER=gcc-8 -DCMAKE_CXX_COMPILER=g++-8', build_tests=false, lto=true, extra_cmds=static_check_and_upload),
     // Static mingw build (on focal) which gets uploaded to builds.lokinet.dev:
-    debian_pipeline("Static (win64)", "ubuntu:focal", deps='g++ g++-mingw-w64-x86-64 '+static_build_deps,
-                    cmake_extra='-DCMAKE_TOOLCHAIN_FILE=../cmake/64-bit-toolchain.cmake -DBUILD_STATIC_DEPS=ON',
-                    build_tests=false, lto=false, test_lokid=false, extra_cmds=[
-                        'ninja strip_binaries', 'ninja create_zip', '../utils/build_scripts/drone-static-upload.sh']),
+    // debian_pipeline("Static (win64)", "ubuntu:focal", deps='g++ g++-mingw-w64-x86-64 '+static_build_deps, cmake_extra='-DCMAKE_TOOLCHAIN_FILE=../cmake/64-bit-toolchain.cmake -DBUILD_STATIC_DEPS=ON', build_tests=false, lto=false, test_lokid=false, extra_cmds=[ 'ninja strip_binaries', 'ninja create_zip', '../utils/build_scripts/drone-static-upload.sh']),
 /*
     // Deb builds:
-    deb_builder("debian:sid", "sid", "debian/sid"),
-    deb_builder("debian:buster", "buster", "debian/buster", imaginary_repo=true),
-    deb_builder("ubuntu:focal", "focal", "ubuntu/focal"),
-    deb_builder("debian:sid", "sid", "debian/sid", arch='arm64'),
+    //deb_builder("debian:sid", "sid", "debian/sid"),
+    //deb_builder("debian:buster", "buster", "debian/buster", imaginary_repo=true),
+    //deb_builder("ubuntu:focal", "focal", "ubuntu/focal"),
+    //deb_builder("debian:sid", "sid", "debian/sid", arch='arm64'),
 */
     // Macos builds:
     mac_builder('macOS (Release)', run_tests=true),
-    mac_builder('macOS (Debug)', build_type='Debug', cmake_extra='-DBUILD_DEBUG_UTILS=ON'),
-    mac_builder('macOS (Static)', cmake_extra='-DBUILD_STATIC_DEPS=ON -DCMAKE_OSX_DEPLOYMENT_TARGET=10.14',
-                build_tests=false, extra_cmds=static_check_and_upload),
+    // mac_builder('macOS (Debug)', build_type='Debug', cmake_extra='-DBUILD_DEBUG_UTILS=ON'),
+    // mac_builder('macOS (Static)', cmake_extra='-DBUILD_STATIC_DEPS=ON -DCMAKE_OSX_DEPLOYMENT_TARGET=10.14', build_tests=false, extra_cmds=static_check_and_upload),
 ]
