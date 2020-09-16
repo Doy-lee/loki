@@ -3106,6 +3106,7 @@ bool loki_pulse_fallback_to_pow_and_back::generate(std::vector<test_event_entry>
 
     loki_blockchain_entry entry = {};
     assert(gen.create_block(entry, block_params, {}));
+    MGINFO_YELLOW("MANUAL DUMP BLOKC !!!!!!!!!!!! " << cryptonote::obj_to_json_str(entry.block));
     gen.add_block(entry, true, "Can add a Miner block, we have insufficient nodes for Pulse so we fall back to PoW blocks.");
   }
 
