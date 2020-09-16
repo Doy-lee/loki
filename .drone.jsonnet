@@ -196,7 +196,7 @@ local static_build_deps='autoconf automake make qttools5-dev file libtool gperf 
     //deb_builder("ubuntu:focal", "focal", "ubuntu/focal"),
     //deb_builder("debian:sid", "sid", "debian/sid", arch='arm64'),
 */
-    // Macos builds:
+     // Macos builds:
     mac_builder('macOS (Release)', run_tests=true),
     // mac_builder('macOS (Debug)', build_type='Debug', cmake_extra='-DBUILD_DEBUG_UTILS=ON'),
     // mac_builder('macOS (Static)', cmake_extra='-DBUILD_STATIC_DEPS=ON -DCMAKE_OSX_DEPLOYMENT_TARGET=10.14', build_tests=false, extra_cmds=static_check_and_upload),
