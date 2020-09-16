@@ -3099,6 +3099,7 @@ bool loki_pulse_fallback_to_pow_and_back::generate(std::vector<test_event_entry>
     gen.create_and_add_next_block({tx});
   }
 
+#if 0
   gen.add_event_msg("Check that we accept a PoW block");
   {
     loki_create_block_params block_params = gen.next_block_params();
@@ -3123,7 +3124,7 @@ bool loki_pulse_fallback_to_pow_and_back::generate(std::vector<test_event_entry>
     gen.create_and_add_next_block({registration_txs});
     gen.add_n_blocks(10);
   }
-
+#endif
   return true;
 }
 
