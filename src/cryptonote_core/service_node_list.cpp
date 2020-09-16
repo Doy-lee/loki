@@ -1941,6 +1941,8 @@ namespace service_nodes
     block_hash               = cryptonote::get_block_hash(block);
     uint8_t const hf_version = block.major_version;
 
+    MGINFO_RED("DUMPING BLOCK !!!!!!!!!!!!!!!!!!\n" << cryptonote::obj_to_json_str((cryptonote::block&)block));
+
     //
     // Generate Pulse Quorum before any SN changes are applied to the list because,
     // the Leader and Validators for this block generated Pulse Data before any
