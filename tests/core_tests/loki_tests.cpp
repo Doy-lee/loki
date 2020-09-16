@@ -3117,6 +3117,7 @@ bool loki_pulse_fallback_to_pow_and_back::generate(std::vector<test_event_entry>
     CHECK_TEST_CONDITION(quorum.get() == nullptr);
     return true;
   });
+#endif
 
   gen.add_event_msg("Re-register a node, allowing us to re-enter Pulse");
   {
@@ -3124,7 +3125,6 @@ bool loki_pulse_fallback_to_pow_and_back::generate(std::vector<test_event_entry>
     gen.create_and_add_next_block({registration_txs});
     gen.add_n_blocks(10);
   }
-#endif
   return true;
 }
 
