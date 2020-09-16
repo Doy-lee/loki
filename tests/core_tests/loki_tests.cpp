@@ -3123,7 +3123,7 @@ bool loki_pulse_fallback_to_pow_and_back::generate(std::vector<test_event_entry>
   {
     cryptonote::transaction registration_txs = gen.create_and_add_registration_tx(gen.first_miner());
     gen.create_and_add_next_block({registration_txs});
-    gen.add_n_blocks(10);
+    // gen.add_n_blocks(10);
   }
   return true;
 }
