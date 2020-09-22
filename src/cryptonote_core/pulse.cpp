@@ -742,7 +742,7 @@ bool pulse::get_round_timings(cryptonote::Blockchain const &blockchain, uint64_t
   times.prev_timestamp  = pulse::time_point(std::chrono::seconds(prev_timestamp));
   times.ideal_timestamp = pulse::time_point(times.genesis_timestamp + (TARGET_BLOCK_TIME * delta_height));
 
-#if 1
+#if 0
   times.r0_timestamp    = std::clamp(times.ideal_timestamp,
                                   times.prev_timestamp + service_nodes::PULSE_MIN_TARGET_BLOCK_TIME,
                                   times.prev_timestamp + service_nodes::PULSE_MAX_TARGET_BLOCK_TIME);

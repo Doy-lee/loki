@@ -293,7 +293,7 @@ namespace
     std::cout << prompt;
     if (yesno)
       std::cout << " (Y/Yes/N/No)";
-    std::cout << ": " << std::flush;
+    std::cout << ": " << std::endl;
 
 #ifdef _WIN32
     buf = tools::input_line_win();
