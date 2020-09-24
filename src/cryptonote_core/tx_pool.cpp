@@ -1797,11 +1797,6 @@ end:
     //baseline empty block
     loki_block_reward_context block_reward_context = {};
     block_reward_context.height                    = height;
-    if (!m_blockchain.calc_batched_governance_reward(height, block_reward_context.batched_governance))
-    {
-      MERROR("Failed to calculated batched governance reward");
-      return false;
-    }
 
     block_reward_parts reward_parts = {};
     if (!get_loki_block_reward(median_weight, total_weight, already_generated_coins, version, reward_parts, block_reward_context))
@@ -1836,7 +1831,9 @@ end:
         continue;
       }
 
-      // If we're getting lower coinbase tx, stop including more tx
+      // NOTE: Update the fee received so we can track the penalty applied on
+      // the fee after HF16.
+      block_reward_context.fee              = fee;
       block_reward_parts reward_parts_other = {};
       if(!get_loki_block_reward(median_weight, total_weight + meta.weight, already_generated_coins, version, reward_parts_other, block_reward_context))
       {
@@ -1844,6 +1841,7 @@ end:
         return false;
       }
 
+      // If we're getting lower coinbase tx, stop including more tx
       uint64_t const block_producer_reward = version >= cryptonote::network_version_16_pulse ? reward_parts_other.base_miner_fee : reward_parts_other.base_miner;
       reward = block_producer_reward + fee + meta.fee;
       if (reward < best_block_producer_reward)
