@@ -251,13 +251,26 @@ endfunction()
 
 
 
-build_external(zlib
-  CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env "CC=${deps_cc}" "CFLAGS=${deps_CFLAGS} -fPIC" ${cross_extra} ./configure --prefix=${DEPS_DESTDIR} --static
-  BUILD_BYPRODUCTS
-    ${DEPS_DESTDIR}/lib/libz.a
-    ${DEPS_DESTDIR}/include/zlib.h
-)
-add_static_target(zlib zlib_external libz.a)
+if (MSVC)
+    build_external(zlib
+      CONFIGURE_COMMAND echo
+      BUILD_COMMAND nmake -f win32/Makefile.msc
+      INSTALL_COMMAND ${CMAKE_COMMAND} -E copy zlib.lib ${DEPS_DESTDIR}/lib/zlib.lib   &&
+                      ${CMAKE_COMMAND} -E copy zlib.h   ${DEPS_DESTDIR}/include/zlib.h
+      BUILD_BYPRODUCTS
+        ${DEPS_DESTDIR}/lib/zlib.lib
+        ${DEPS_DESTDIR}/include/zlib.h
+    )
+    add_static_target(zlib zlib_external zlib.lib)
+else()
+    build_external(zlib
+      CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env "CC=${deps_cc}" "CFLAGS=${deps_CFLAGS} -fPIC" ${cross_extra} ./configure --prefix=${DEPS_DESTDIR} --static
+      BUILD_BYPRODUCTS
+        ${DEPS_DESTDIR}/lib/libz.a
+        ${DEPS_DESTDIR}/include/zlib.h
+    )
+    add_static_target(zlib zlib_external libz.a)
+endif()
 
 
 
@@ -286,6 +299,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL GNU)
   set(boost_toolset gcc)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
   set(boost_toolset clang)
+elseif(MSVC)
 else()
   message(FATAL_ERROR "don't know how to build boost with ${CMAKE_CXX_COMPILER_ID}")
 endif()
@@ -305,58 +319,94 @@ else()
   file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/user-config.bjam "using ${boost_toolset} : : ${deps_cxx} ;")
 endif()
 
-set(boost_patch_commands "")
-if(IOS)
-  set(boost_patch_commands PATCH_COMMAND patch -p1 -i ${PROJECT_SOURCE_DIR}/utils/build_scripts/boost-darwin-libtool-path.patch)
-elseif(APPLE AND BOOST_VERSION VERSION_LESS 1.74.0)
-  set(boost_patch_commands PATCH_COMMAND patch -p1 -d tools/build -i ${PROJECT_SOURCE_DIR}/utils/build_scripts/boostorg-build-pr560-macos-build-fix.patch)
+if (MSVC)
+    build_external(boost
+      CONFIGURE_COMMAND
+        bootstrap.bat
+      BUILD COMMAND
+        echo
+      INSTALL_COMMAND
+        b2 -d0 variant=release link=static runtime-link=static optimization=speed ${boost_extra}
+          threading=multi threadapi=${boost_threadapi} ${boost_buildflags} cxxstd=17 visibility=global
+          --disable-icu --user-config=${CMAKE_CURRENT_BINARY_DIR}/user-config.bjam
+          --prefix=${DEPS_DESTDIR} --exec-prefix=${DEPS_DESTDIR} --libdir=${DEPS_DESTDIR}/lib --includedir=${DEPS_DESTDIR}/include
+          --with-program_options --with-system --with-thread --with-serialization
+          install
+      BUILD_BYPRODUCTS
+        ${DEPS_DESTDIR}/lib/libboost_program_options.lib
+        ${DEPS_DESTDIR}/lib/libboost_serialization.lib
+        ${DEPS_DESTDIR}/lib/libboost_system.lib
+        ${DEPS_DESTDIR}/lib/libboost_thread.lib
+        ${DEPS_DESTDIR}/include/boost/version.hpp
+    )
+else()
+    set(boost_patch_commands "")
+    if(IOS)
+      set(boost_patch_commands PATCH_COMMAND patch -p1 -i ${PROJECT_SOURCE_DIR}/utils/build_scripts/boost-darwin-libtool-path.patch)
+    elseif(APPLE AND BOOST_VERSION VERSION_LESS 1.74.0)
+      set(boost_patch_commands PATCH_COMMAND patch -p1 -d tools/build -i ${PROJECT_SOURCE_DIR}/utils/build_scripts/boostorg-build-pr560-macos-build-fix.patch)
+    endif()
+
+    set(boost_buildflags "cxxflags=-fPIC")
+    if(IOS)
+      set(boost_buildflags)
+    elseif(APPLE)
+      set(boost_buildflags "cxxflags=-fPIC -mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}" "cflags=-mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    endif()
+
+    build_external(boost
+      #  PATCH_COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/user-config.bjam tools/build/src/user-config.jam
+      ${boost_patch_commands}
+      CONFIGURE_COMMAND
+        ./tools/build/src/engine/build.sh ${boost_toolset} ${boost_bootstrap_cxx}
+      BUILD_COMMAND
+        cp tools/build/src/engine/b2 .
+      INSTALL_COMMAND
+        ./b2 -d0 variant=release link=static runtime-link=static optimization=speed ${boost_extra}
+          threading=multi threadapi=${boost_threadapi} ${boost_buildflags} cxxstd=17 visibility=global
+          --disable-icu --user-config=${CMAKE_CURRENT_BINARY_DIR}/user-config.bjam
+          --prefix=${DEPS_DESTDIR} --exec-prefix=${DEPS_DESTDIR} --libdir=${DEPS_DESTDIR}/lib --includedir=${DEPS_DESTDIR}/include
+          --with-program_options --with-system --with-thread --with-serialization
+          install
+      BUILD_BYPRODUCTS
+        ${DEPS_DESTDIR}/lib/libboost_program_options.a
+        ${DEPS_DESTDIR}/lib/libboost_serialization.a
+        ${DEPS_DESTDIR}/lib/libboost_system.a
+        ${DEPS_DESTDIR}/lib/libboost_thread.a
+        ${DEPS_DESTDIR}/include/boost/version.hpp
+    )
 endif()
 
-set(boost_buildflags "cxxflags=-fPIC")
-if(IOS)
-  set(boost_buildflags)
-elseif(APPLE)
-  set(boost_buildflags "cxxflags=-fPIC -mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}" "cflags=-mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET}")
-endif()
-
-build_external(boost
-  #  PATCH_COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/user-config.bjam tools/build/src/user-config.jam
-  ${boost_patch_commands}
-  CONFIGURE_COMMAND
-    ./tools/build/src/engine/build.sh ${boost_toolset} ${boost_bootstrap_cxx}
-  BUILD_COMMAND
-    cp tools/build/src/engine/b2 .
-  INSTALL_COMMAND
-    ./b2 -d0 variant=release link=static runtime-link=static optimization=speed ${boost_extra}
-      threading=multi threadapi=${boost_threadapi} ${boost_buildflags} cxxstd=17 visibility=global
-      --disable-icu --user-config=${CMAKE_CURRENT_BINARY_DIR}/user-config.bjam
-      --prefix=${DEPS_DESTDIR} --exec-prefix=${DEPS_DESTDIR} --libdir=${DEPS_DESTDIR}/lib --includedir=${DEPS_DESTDIR}/include
-      --with-program_options --with-system --with-thread --with-serialization
-      install
-  BUILD_BYPRODUCTS
-    ${DEPS_DESTDIR}/lib/libboost_program_options.a
-    ${DEPS_DESTDIR}/lib/libboost_serialization.a
-    ${DEPS_DESTDIR}/lib/libboost_system.a
-    ${DEPS_DESTDIR}/lib/libboost_thread.a
-    ${DEPS_DESTDIR}/include/boost/version.hpp
-)
 add_library(boost_core INTERFACE)
 add_dependencies(boost_core INTERFACE boost_external)
 target_include_directories(boost_core SYSTEM INTERFACE ${DEPS_DESTDIR}/include)
 add_library(Boost::boost ALIAS boost_core)
 foreach(boostlib program_options serialization system thread)
-  add_static_target(Boost::${boostlib} boost_external libboost_${boostlib}.a)
+  if (MSVC)
+      add_static_target(Boost::${boostlib} boost_external libboost_${boostlib}.lib)
+  else()
+      add_static_target(Boost::${boostlib} boost_external libboost_${boostlib}.a)
+  endif()
   target_link_libraries(Boost::${boostlib} INTERFACE boost_core)
 endforeach()
 set(Boost_FOUND ON)
 set(Boost_VERSION ${BOOST_VERSION})
 
-
-
-build_external(sqlite3
-  BUILD_COMMAND true
-  INSTALL_COMMAND make install-includeHEADERS install-libLTLIBRARIES)
-add_static_target( SQLite::SQLite3 sqlite3_external libsqlite3.a)
+if (MSVC)
+    build_external(sqlite3
+      BUILD_COMMAND cl -c -nologo -O2 -MT sqlite3.c && lib -nologo -OUT:sqlite3.lib sqlite3.obj
+      CONFIGURE_COMMAND echo
+      INSTALL_COMMAND ${CMAKE_COMMAND} -E copy sqlite3.lib ${DEPS_DESTDIR}/lib/sqlite3.lib
+      BUILD_BYPRODUCTS
+        ${DEPS_DESTDIR}/lib/sqlite3.lib
+      )
+    add_static_target(SQLite::SQLite3 sqlite3_external sqlite3.lib)
+else()
+    build_external(sqlite3
+      BUILD_COMMAND true
+      INSTALL_COMMAND make install-includeHEADERS install-libLTLIBRARIES)
+    add_static_target(SQLite::SQLite3 sqlite3_external libsqlite3.a)
+endif()
 
 
 
@@ -418,7 +468,7 @@ endif()
 
 
 
-if(NOT (ANDROID OR IOS))
+if(NOT (MSVC OR ANDROID OR IOS))
   build_external(libusb
     CONFIGURE_COMMAND autoreconf -ivf && ./configure ${cross_host} --prefix=${DEPS_DESTDIR} --disable-shared --disable-udev --with-pic
       "CC=${deps_cc}" "CXX=${deps_cxx}" "CFLAGS=${deps_CFLAGS}" "CXXFLAGS=${deps_CXXFLAGS}"
@@ -431,9 +481,7 @@ if(NOT (ANDROID OR IOS))
   set_target_properties(libusb_vendor PROPERTIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES ${DEPS_DESTDIR}/include/libusb-1.0)
 endif()
 
-
-
-if(ANDROID OR IOS)
+if(WIN32 OR ANDROID OR IOS)
   set(HIDAPI_FOUND FALSE)
 else()
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -502,126 +550,156 @@ endif()
 
 
 
-build_external(sodium)
-add_static_target(sodium sodium_external libsodium.a)
-
-
-if(CMAKE_CROSSCOMPILING AND ARCH_TRIPLET MATCHES mingw)
-  set(zmq_patch PATCH_COMMAND patch -p1 -i ${PROJECT_SOURCE_DIR}/utils/build_scripts/libzmq-mingw-closesocket.patch)
-endif()
-
-set(zmq_cross_host "${cross_host}")
-if(IOS AND cross_host MATCHES "-ios$")
-  # zmq doesn't like "-ios" for the host, so replace it with -darwin
-  string(REGEX REPLACE "-ios$" "-darwin" zmq_cross_host ${cross_host})
-endif()
-
-build_external(zmq
-  DEPENDS sodium_external
-  ${zmq_patch}
-  CONFIGURE_COMMAND ./configure ${zmq_cross_host} --prefix=${DEPS_DESTDIR} --enable-static --disable-shared
-    --disable-curve-keygen --enable-curve --disable-drafts --disable-libunwind --with-libsodium
-    --disable-libbsd --disable-perf
-    --without-pgm --without-norm --without-vmci --without-docs --with-pic --disable-Werror
-    "CC=${deps_cc}" "CXX=${deps_cxx}" "CFLAGS=-fstack-protector ${deps_CFLAGS}" "CXXFLAGS=-fstack-protector ${deps_CXXFLAGS}"
-    ${cross_extra}
-    "sodium_CFLAGS=-I${DEPS_DESTDIR}/include" "sodium_LIBS=-L${DEPS_DESTDIR}/lib -lsodium"
-)
-add_static_target(libzmq zmq_external libzmq.a)
-
-set(libzmq_link_libs "sodium")
-if(CMAKE_CROSSCOMPILING AND ARCH_TRIPLET MATCHES mingw)
-  list(APPEND libzmq_link_libs iphlpapi ws2_32)
-endif()
-
-set_target_properties(libzmq PROPERTIES
-    INTERFACE_LINK_LIBRARIES "${libzmq_link_libs}"
-    INTERFACE_COMPILE_DEFINITIONS "ZMQ_STATIC")
-
-
-
-set(curl_extra)
-if(APPLE)
-  if(IOS)
-    # This CPP crap shouldn't be necessary but is because Apple's toolchain is trash
-    set(curl_extra "LDFLAGS=-L${DEPS_DESTDIR}/lib -isysroot ${CMAKE_OSX_SYSROOT}" CPP=cpp)
-  endif()
+if (MSVC)
+    build_external(sodium
+      BUILD_COMMAND cd /d builds/msvc/vs2019 && msbuild libsodium.sln
+      CONFIGURE_COMMAND echo
+      INSTALL_COMMAND echo
+      BUILD_BYPRODUCTS
+        ${DEPS_DESTDIR}/lib/sodium.lib
+    )
+    set(SODIUM_LIBRARIES ${DEPS_DESTDIR}/lib/sodium.lib)
+    set(SODIUM_INCLUDE_DIRS ${DEPS_DESTDIR}/include)
+    add_static_target(sodium sodium_external sodium.lib)
 else()
-  set(curl_extra "LIBS=-pthread")
+    build_external(sodium)
+    add_static_target(sodium sodium_external libsodium.a)
 endif()
 
-set(curl_arches default)
-set(curl_lib_outputs)
-if(IOS)
-  # On iOS things get a little messy: curl won't build a multi-arch library (with `clang -arch arch1
-  # -arch arch2`) so we have to build them separately then glue them together if we're building
-  # multiple.
-  set(curl_arches ${CMAKE_OSX_ARCHITECTURES})
-  list(GET curl_arches 0 curl_arch0)
-  list(LENGTH CMAKE_OSX_ARCHITECTURES num_arches)
-endif()
 
-foreach(curl_arch ${curl_arches})
-  set(curl_target_suffix "")
-  set(curl_prefix "${DEPS_DESTDIR}")
-  if(curl_arch STREQUAL "default")
-    set(curl_cflags_extra "")
-  elseif(IOS)
-    set(cflags_extra " -arch ${curl_arch}")
-    if(num_arches GREATER 1)
-      set(curl_target_suffix "-${curl_arch}")
-      set(curl_prefix "${DEPS_DESTDIR}/tmp/${curl_arch}")
+if (MSVC)
+    set(ENABLE_CURVE ON)
+    set(WITH_LIBSODIUM ON)
+    set(WITH_LIBSODIUM_STATIC ON)
+    set(BUILD_SHARED OFF)
+    set(BUILD_STATIC ON)
+    add_subdirectory(${DEPS_SOURCEDIR}/src/zmq_external)
+    add_library(libzmq ALIAS libzmq-static)
+else()
+    if(CMAKE_CROSSCOMPILING AND ARCH_TRIPLET MATCHES mingw)
+      set(zmq_patch PATCH_COMMAND patch -p1 -i ${PROJECT_SOURCE_DIR}/utils/build_scripts/libzmq-mingw-closesocket.patch)
     endif()
-  else()
-    message(FATAL_ERROR "unexpected curl_arch=${curl_arch}")
-  endif()
 
-  build_external(curl
-    TARGET_SUFFIX ${curl_target_suffix}
-    DEPENDS zlib_external
-    CONFIGURE_COMMAND ./configure ${cross_host} ${cross_extra} --prefix=${curl_prefix} --disable-shared
-    --enable-static --disable-ares --disable-ftp --disable-ldap --disable-laps --disable-rtsp
-    --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smb
-    --disable-smtp --disable-gopher --disable-manual --disable-libcurl-option --enable-http
-    --enable-ipv6 --disable-threaded-resolver --disable-pthreads --disable-verbose --disable-sspi
-    --enable-crypto-auth --disable-ntlm-wb --disable-tls-srp --disable-unix-sockets --disable-cookies
-    --enable-http-auth --enable-doh --disable-mime --enable-dateparse --disable-netrc --without-libidn2
-    --disable-progress-meter --without-brotli --with-zlib=${DEPS_DESTDIR}
-    --without-ssl --without-schannel --without-secure-transport
-    --without-nghttp2 --without-nghttp3 --without-ngtcp2 --without-quiche
-    --without-librtmp --disable-versioned-symbols --enable-hidden-symbols
-    --without-zsh-functions-dir --without-fish-functions-dir
-    "CC=${deps_cc}" "CFLAGS=${deps_noarch_CFLAGS}${cflags_extra}" ${curl_extra}
-    BUILD_COMMAND true
-    INSTALL_COMMAND make -C lib install && make -C include install
-    BUILD_BYPRODUCTS
-      ${curl_prefix}/lib/libcurl.a
-      ${curl_prefix}/include/curl/curl.h
-  )
-  list(APPEND curl_lib_targets curl${curl_target_suffix}_external)
-  list(APPEND curl_lib_outputs ${curl_prefix}/lib/libcurl.a)
-endforeach()
+    set(zmq_cross_host "${cross_host}")
+    if(IOS AND cross_host MATCHES "-ios$")
+      # zmq doesn't like "-ios" for the host, so replace it with -darwin
+      string(REGEX REPLACE "-ios$" "-darwin" zmq_cross_host ${cross_host})
+    endif()
 
-message(STATUS "TARGETS: ${curl_lib_targets}")
+    build_external(zmq
+      DEPENDS sodium_external
+      ${zmq_patch}
+      CONFIGURE_COMMAND ./configure ${zmq_cross_host} --prefix=${DEPS_DESTDIR} --enable-static --disable-shared
+        --disable-curve-keygen --enable-curve --disable-drafts --disable-libunwind --with-libsodium
+        --disable-libbsd --disable-perf
+        --without-pgm --without-norm --without-vmci --without-docs --with-pic --disable-Werror
+        "CC=${deps_cc}" "CXX=${deps_cxx}" "CFLAGS=-fstack-protector ${deps_CFLAGS}" "CXXFLAGS=-fstack-protector ${deps_CXXFLAGS}"
+        ${cross_extra}
+        "sodium_CFLAGS=-I${DEPS_DESTDIR}/include" "sodium_LIBS=-L${DEPS_DESTDIR}/lib -lsodium"
+    )
+    add_static_target(libzmq zmq_external libzmq.a)
 
-if(IOS AND num_arches GREATER 1)
-  # We are building multiple architectures for different iOS devices, so we need to glue the
-  # separate libraries into one. (Normally multiple -arch values passed to clang does this for us,
-  # but curl refuses to build that way).
-  add_custom_target(curl_external
-    COMMAND lipo ${curl_lib_outputs} -create -output ${DEPS_DESTDIR}/libcurl.a
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${DEPS_DESTDIR}/tmp/${curl_arch0}/include/curl ${DEPS_DESTDIR}/include/curl
-    BYPRODUCTS ${DEPS_DESTDIR}/lib/libcurl.a ${DEPS_DESTDIR}/include/curl/curl.h
-    DEPENDS ${curl_lib_targets})
+    set(libzmq_link_libs "sodium")
+    if(CMAKE_CROSSCOMPILING AND ARCH_TRIPLET MATCHES mingw)
+      list(APPEND libzmq_link_libs iphlpapi ws2_32)
+    endif()
+
+    set_target_properties(libzmq PROPERTIES
+        INTERFACE_LINK_LIBRARIES "${libzmq_link_libs}"
+        INTERFACE_COMPILE_DEFINITIONS "ZMQ_STATIC")
 endif()
 
-add_static_target(CURL::libcurl curl_external libcurl.a)
-set(libcurl_link_libs zlib)
-if(CMAKE_CROSSCOMPILING AND ARCH_TRIPLET MATCHES mingw)
-  list(APPEND libcurl_link_libs ws2_32)
-elseif(APPLE)
-  list(APPEND libcurl_link_libs "-framework SystemConfiguration")
+if (MSVC)
+    set(CMAKE_BUILD_TYPE Release)
+    set(BUILD_SHARED_LIBS OFF)
+    set(BUILD_STATIC_LIBS ON)
+    set(CURL_STATIC_CRT ON)
+    set(ENABLE_UNICODE ON)
+    add_subdirectory(${DEPS_SOURCEDIR}/src/curl_external)
+else()
+    set(curl_extra)
+    if(APPLE)
+      if(IOS)
+        # This CPP crap shouldn't be necessary but is because Apple's toolchain is trash
+        set(curl_extra "LDFLAGS=-L${DEPS_DESTDIR}/lib -isysroot ${CMAKE_OSX_SYSROOT}" CPP=cpp)
+      endif()
+    else()
+      set(curl_extra "LIBS=-pthread")
+    endif()
+
+    set(curl_arches default)
+    set(curl_lib_outputs)
+    if(IOS)
+      # On iOS things get a little messy: curl won't build a multi-arch library (with `clang -arch arch1
+      # -arch arch2`) so we have to build them separately then glue them together if we're building
+      # multiple.
+      set(curl_arches ${CMAKE_OSX_ARCHITECTURES})
+      list(GET curl_arches 0 curl_arch0)
+      list(LENGTH CMAKE_OSX_ARCHITECTURES num_arches)
+    endif()
+
+    foreach(curl_arch ${curl_arches})
+      set(curl_target_suffix "")
+      set(curl_prefix "${DEPS_DESTDIR}")
+      if(curl_arch STREQUAL "default")
+        set(curl_cflags_extra "")
+      elseif(IOS)
+        set(cflags_extra " -arch ${curl_arch}")
+        if(num_arches GREATER 1)
+          set(curl_target_suffix "-${curl_arch}")
+          set(curl_prefix "${DEPS_DESTDIR}/tmp/${curl_arch}")
+        endif()
+      else()
+        message(FATAL_ERROR "unexpected curl_arch=${curl_arch}")
+      endif()
+
+      build_external(curl
+        TARGET_SUFFIX ${curl_target_suffix}
+        DEPENDS zlib_external
+        CONFIGURE_COMMAND ./configure ${cross_host} ${cross_extra} --prefix=${curl_prefix} --disable-shared
+        --enable-static --disable-ares --disable-ftp --disable-ldap --disable-laps --disable-rtsp
+        --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smb
+        --disable-smtp --disable-gopher --disable-manual --disable-libcurl-option --enable-http
+        --enable-ipv6 --disable-threaded-resolver --disable-pthreads --disable-verbose --disable-sspi
+        --enable-crypto-auth --disable-ntlm-wb --disable-tls-srp --disable-unix-sockets --disable-cookies
+        --enable-http-auth --enable-doh --disable-mime --enable-dateparse --disable-netrc --without-libidn2
+        --disable-progress-meter --without-brotli --with-zlib=${DEPS_DESTDIR}
+        --without-ssl --without-schannel --without-secure-transport
+        --without-nghttp2 --without-nghttp3 --without-ngtcp2 --without-quiche
+        --without-librtmp --disable-versioned-symbols --enable-hidden-symbols
+        --without-zsh-functions-dir --without-fish-functions-dir
+        "CC=${deps_cc}" "CFLAGS=${deps_noarch_CFLAGS}${cflags_extra}" ${curl_extra}
+        BUILD_COMMAND true
+        INSTALL_COMMAND make -C lib install && make -C include install
+        BUILD_BYPRODUCTS
+          ${curl_prefix}/lib/libcurl.a
+          ${curl_prefix}/include/curl/curl.h
+      )
+      list(APPEND curl_lib_targets curl${curl_target_suffix}_external)
+      list(APPEND curl_lib_outputs ${curl_prefix}/lib/libcurl.a)
+    endforeach()
+    message(STATUS "TARGETS: ${curl_lib_targets}")
+
+    if(IOS AND num_arches GREATER 1)
+      # We are building multiple architectures for different iOS devices, so we need to glue the
+      # separate libraries into one. (Normally multiple -arch values passed to clang does this for us,
+      # but curl refuses to build that way).
+      add_custom_target(curl_external
+        COMMAND lipo ${curl_lib_outputs} -create -output ${DEPS_DESTDIR}/libcurl.a
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${DEPS_DESTDIR}/tmp/${curl_arch0}/include/curl ${DEPS_DESTDIR}/include/curl
+        BYPRODUCTS ${DEPS_DESTDIR}/lib/libcurl.a ${DEPS_DESTDIR}/include/curl/curl.h
+        DEPENDS ${curl_lib_targets})
+    endif()
+
+    add_static_target(CURL::libcurl curl_external libcurl.a)
+    set(libcurl_link_libs zlib)
+    if(CMAKE_CROSSCOMPILING AND ARCH_TRIPLET MATCHES mingw)
+      list(APPEND libcurl_link_libs ws2_32)
+    elseif(APPLE)
+      list(APPEND libcurl_link_libs "-framework SystemConfiguration")
+    endif()
+    set_target_properties(CURL::libcurl PROPERTIES
+      INTERFACE_LINK_LIBRARIES "${libcurl_link_libs}"
+      INTERFACE_COMPILE_DEFINITIONS "CURL_STATICLIB")
 endif()
-set_target_properties(CURL::libcurl PROPERTIES
-  INTERFACE_LINK_LIBRARIES "${libcurl_link_libs}"
-  INTERFACE_COMPILE_DEFINITIONS "CURL_STATICLIB")
+
