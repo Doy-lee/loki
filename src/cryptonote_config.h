@@ -508,6 +508,12 @@ namespace config {
         };
 
         inline constexpr auto UPTIME_PROOF_STARTUP_DELAY = 5s;
+
+        inline constexpr uint32_t ETHEREUM_CHAIN_ID = 31337;
+        inline constexpr std::string_view ETHEREUM_REWARDS_CONTRACT =
+                "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
+        inline constexpr std::string_view ETHEREUM_POOL_CONTRACT =
+                "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0";
     }  // namespace devnet
 
     namespace fakechain {
@@ -653,9 +659,9 @@ inline constexpr network_config devnet_config{
         config::testnet::SERVICE_NODE_PAYABLE_AFTER_BLOCKS,
         config::HARDFORK_DEREGISTRATION_GRACE_PERIOD,
         config::STORE_LONG_TERM_STATE_INTERVAL,
-        config::ETHEREUM_CHAIN_ID,
-        config::ETHEREUM_REWARDS_CONTRACT,
-        config::ETHEREUM_POOL_CONTRACT,
+        config::devnet::ETHEREUM_CHAIN_ID,
+        config::devnet::ETHEREUM_REWARDS_CONTRACT,
+        config::devnet::ETHEREUM_POOL_CONTRACT,
 };
 inline constexpr network_config fakenet_config{
         network_type::FAKECHAIN,
