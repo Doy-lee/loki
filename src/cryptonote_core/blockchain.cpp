@@ -533,11 +533,41 @@ bool Blockchain::init(
     if (!m_checkpoints.init(m_nettype, m_db))
         throw std::runtime_error("Failed to initialize checkpoints");
 
-    m_provider = std::make_shared<Provider>("Ethereum Client", ethereum_provider);
-    if (ethereum_provider != "") {
-        m_l2_tracker = std::make_shared<L2Tracker>(m_nettype, m_provider);
-    } else {
-        m_l2_tracker = std::make_shared<L2Tracker>();
+    m_l2_tracker                          = std::make_shared<L2Tracker>(m_nettype);
+    m_l2_tracker->provider.connectTimeout = 2000ms;
+    if (ethereum_provider.size()) {
+        std::string_view delimiter = ",";
+        std::vector<std::string_view> provider_urls =
+                tools::split(ethereum_provider, delimiter, /*trim*/ true);
+
+        auto error_buffer = fmt::memory_buffer();
+        fmt::format_to(std::back_inserter(error_buffer), "Failed to add URL '{}' as an Ethereum provider.", ethereum_provider);
+
+        bool error_in_urls = false;
+        if (provider_urls.size() == 0) {
+            fmt::format_to(std::back_inserter(error_buffer),
+                           " There were no URLs produced after splitting by '{}'.",
+                           delimiter);
+            error_in_urls = true;
+        } else {
+            fmt::format_to(std::back_inserter(error_buffer), " The items that failed were:\n", ethereum_provider);
+            // NOTE: Prepare an error message incase we encounter some
+            for (size_t index = 0; index < provider_urls.size(); index++) {
+                std::string_view url = provider_urls[index];
+                if (!m_l2_tracker->provider.addClient(fmt::format("Eth Client #{}", index), std::string(url))) {
+                    error_in_urls = true;
+                    fmt::format_to(std::back_inserter(error_buffer), "  - '{}'\n", url);
+                }
+            }
+        }
+
+        // NOTE: Handle errors
+        if (error_in_urls || m_l2_tracker->provider.clients.empty()) {
+            log::error(logcat, "{}", fmt::to_string(error_buffer));
+            return false;
+        }
+
+        m_l2_tracker->start();
     }
 
     m_offline = offline;

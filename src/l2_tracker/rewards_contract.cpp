@@ -136,15 +136,15 @@ std::optional<TransactionStateChangeVariant> RewardsLogEntry::getLogTransaction(
 }
 
 RewardsContract::RewardsContract(
-        const std::string& _contractAddress, std::shared_ptr<Provider> _provider) :
-        contractAddress(_contractAddress), provider(std::move(_provider)) {}
+        const std::string& _contractAddress, ethyl::Provider& _provider) :
+        contractAddress(_contractAddress), provider(_provider) {}
 
 StateResponse RewardsContract::State() {
-    return State(provider->getLatestHeight());
+    return State(provider.getLatestHeight());
 }
 
 StateResponse RewardsContract::State(uint64_t height) {
-    std::string blockHash = provider->getContractStorageRoot(contractAddress, height);
+    std::string blockHash = provider.getContractStorageRoot(contractAddress, height);
     // Check if blockHash starts with "0x" and remove it
     if (blockHash.size() >= 2 && blockHash[0] == '0' && blockHash[1] == 'x') {
         blockHash = blockHash.substr(2);  // Skip the first two characters
@@ -155,7 +155,7 @@ StateResponse RewardsContract::State(uint64_t height) {
 std::vector<RewardsLogEntry> RewardsContract::Logs(uint64_t height) {
     std::vector<RewardsLogEntry> logEntries;
     // Make the RPC call
-    const auto logs = provider->getLogs(height, contractAddress);
+    const auto logs = provider.getLogs(height, contractAddress);
 
     for (const auto& log : logs) {
         logEntries.emplace_back(RewardsLogEntry(log));

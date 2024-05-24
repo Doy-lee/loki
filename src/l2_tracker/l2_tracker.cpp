@@ -7,23 +7,13 @@
 
 static auto logcat = oxen::log::Cat("l2_tracker");
 
-L2Tracker::L2Tracker() {
-    service_node = false;
-}
-
 L2Tracker::L2Tracker(
-        const cryptonote::network_type nettype, const std::shared_ptr<Provider>& _provider) :
+        const cryptonote::network_type nettype) :
         rewards_contract(std::make_shared<RewardsContract>(
-                std::string(get_rewards_contract_address(nettype)), _provider)),
+                std::string(get_rewards_contract_address(nettype)), provider)),
         pool_contract(std::make_shared<PoolContract>(
-                std::string(get_pool_contract_address(nettype)), _provider)),
+                std::string(get_pool_contract_address(nettype)), provider)),
         stop_thread(false) {
-    update_thread = std::thread([this] {
-        while (!stop_thread.load()) {
-            update_state();
-            std::this_thread::sleep_for(std::chrono::seconds(10));
-        }
-    });
 }
 
 L2Tracker::~L2Tracker() {
@@ -32,6 +22,23 @@ L2Tracker::~L2Tracker() {
         update_thread.join();
     }
 }
+
+bool L2Tracker::start() {
+    if (update_thread.joinable()) {
+        return false;
+    }
+
+    stop_thread.store(false);
+    update_thread = std::thread([this] {
+        while (!stop_thread.load()) {
+            update_state();
+            std::this_thread::sleep_for(std::chrono::seconds(10));
+        }
+    });
+
+    return true;
+}
+
 void L2Tracker::insert_in_order(State&& new_state) {
     // Check if the state with the same height already exists
     auto it = std::find_if(
@@ -84,10 +91,13 @@ void L2Tracker::update_state() {
     }
 }
 
+static constexpr inline std::string_view NO_PROVIDER_CLIENTS_ERROR =
+        "L2 tracker does not have any RPC servers configured for the Ethereum provider. Ensure "
+        "that `--ethereum_provider` is set to an Ethereum RPC endpoint.";
 std::pair<uint64_t, crypto::hash> L2Tracker::latest_state() {
-    if (!service_node) {
-        oxen::log::error(logcat, "L2 tracker doesnt have a provider and cant query state");
-        throw std::runtime_error("Non Service node doesn't keep track of state");
+    if (provider.clients.empty()) {
+        oxen::log::error(logcat, NO_PROVIDER_CLIENTS_ERROR);
+        throw std::runtime_error(std::string(NO_PROVIDER_CLIENTS_ERROR));
     }
     std::lock_guard lock{mutex};
     if (state_history.empty()) {
@@ -106,8 +116,9 @@ bool L2Tracker::check_state_in_history(uint64_t height, const crypto::hash& stat
 }
 
 bool L2Tracker::check_state_in_history(uint64_t height, const std::string& state_root) {
-    if (!service_node)
+    if (provider.clients.empty()) {
         return true;
+    }
     std::lock_guard lock{mutex};
     auto it = std::find_if(
             state_history.begin(), state_history.end(), [height, &state_root](const State& state) {
@@ -120,7 +131,7 @@ std::shared_ptr<TransactionReviewSession> L2Tracker::initialize_transaction_revi
         uint64_t ethereum_height) {
     auto session = std::make_shared<TransactionReviewSession>(
             oxen_to_ethereum_block_heights[latest_oxen_block], ethereum_height);
-    if (!service_node)
+    if (provider.clients.empty())
         session->service_node = false;
     std::lock_guard lock{mutex};
     populate_review_transactions(session);
@@ -131,7 +142,7 @@ std::shared_ptr<TransactionReviewSession> L2Tracker::initialize_mempool_review()
     auto session = std::make_shared<TransactionReviewSession>(
             oxen_to_ethereum_block_heights[latest_oxen_block],
             std::numeric_limits<uint64_t>::max());
-    if (!service_node)
+    if (provider.clients.empty())
         session->service_node = false;
     std::lock_guard lock{mutex};
     populate_review_transactions(session);
@@ -177,8 +188,8 @@ void L2Tracker::populate_review_transactions(std::shared_ptr<TransactionReviewSe
 }
 
 std::vector<TransactionStateChangeVariant> L2Tracker::get_block_transactions() {
-    if (!service_node)
-        throw std::runtime_error("Non Service node doesn't keep track of state");
+    if (provider.clients.empty())
+        throw std::runtime_error(std::string(NO_PROVIDER_CLIENTS_ERROR));
     std::lock_guard lock{mutex};
     std::vector<TransactionStateChangeVariant> all_transactions;
     const auto begin_height = oxen_to_ethereum_block_heights[latest_oxen_block];

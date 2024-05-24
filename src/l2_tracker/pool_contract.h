@@ -15,10 +15,10 @@ class RewardRateResponse {
 
 class PoolContract {
   public:
-    PoolContract(std::string _contractAddress, std::shared_ptr<Provider> _provider);
+    PoolContract(std::string _contractAddress, ethyl::Provider& _provider);
     RewardRateResponse RewardRate(uint64_t timestamp, uint64_t ethereum_block_height);
 
   private:
     std::string contractAddress;
-    std::shared_ptr<Provider> provider;
+    ethyl::Provider& provider;
 };
