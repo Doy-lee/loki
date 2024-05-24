@@ -158,11 +158,9 @@ static const command_line::arg_descriptor<std::string> arg_public_ip = {
         "service node."};
 static const command_line::arg_descriptor<std::string> arg_ethereum_provider = {
         "ethereum-provider",
-        "Specify a provider by URL(s) on which this service node will query the"
-        "Ethereum blockchain when tracking the rewards smart contract. A "
-        "provider is required if operating as a service node.\n"
-        "Multiple ethereum providers can be specified by comma delimiting the "
-        "URLs for example: '127.0.0.1:8545,127.0.0.1:8546'"};
+        "Provider on which this service node will query the ethereum blockchain "
+        "when tracking the rewards smart contract. Required if operating as a "
+        "service node."};
 static const command_line::arg_descriptor<uint16_t> arg_storage_server_port = {
         "storage-server-port", "Deprecated option, ignored.", 0};
 static const command_line::arg_descriptor<uint16_t, false, true, 2> arg_quorumnet_port = {
@@ -1218,7 +1216,6 @@ void core::init_oxenmq(const boost::program_options::variables_map& vm) {
                             tools::type_to_hex(m_service_keys.pub),
                             m_bls_signer->getPublicKeyHex());
                 });
-
     }
 
     quorumnet_init(*this, m_quorumnet_state);

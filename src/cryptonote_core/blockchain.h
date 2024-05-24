@@ -1290,7 +1290,7 @@ class Blockchain {
     checkpoints m_checkpoints;
 
     // Ethereum client for communicating with L2 blockchain
-    std::shared_ptr<ethyl::Provider> m_provider;
+    std::shared_ptr<Provider> m_provider;
 
     network_type m_nettype;
     bool m_offline;

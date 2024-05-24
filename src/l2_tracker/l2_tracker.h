@@ -64,10 +64,10 @@ class L2Tracker {
     std::thread update_thread;
 
   public:
-    L2Tracker(cryptonote::network_type nettype);
+    L2Tracker();
+    L2Tracker(const cryptonote::network_type nettype, const std::shared_ptr<Provider>& client);
     ~L2Tracker();
 
-    bool start();
     void update_state();
     bool check_state_in_history(uint64_t height, const crypto::hash& state_root);
     bool check_state_in_history(uint64_t height, const std::string& state_root);
@@ -90,8 +90,6 @@ class L2Tracker {
     std::vector<uint64_t> get_non_signers(const std::vector<std::string>& bls_public_keys);
     std::vector<std::string> get_all_bls_public_keys(uint64_t blockNumber);
 
-    ethyl::Provider provider;
-
   private:
     void insert_in_order(State&& new_state);
     void process_logs_for_state(State& state);
@@ -101,5 +99,6 @@ class L2Tracker {
     static std::string_view get_pool_contract_address(const cryptonote::network_type nettype);
     void get_review_transactions();
     void populate_review_transactions(std::shared_ptr<TransactionReviewSession> session);
+    bool service_node = true;
     // END
 };
