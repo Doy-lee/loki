@@ -245,7 +245,7 @@ class SNNetwork:
         # vprint("liquidated node: number of service nodes in contract {}".format(self.servicenodecontract.numberServiceNodes()))
 
         # Claim rewards for Address
-        time.sleep(155)
+        time.sleep(10)
         rewards = self.ethsns[0].get_bls_rewards(self.servicenodecontract.hardhatAccountAddress())
         vprint(rewards)
         vprint("Balance before claim {}".format(self.servicenodecontract.erc20balance(self.servicenodecontract.hardhatAccountAddress())))
