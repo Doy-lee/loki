@@ -561,6 +561,22 @@ contract_abi = json.loads("""
       "type": "error"
     },
     {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "serviceNodeID",
+          "type": "uint64"
+        },
+        {
+          "internalType": "address",
+          "name": "recipient",
+          "type": "address"
+        }
+      ],
+      "name": "SmallContributorLeaveTooEarly",
+      "type": "error"
+    },
+    {
       "anonymous": false,
       "inputs": [
         {
@@ -966,7 +982,46 @@ contract_abi = json.loads("""
     },
     {
       "inputs": [],
+      "name": "MAX_PERMITTED_PUBKEY_AGGREGATIONS_LOWER_BOUND",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "MAX_SERVICE_NODE_REMOVAL_WAIT_TIME",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "SMALL_CONTRIBUTOR_DIVISOR",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "SMALL_CONTRIBUTOR_LEAVE_DELAY",
       "outputs": [
         {
           "internalType": "uint256",
@@ -989,6 +1044,32 @@ contract_abi = json.loads("""
         {
           "internalType": "uint256",
           "name": "Y",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "_lastHeightPubkeyWasAggregated",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "_numPubkeyAggregationsForHeight",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
           "type": "uint256"
         }
       ],
@@ -1183,6 +1264,19 @@ contract_abi = json.loads("""
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "hashToG2Tag",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "address",
@@ -1346,6 +1440,19 @@ contract_abi = json.loads("""
         {
           "internalType": "uint256",
           "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "maxPermittedPubkeyAggregations",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "result",
           "type": "uint256"
         }
       ],
@@ -1667,6 +1774,11 @@ contract_abi = json.loads("""
               "internalType": "struct BN256G1.G1Point",
               "name": "pubkey",
               "type": "tuple"
+            },
+            {
+              "internalType": "uint256",
+              "name": "addedTimestamp",
+              "type": "uint256"
             },
             {
               "internalType": "uint256",
@@ -2212,396 +2324,384 @@ erc20_contract_abi = json.loads("""
 
 foundation_pool_abi = json.loads("""
 [
+{
+  "inputs": [
     {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "target",
-          "type": "address"
-        }
-      ],
-      "name": "AddressEmptyCode",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "account",
-          "type": "address"
-        }
-      ],
-      "name": "AddressInsufficientBalance",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "FailedInnerCall",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "InvalidInitialization",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "NotInitializing",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "owner",
-          "type": "address"
-        }
-      ],
-      "name": "OwnableInvalidOwner",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "account",
-          "type": "address"
-        }
-      ],
-      "name": "OwnableUnauthorizedAccount",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "token",
-          "type": "address"
-        }
-      ],
-      "name": "SafeERC20FailedOperation",
-      "type": "error"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "newBeneficiary",
-          "type": "address"
-        }
-      ],
-      "name": "BeneficiaryUpdated",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "FundsReleased",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "uint64",
-          "name": "version",
-          "type": "uint64"
-        }
-      ],
-      "name": "Initialized",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "previousOwner",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "newOwner",
-          "type": "address"
-        }
-      ],
-      "name": "OwnershipTransferStarted",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "previousOwner",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "newOwner",
-          "type": "address"
-        }
-      ],
-      "name": "OwnershipTransferred",
-      "type": "event"
-    },
-    {
-      "inputs": [],
-      "name": "ANNUAL_INTEREST_RATE",
-      "outputs": [
-        {
-          "internalType": "uint64",
-          "name": "",
-          "type": "uint64"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "BASIS_POINTS",
-      "outputs": [
-        {
-          "internalType": "uint64",
-          "name": "",
-          "type": "uint64"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "SENT",
-      "outputs": [
-        {
-          "internalType": "contract IERC20",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "acceptOwnership",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "beneficiary",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "balance",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "timeElapsed",
-          "type": "uint256"
-        }
-      ],
-      "name": "calculateInterestAmount",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "pure",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "timestamp",
-          "type": "uint256"
-        }
-      ],
-      "name": "calculateReleasedAmount",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "calculateTotalDeposited",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "_beneficiary",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "_sent",
-          "type": "address"
-        }
-      ],
-      "name": "initialize",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "lastPaidOutTime",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "owner",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "payoutReleased",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "pendingOwner",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "renounceOwnership",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "timestamp",
-          "type": "uint256"
-        }
-      ],
-      "name": "rewardRate",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "newBeneficiary",
-          "type": "address"
-        }
-      ],
-      "name": "setBeneficiary",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "totalPaidOut",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "newOwner",
-          "type": "address"
-        }
-      ],
-      "name": "transferOwnership",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
+      "internalType": "address",
+      "name": "target",
+      "type": "address"
     }
+  ],
+  "name": "AddressEmptyCode",
+  "type": "error"
+},
+{
+  "inputs": [
+    {
+      "internalType": "address",
+      "name": "account",
+      "type": "address"
+    }
+  ],
+  "name": "AddressInsufficientBalance",
+  "type": "error"
+},
+{
+  "inputs": [],
+  "name": "FailedInnerCall",
+  "type": "error"
+},
+{
+  "inputs": [],
+  "name": "InvalidInitialization",
+  "type": "error"
+},
+{
+  "inputs": [],
+  "name": "NotInitializing",
+  "type": "error"
+},
+{
+  "inputs": [
+    {
+      "internalType": "address",
+      "name": "owner",
+      "type": "address"
+    }
+  ],
+  "name": "OwnableInvalidOwner",
+  "type": "error"
+},
+{
+  "inputs": [
+    {
+      "internalType": "address",
+      "name": "account",
+      "type": "address"
+    }
+  ],
+  "name": "OwnableUnauthorizedAccount",
+  "type": "error"
+},
+{
+  "inputs": [
+    {
+      "internalType": "address",
+      "name": "token",
+      "type": "address"
+    }
+  ],
+  "name": "SafeERC20FailedOperation",
+  "type": "error"
+},
+{
+  "anonymous": false,
+  "inputs": [
+    {
+      "indexed": false,
+      "internalType": "address",
+      "name": "newBeneficiary",
+      "type": "address"
+    }
+  ],
+  "name": "BeneficiaryUpdated",
+  "type": "event"
+},
+{
+  "anonymous": false,
+  "inputs": [
+    {
+      "indexed": false,
+      "internalType": "uint256",
+      "name": "amount",
+      "type": "uint256"
+    }
+  ],
+  "name": "FundsReleased",
+  "type": "event"
+},
+{
+  "anonymous": false,
+  "inputs": [
+    {
+      "indexed": false,
+      "internalType": "uint64",
+      "name": "version",
+      "type": "uint64"
+    }
+  ],
+  "name": "Initialized",
+  "type": "event"
+},
+{
+  "anonymous": false,
+  "inputs": [
+    {
+      "indexed": true,
+      "internalType": "address",
+      "name": "previousOwner",
+      "type": "address"
+    },
+    {
+      "indexed": true,
+      "internalType": "address",
+      "name": "newOwner",
+      "type": "address"
+    }
+  ],
+  "name": "OwnershipTransferStarted",
+  "type": "event"
+},
+{
+  "anonymous": false,
+  "inputs": [
+    {
+      "indexed": true,
+      "internalType": "address",
+      "name": "previousOwner",
+      "type": "address"
+    },
+    {
+      "indexed": true,
+      "internalType": "address",
+      "name": "newOwner",
+      "type": "address"
+    }
+  ],
+  "name": "OwnershipTransferred",
+  "type": "event"
+},
+{
+  "inputs": [],
+  "name": "ANNUAL_SIMPLE_PAYOUT_RATE",
+  "outputs": [
+    {
+      "internalType": "uint64",
+      "name": "",
+      "type": "uint64"
+    }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+},
+{
+  "inputs": [],
+  "name": "BASIS_POINTS",
+  "outputs": [
+    {
+      "internalType": "uint64",
+      "name": "",
+      "type": "uint64"
+    }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+},
+{
+  "inputs": [],
+  "name": "SENT",
+  "outputs": [
+    {
+      "internalType": "contract IERC20",
+      "name": "",
+      "type": "address"
+    }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+},
+{
+  "inputs": [],
+  "name": "acceptOwnership",
+  "outputs": [],
+  "stateMutability": "nonpayable",
+  "type": "function"
+},
+{
+  "inputs": [],
+  "name": "beneficiary",
+  "outputs": [
+    {
+      "internalType": "address",
+      "name": "",
+      "type": "address"
+    }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+},
+{
+  "inputs": [
+    {
+      "internalType": "uint256",
+      "name": "balance",
+      "type": "uint256"
+    },
+    {
+      "internalType": "uint256",
+      "name": "timeElapsed",
+      "type": "uint256"
+    }
+  ],
+  "name": "calculatePayoutAmount",
+  "outputs": [
+    {
+      "internalType": "uint256",
+      "name": "",
+      "type": "uint256"
+    }
+  ],
+  "stateMutability": "pure",
+  "type": "function"
+},
+{
+  "inputs": [],
+  "name": "calculateReleasedAmount",
+  "outputs": [
+    {
+      "internalType": "uint256",
+      "name": "",
+      "type": "uint256"
+    }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+},
+{
+  "inputs": [],
+  "name": "calculateTotalDeposited",
+  "outputs": [
+    {
+      "internalType": "uint256",
+      "name": "",
+      "type": "uint256"
+    }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+},
+{
+  "inputs": [
+    {
+      "internalType": "address",
+      "name": "_beneficiary",
+      "type": "address"
+    },
+    {
+      "internalType": "address",
+      "name": "_sent",
+      "type": "address"
+    }
+  ],
+  "name": "initialize",
+  "outputs": [],
+  "stateMutability": "nonpayable",
+  "type": "function"
+},
+{
+  "inputs": [],
+  "name": "lastPaidOutTime",
+  "outputs": [
+    {
+      "internalType": "uint256",
+      "name": "",
+      "type": "uint256"
+    }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+},
+{
+  "inputs": [],
+  "name": "owner",
+  "outputs": [
+    {
+      "internalType": "address",
+      "name": "",
+      "type": "address"
+    }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+},
+{
+  "inputs": [],
+  "name": "payoutReleased",
+  "outputs": [],
+  "stateMutability": "nonpayable",
+  "type": "function"
+},
+{
+  "inputs": [],
+  "name": "pendingOwner",
+  "outputs": [
+    {
+      "internalType": "address",
+      "name": "",
+      "type": "address"
+    }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+},
+{
+  "inputs": [],
+  "name": "renounceOwnership",
+  "outputs": [],
+  "stateMutability": "nonpayable",
+  "type": "function"
+},
+{
+  "inputs": [],
+  "name": "rewardRate",
+  "outputs": [
+    {
+      "internalType": "uint256",
+      "name": "",
+      "type": "uint256"
+    }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+},
+{
+  "inputs": [
+    {
+      "internalType": "address",
+      "name": "newBeneficiary",
+      "type": "address"
+    }
+  ],
+  "name": "setBeneficiary",
+  "outputs": [],
+  "stateMutability": "nonpayable",
+  "type": "function"
+},
+{
+  "inputs": [],
+  "name": "totalPaidOut",
+  "outputs": [
+    {
+      "internalType": "uint256",
+      "name": "",
+      "type": "uint256"
+    }
+  ],
+  "stateMutability": "view",
+  "type": "function"
+},
+{
+  "inputs": [
+    {
+      "internalType": "address",
+      "name": "newOwner",
+      "type": "address"
+    }
+  ],
+  "name": "transferOwnership",
+  "outputs": [],
+  "stateMutability": "nonpayable",
+  "type": "function"
+}
 ]
 """)
