@@ -50,6 +50,9 @@ class L2Tracker {
     std::chrono::steady_clock::time_point next_provider_check = std::chrono::steady_clock::now();
     std::optional<std::chrono::steady_clock::time_point> primary_down;
     std::chrono::steady_clock::time_point primary_last_warned;
+    std::mutex past_service_node_ids_mutex;
+    std::map<uint64_t, RewardsContract::ServiceNodeIDs> past_service_node_ids;
+
 
     // Provider state updating: `update_state()` starts a chain of updates, each one triggering the
     // next step in the chain when its response is received.  While such an update is in progress
@@ -133,6 +136,7 @@ class L2Tracker {
 
     // Returns the latest L2 height we know about, i.e. from previous provider updates.
     uint64_t get_latest_height() const;
+
     // Returns the latest L2 height that we have known about for at least 30s (SAFE_BLOCKS); when
     // building a block we use this slight lag so that service nodes that are a few seconds out of
     // sync won't have trouble accepting our block.
@@ -146,7 +150,25 @@ class L2Tracker {
     }
     std::vector<bls_public_key> get_all_bls_public_keys(uint64_t blockNumber);
 
+    // Query `all_service_node_ids` from the SN Rewards Contract denoted at
+    // `eth::contract::rewards_address`. This produces a list of all SNs with their ID and their BLS
+    // public key as stored on the L2 EVM.
+    //
+    // Optionally pass in a height to query a specific height's instance of the SN IDs. The L2
+    // tracker only persists a sliding window of historic states. If `height` is omitted then the
+    // latest SN IDs will be returned if one exists.
+    //
+    // The `success` field is set to `false` if the data is not available in the L2 tracker because
+    //   - it has been pruned due to the cache being full
+    //   - it is far beyond the current sliding window of history kept
+    //   - historical data has not been queried yet
     RewardsContract::ServiceNodeIDs get_all_service_node_ids(std::optional<uint64_t> height);
+
+    // Dispatch an async job to go and update the cached `service_node_ids` to the height requested.
+    // This function also prunes old states from the cache. It is expected to call this function
+    // with the latest `block.l2_height` (i.e. in ascending order) in order for pruning to work
+    // predictably.
+    void update_all_service_node_ids_async(uint64_t height);
 
     // Returns true/false for whether we have recently observed the given event from the L2 tracker
     // logs.  This is used for pulse confirmation voting.

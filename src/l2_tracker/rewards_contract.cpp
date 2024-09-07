@@ -401,26 +401,21 @@ std::vector<bls_public_key> RewardsContract::get_all_bls_pubkeys(uint64_t block_
     return result;
 }
 
-RewardsContract::ServiceNodeIDs RewardsContract::all_service_node_ids(
-        std::optional<uint64_t> height) {
-    std::string call_data = "0x{:x}"_format(contract::call::ServiceNodeRewards_allServiceNodeIDs);
-    std::string block_num_arg = height ? "0x{:x}"_format(*height) : "latest";
-    nlohmann::json call_result =
-            provider.callReadFunctionJSON(contract_address, call_data, block_num_arg);
+RewardsContract::ServiceNodeIDs RewardsContract::parse_all_service_node_ids(std::string_view payload) {
+    using u256 = std::array<std::byte, 32>;
 
-    auto call_result_hex = call_result.get<std::string_view>();
-    if (call_result_hex.starts_with("0x") || call_result_hex.starts_with("0X"))
-        call_result_hex.remove_prefix(2);
+    if (payload.starts_with("0x") || payload.starts_with("0X"))
+        payload.remove_prefix(2);
 
     // NOTE: Extract the ID payload
-    ServiceNodeIDs result = {};
+    RewardsContract::ServiceNodeIDs result = {};
     const auto [offset_to_ids_bytes, offset_to_keys_bytes, _unused] =
-            tools::split_hex_into<u256, u256, std::string_view>(call_result_hex);
+            tools::split_hex_into<u256, u256, std::string_view>(payload);
     const uint64_t offset_to_ids = tools::decode_integer_be(offset_to_ids_bytes);
     const uint64_t offset_to_keys = tools::decode_integer_be(offset_to_keys_bytes);
 
     std::string_view ids_start_hex =
-            tools::string_safe_substr(call_result_hex, offset_to_ids * 2, call_result_hex.size());
+            tools::string_safe_substr(payload, offset_to_ids * 2, payload.size());
     auto [num_ids_bytes, ids_remainder_hex] =
             tools::split_hex_into<u256, std::string_view>(ids_start_hex);
     uint64_t num_ids = tools::decode_integer_be(num_ids_bytes);
@@ -431,7 +426,7 @@ RewardsContract::ServiceNodeIDs RewardsContract::all_service_node_ids(
 
     // NOTE: Extract the keys payload
     std::string_view keys_start_hex =
-            tools::string_safe_substr(call_result_hex, offset_to_keys * 2, call_result_hex.size());
+            tools::string_safe_substr(payload, offset_to_keys * 2, payload.size());
     auto [num_keys_bytes, keys_remainder_hex] =
             tools::split_hex_into<u256, std::string_view>(keys_start_hex);
     uint64_t num_keys = tools::decode_integer_be(num_keys_bytes);
@@ -444,11 +439,9 @@ RewardsContract::ServiceNodeIDs RewardsContract::all_service_node_ids(
     if (num_keys != num_ids) {
         oxen::log::warning(
                 logcat,
-                "The number of ids ({}) and bls public keys ({}) returned do not match at block "
-                "'{}'",
+                "The number of ids ({}) and bls public keys ({}) returned did not match",
                 num_ids,
-                num_keys,
-                block_num_arg);
+                num_keys);
         return result;
     }
 
@@ -456,10 +449,9 @@ RewardsContract::ServiceNodeIDs RewardsContract::all_service_node_ids(
         oxen::log::warning(
                 logcat,
                 "The number of ids ({}) specified when retrieving all SN BLS ids did not "
-                "match the size ({} bytes) of the payload returned at block '{}'",
+                "match the size ({} bytes) of the payload",
                 num_ids,
-                ids_payload.size() / 2,
-                block_num_arg);
+                ids_payload.size() / 2);
         return result;
     }
 
@@ -467,10 +459,9 @@ RewardsContract::ServiceNodeIDs RewardsContract::all_service_node_ids(
         oxen::log::warning(
                 logcat,
                 "The number of keys ({}) specified when retrieving all SN BLS pubkeys did not "
-                "match the size ({} bytes) of the payload returned at block '{}'",
+                "match the size ({} bytes) of the payload",
                 num_keys,
-                keys_payload.size() / 2,
-                block_num_arg);
+                keys_payload.size() / 2);
         return result;
     }
 
@@ -492,6 +483,19 @@ RewardsContract::ServiceNodeIDs RewardsContract::all_service_node_ids(
     }
 
     result.success = true;
+    return result;
+}
+
+RewardsContract::ServiceNodeIDs RewardsContract::all_service_node_ids(
+        std::optional<uint64_t> height) {
+
+    std::string call_data = "0x{:x}"_format(contract::call::ServiceNodeRewards_allServiceNodeIDs);
+    std::string block_num_arg = height ? "0x{:x}"_format(*height) : "latest";
+    nlohmann::json call_result =
+            provider.callReadFunctionJSON(contract_address, call_data, block_num_arg);
+
+    auto call_result_hex = call_result.get<std::string_view>();
+    RewardsContract::ServiceNodeIDs result = parse_all_service_node_ids(call_result_hex);
     return result;
 }
 

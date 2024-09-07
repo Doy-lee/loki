@@ -5,6 +5,7 @@
 #include <cryptonote_config.h>
 #include <oxen_economy.h>  // oxen::MAX_CONTRIBUTORS_HF19
 
+#include <nlohmann/json_fwd.hpp>
 #include <string>
 #include <unordered_set>
 
@@ -59,6 +60,10 @@ class RewardsContract {
     // Executes `allServiceNodeIDs` on the smart contract and retrieve all the BLS public keys and
     // the ID allocated for each key in the contract
     ServiceNodeIDs all_service_node_ids(std::optional<uint64_t> block_number = std::nullopt);
+
+    // Parse the solidity-abi encoded payload represented in hex that can be produced by invoking
+    // `allServiceNodeIDs` on the contract.
+    static ServiceNodeIDs parse_all_service_node_ids(std::string_view payload);
 
   private:
     std::string contract_address;

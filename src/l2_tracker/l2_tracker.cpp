@@ -52,6 +52,11 @@ L2Tracker::L2Tracker(cryptonote::core& core_, std::chrono::milliseconds update_f
             1ms,
             /*squelch*/ true,
             dedicated_thread);
+
+    // NOTE: Queue async task to update l2 state when block is added successfully
+    core.blockchain.hook_block_add([this](auto& info) {
+        update_all_service_node_ids_async(info.block.l2_height);
+    });
 }
 
 void L2Tracker::prune_old_states() {
@@ -574,8 +579,54 @@ std::vector<bls_public_key> L2Tracker::get_all_bls_public_keys(uint64_t blockNum
 
 RewardsContract::ServiceNodeIDs L2Tracker::get_all_service_node_ids(
         std::optional<uint64_t> height) {
-    RewardsContract::ServiceNodeIDs result = rewards_contract.all_service_node_ids(height);
+    auto lock = std::lock_guard{past_service_node_ids_mutex};
+    RewardsContract::ServiceNodeIDs result = {};
+    if (height) {
+        auto it = past_service_node_ids.find(*height);
+        if (it != past_service_node_ids.end())
+            result = it->second;
+    } else {
+        if (past_service_node_ids.size())
+            result = past_service_node_ids.rbegin()->second;
+    }
+
     return result;
+}
+
+void L2Tracker::update_all_service_node_ids_async(
+        uint64_t height) {
+
+    // NOTE: Book-keeping
+    {
+        auto lock = std::lock_guard{past_service_node_ids_mutex};
+
+        // NOTE: Prune old states
+        while (past_service_node_ids.size() > 16)
+            past_service_node_ids.erase(past_service_node_ids.begin());
+
+        // NOTE: Check if we somehow already have the data, early out if we have
+        if (past_service_node_ids.find(height) != past_service_node_ids.end())
+            return;
+    }
+
+    // NOTE: Do async query
+    provider.callReadFunctionJSONAsync(
+        contract::rewards_address(core.get_nettype()),
+        "0x{:x}"_format(contract::call::ServiceNodeRewards_allServiceNodeIDs),
+        [this, height](std::optional<nlohmann::json> call_result) mutable {
+            if (!call_result)
+                return;
+
+            // NOTE: Parse the payload from the JSON (which is a just hex-encoded string)
+            auto payload = (*call_result).get<std::string_view>();
+            RewardsContract::ServiceNodeIDs result =
+                    rewards_contract.parse_all_service_node_ids(payload);
+
+            // NOTE: Store the parse data into history
+            auto lock = std::lock_guard{past_service_node_ids_mutex};
+            past_service_node_ids[height] = std::move(result);
+        },
+        "0x{:x}"_format(height));
 }
 
 bool L2Tracker::get_vote_for(const event::NewServiceNode& reg) const {

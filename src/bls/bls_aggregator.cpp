@@ -164,7 +164,11 @@ namespace {
             L2Tracker& l2_tracker,
             std::span<const bls_public_key> signature_signers) {
         const RewardsContract::ServiceNodeIDs contract_ids =
-                l2_tracker.get_all_service_node_ids(std::nullopt);
+                l2_tracker.get_all_service_node_ids(service_node_list.height());
+        if (!contract_ids.success) {
+            assert("Service Node IDs doesn't exist for the requested height");
+            return;
+        }
 
         // NOTE: Detect if the smart contract state has diverged.
         {
