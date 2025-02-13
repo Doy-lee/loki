@@ -157,7 +157,6 @@ class Blockchain {
      * @param l2_tracker a pointer to the L2Tracker instance; this pointer is *not* managed by the
      * Blockchain object, but must remain alive at least as long as the Blockchain object does.
      * Should be nullptr if this node does not track L2 state.
-     * @param offline true if running offline, else false
      * @param test_options test parameters
      * @param fixed_difficulty fixed difficulty for testing purposes; 0 means disabled
      * @param get_checkpoints if set, will be called to get checkpoints data
@@ -172,7 +171,6 @@ class Blockchain {
             sqlite3* ons_db = nullptr,
             cryptonote::BlockchainSQLite* sqlite_db = nullptr,
             eth::L2Tracker* l2_tracker = nullptr,
-            bool offline = false,
             const cryptonote::test_options* test_options = nullptr,
             difficulty_type fixed_difficulty = 0,
             const GetCheckpointsCallback& get_checkpoints = nullptr,
@@ -189,7 +187,6 @@ class Blockchain {
                 nullptr,
                 sqlite_db,
                 nullptr,
-                true,
                 &test_options);
     }
 
@@ -1384,7 +1381,6 @@ class Blockchain {
 
     eth::L2Tracker* m_l2_tracker;
     network_type m_nettype;
-    bool m_offline;
     difficulty_type m_fixed_difficulty;
 
     std::atomic<bool> m_cancel;
