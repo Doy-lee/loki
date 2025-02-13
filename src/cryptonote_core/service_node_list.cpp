@@ -72,6 +72,7 @@
 #include "service_node_rules.h"
 #include "service_node_swarm.h"
 #include "uptime_proof.h"
+#include "network_config/mocknet.h"
 
 using cryptonote::hf;
 namespace feature = cryptonote::feature;
@@ -261,6 +262,13 @@ void service_node_list::init() {
 
     if (!loaded || m_state.height > current_height)
         reset(true);
+
+    if (mocknet_is_forking(m_state.height) || mocknet_has_forked(m_state.height)) {
+        mocknet_inject_nodes(
+                static_cast<uint8_t>(blockchain.nettype()),
+                &m_state,
+                static_cast<uint8_t>(blockchain.get_network_version()));
+    }
 }
 
 template <std::predicate<const service_node_info&> UnaryPredicate>
@@ -2456,6 +2464,28 @@ static std::string dump_pulse_block_data(
     return s;
 }
 
+static bool check_pulse_timestamps(cryptonote::network_type nettype, uint64_t height)
+{
+    // TODO(doyle): Core tests don't generate proper timestamps for detecting
+    // timeout yet. So we don't do a timeout check and assume all blocks
+    // incoming from Pulse are valid if they have the correct signatures
+    // (despite timestamp being potentially wrong).
+    //
+    // NOTE: In mocknet we submit blocks with a quorum that we own the keys to.
+    // Since we might fork at a historical point in the chain, whilst we can
+    // manufacture an acceptable timestamp in the past that is indicative of
+    // the time the block was expected, this would mean that all subsequent
+    // blocks would need to be generated to catch up the chain to a reasonable
+    // timestamp.
+    //
+    // Instead of doing that, we just allow an arbitrary timestamp to be
+    // committed.
+    if (nettype == cryptonote::network_type::FAKECHAIN || mocknet_is_forking(height) ||
+        mocknet_has_forked(height))
+        return false;
+    return true;
+}
+
 static bool verify_block_components(
         cryptonote::network_type nettype,
         cryptonote::block const& block,
@@ -2529,9 +2559,7 @@ static bool verify_block_components(
             return false;
         }
 
-        // TODO(doyle): Core tests need to generate coherent timestamps with
-        // Pulse. So we relax the rules here for now.
-        if (nettype != cryptonote::network_type::FAKECHAIN) {
+        if (check_pulse_timestamps(nettype, block.get_height())) {
             auto round_timeout = get_config(nettype).PULSE_ROUND_TIMEOUT;
             auto round_begin_timestamp = timings.r0_timestamp + (block.pulse.round * round_timeout);
             auto round_end_timestamp = round_begin_timestamp + round_timeout;
@@ -2763,11 +2791,7 @@ void service_node_list::verify_block(
                 alt_block ? &alt_pulse_quorums : nullptr);
     }
 
-    if (blockchain.nettype() != cryptonote::network_type::FAKECHAIN) {
-        // TODO(doyle): Core tests don't generate proper timestamps for detecting
-        // timeout yet. So we don't do a timeout check and assume all blocks
-        // incoming from Pulse are valid if they have the correct signatures
-        // (despite timestamp being potentially wrong).
+    if (check_pulse_timestamps(blockchain.nettype(), block.get_height())) {
         if (pulse::time_point(std::chrono::seconds(block.timestamp)) >=
             timings.miner_fallback_timestamp)
             pulse_quorum = nullptr;
@@ -2883,6 +2907,13 @@ void service_node_list::block_add(
     // NOTE: Add block to SQL in lock-step with SNL
     if (auto* sql_db = blockchain.maybe_sqlite_db())
         sql_db->add_block(block, m_state);
+
+    if (mocknet_is_forking(m_state.height)) {
+        mocknet_inject_nodes(
+                static_cast<uint8_t>(blockchain.nettype()),
+                &m_state,
+                static_cast<uint8_t>(block.major_version));
+    }
 }
 
 static std::mt19937_64 quorum_rng(hf hf_version, crypto::hash const& hash, quorum_type type) {
@@ -3045,7 +3076,8 @@ service_nodes::quorum generate_pulse_quorum(
         hf hf_version,
         std::vector<pubkey_and_sninfo> const& active_snode_list,
         std::vector<crypto::hash> const& pulse_entropy,
-        uint8_t pulse_round) {
+        uint8_t pulse_round,
+        uint64_t block_height) {
     service_nodes::quorum result = {};
     const size_t MIN_NODE_COUNT = get_config(nettype).PULSE_MIN_SERVICE_NODES;
     if (active_snode_list.size() < MIN_NODE_COUNT) {
@@ -3118,6 +3150,10 @@ service_nodes::quorum generate_pulse_quorum(
     for (auto it = pulse_candidates.begin(); it != running_it; it++) {
         crypto::public_key const& node_key = (*it)->first;
         result.validators.push_back(node_key);
+    }
+
+    if (mocknet_has_forked(block_height)) {
+        mocknet_replace_quorum_with_mock_nodes(result, block_height);
     }
     return result;
 }
@@ -3969,7 +4005,8 @@ std::optional<quorum> service_node_list::state_t::get_next_pulse_quorum(
             hf_version,
             active_service_nodes_infos(),
             get_pulse_entropy_for_next_block(db, block_hash, round),
-            round);
+            round,
+            height + 1);
     if (!verify_pulse_quorum_sizes(*result))
         result.reset();
     return result;
@@ -3999,7 +4036,8 @@ std::optional<quorum> service_node_list::state_t::get_pulse_quorum() const {
             block.major_version,
             prev_state->active_service_nodes_infos(),
             get_pulse_entropy_for_next_block(bc.db(), block.prev_id, block.pulse.round),
-            block.pulse.round);
+            block.pulse.round,
+            block.get_height());
     if (!verify_pulse_quorum_sizes(quorum))
         return std::nullopt;
     return quorum;
@@ -4133,7 +4171,8 @@ void service_node_list::validate_miner_tx(const cryptonote::miner_tx_info& info)
                 hf_version,
                 m_state.active_service_nodes_infos(),
                 entropy,
-                block.pulse.round);
+                block.pulse.round,
+                block.get_height());
         if (!verify_pulse_quorum_sizes(pulse_quorum))
             throw oxen::traced<std::runtime_error>{
                     "Pulse block received but Pulse has insufficient nodes for quorum, block hash {}, height {}"_format(
