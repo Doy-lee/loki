@@ -2020,11 +2020,21 @@ bool Blockchain::create_block_template_internal(
     uint64_t already_generated_coins;
     uint64_t pool_cookie;
 
-    if (!m_l2_tracker)
-        throw oxen::traced<std::logic_error>{
-                "Cannot create a block template without a configured L2 provider"};
+    std::shared_lock<eth::L2Tracker> l2_lock;
+    const auto hf_version = b.major_version;
+    if (hf_version >= cryptonote::feature::ETH_BLS) {
+        if (!m_l2_tracker) {
+            throw oxen::traced<std::logic_error>{
+                    "Cannot create a block template after the ETH fork without a configured L2 "
+                    "provider"};
+        }
+        l2_lock = std::shared_lock<eth::L2Tracker>(*m_l2_tracker, std::defer_lock);
+    }
 
-    auto lock = tools::shared_locks(tx_pool, *this, *m_l2_tracker);
+    auto lock = tools::shared_locks(tx_pool, *this);
+    if (m_l2_tracker)
+        l2_lock.lock();
+
     if (m_btc_valid) {
         // The pool cookie is atomic. The lack of locking is OK, as if it changes
         // just as we compare it, we'll just use a slightly old template, but
@@ -2069,7 +2079,6 @@ bool Blockchain::create_block_template_internal(
 
     CHECK_AND_ASSERT_MES(diffic, false, "difficulty overhead.");
 
-    auto hf_version = b.major_version;
     size_t txs_weight;
     uint64_t fee;
 
