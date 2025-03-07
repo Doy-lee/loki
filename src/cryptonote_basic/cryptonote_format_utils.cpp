@@ -1078,16 +1078,6 @@ bool check_outs_valid(const transaction& tx) {
                 tools::type_name<txout_to_key>(),
                 get_transaction_hash(tx));
 
-        if (tx.version == txversion::v1) {
-            if (out.amount <= 0) {
-                log::warning(
-                        logcat,
-                        "zero amount output in transaction id={}",
-                        get_transaction_hash(tx));
-                return false;
-            }
-        }
-
         if (!check_key(var::get<txout_to_key>(out.target).key))
             return false;
     }
@@ -1435,8 +1425,6 @@ bool get_transaction_hash(const transaction& t, crypto::hash& res) {
 //---------------------------------------------------------------
 [[nodiscard]] bool calculate_transaction_prunable_hash(
         const transaction& t, const std::string* blob, crypto::hash& res) {
-    if (t.version == txversion::v1)
-        return false;
     const unsigned int unprunable_size = t.unprunable_size;
     if (blob && unprunable_size) {
         CHECK_AND_ASSERT_MES(
@@ -1504,12 +1492,6 @@ crypto::hash get_pruned_transaction_hash(
 }
 //---------------------------------------------------------------
 bool calculate_transaction_hash(const transaction& t, crypto::hash& res, size_t* blob_size) {
-    // v1 transactions hash the entire blob
-    if (t.version == txversion::v1) {
-        size_t ignored_blob_size, &blob_size_ref = blob_size ? *blob_size : ignored_blob_size;
-        return get_object_hash(t, res, blob_size_ref);
-    }
-
     // v2 transactions hash different parts together, than hash the set of those hashes
     crypto::hash hashes[3];
 

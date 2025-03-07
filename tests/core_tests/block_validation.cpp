@@ -199,17 +199,14 @@ bool gen_block_invalid_nonce::generate(std::vector<test_event_entry>& events) co
 
 bool gen_block_no_miner_tx::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
+  auto hard_forks = oxen_generate_hard_fork_table();
+  oxen_chain_generator gen(events, hard_forks);
 
-  transaction miner_tx;
-  miner_tx.set_null();
-
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_miner_tx, hf::none, 0, 0, crypto::hash(), 0, miner_tx);
-  events.push_back(blk_1);
-
-  DO_CALLBACK(events, "check_block_purged");
-
+  oxen_blockchain_entry entry = {};
+  oxen_create_block_params params = gen.next_block_params();
+  gen.create_block(entry, params, /*tx_list*/ {});
+  entry.block.miner_tx = std::nullopt;
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false, "Block without a miner TX cannot be added prior to HF21");
   return true;
 }
 
@@ -415,7 +412,7 @@ bool gen_block_miner_tx_has_no_out::generate(std::vector<test_event_entry>& even
 
   MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
   miner_tx.vout.clear();
-  miner_tx.version = txversion::v1;
+  miner_tx.version = txversion::v2_ringct;
 
   block blk_1;
   generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_miner_tx, hf::none, 0, 0, crypto::hash(), 0, miner_tx);
@@ -468,7 +465,7 @@ static bool construct_miner_tx_with_extra_output(cryptonote::transaction& tx,
         block_reward -= governance_reward;
     }
 
-    tx.version = txversion::v1;
+    tx.version = txversion::v2_ringct;
     tx.unlock_time = height + MINED_MONEY_UNLOCK_WINDOW;
 
     /// half of the miner reward goes to the other account 
@@ -548,7 +545,7 @@ bool gen_block_is_too_big::generate(std::vector<test_event_entry>& events) const
 
   // Creating a huge miner_tx, it will have a lot of outs
   MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
-  miner_tx.version = txversion::v1;
+  miner_tx.version = txversion::v2_ringct;
   static const size_t tx_out_count = BLOCK_GRANTED_FULL_REWARD_ZONE_V1 / 2;
 
   uint64_t amount = get_outs_money_amount(miner_tx);

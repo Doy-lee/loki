@@ -237,13 +237,9 @@ inline void serialize(
         cryptonote::transaction& x,
         [[maybe_unused]] const boost::serialization::version_type ver) {
     serialize(a, static_cast<cryptonote::transaction_prefix&>(x), ver);
-    if (x.version == cryptonote::txversion::v1) {
-        a& x.signatures;
-    } else {
-        a&(rct::rctSigBase&)x.rct_signatures;
-        if (x.rct_signatures.type != rct::RCTType::Null)
-            a& x.rct_signatures.p;
-    }
+    a&(rct::rctSigBase&)x.rct_signatures;
+    if (x.rct_signatures.type != rct::RCTType::Null)
+        a& x.rct_signatures.p;
 }
 
 template <class Archive>

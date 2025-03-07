@@ -2197,7 +2197,7 @@ void wallet2::process_new_transaction(
         bool double_spend_seen,
         const tx_cache_data& tx_cache_data,
         std::map<std::pair<uint64_t, uint64_t>, size_t>* output_tracker_cache) {
-    if (!tx.is_transfer() || tx.version <= txversion::v1)
+    if (!tx.is_transfer())
         return;
 
     log::trace(logcat, "PROC NEW TX {}", txid);
@@ -2873,9 +2873,7 @@ void wallet2::process_new_transaction(
         }
     }
 
-    uint64_t fee = miner_tx                    ? 0
-                 : tx.version == txversion::v1 ? tx_money_spent_in_ins - get_outs_money_amount(tx)
-                                               : tx.rct_signatures.txnFee;
+    uint64_t fee = miner_tx ? 0 : tx.rct_signatures.txnFee;
 
     if (tx_money_spent_in_ins > 0 && !pool) {
         uint64_t self_received = std::accumulate(
@@ -3112,10 +3110,7 @@ void wallet2::process_outgoing(
         // wallet (eg, we're a cold wallet and the hot wallet sent it). For RCT transactions,
         // we only see 0 input amounts, so have to deduce amount out from other parameters.
         details.m_amount_in = spent;
-        if (tx.version == txversion::v1)
-            details.m_amount_out = get_outs_money_amount(tx);
-        else
-            details.m_amount_out = spent - tx.rct_signatures.txnFee;
+        details.m_amount_out = spent - tx.rct_signatures.txnFee;
         details.m_change = received;
 
         std::vector<tx_extra_field> tx_extra_fields;
@@ -13186,9 +13181,6 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_all(
             (subaddr_indices.empty() || subaddr_indices.count(td.m_subaddr_index.minor) == 1)) {
             fund_found = true;
             if (below == 0 || td.amount() < below) {
-                if (td.m_tx.version <= txversion::v1)
-                    continue;
-
                 if (td.is_rct())
                     unused_transfer_dust_indices_per_subaddr[td.m_subaddr_index.minor]
                             .first.push_back(i);
@@ -14341,7 +14333,7 @@ void wallet2::check_tx_key_helper(
 
         if (found) {
             uint64_t amount;
-            if (tx.version == txversion::v1 || tx.rct_signatures.type == rct::RCTType::Null) {
+            if (tx.rct_signatures.type == rct::RCTType::Null) {
                 amount = tx.vout[n].amount;
             } else {
                 crypto::secret_key scalar1;

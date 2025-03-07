@@ -8,7 +8,7 @@
 namespace cryptonote {
 
 void transaction_prefix::set_null() {
-    version = txversion::v1;
+    version = txversion::v2_ringct;
     unlock_time = 0;
     vin.clear();
     vout.clear();

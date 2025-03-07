@@ -317,13 +317,6 @@ bool tx_memory_pool::add_tx(
         throw oxen::traced<std::runtime_error>("Could not add to txpool, blob empty");
     }
 
-    if (tx.version == txversion::v0) {
-        // v0 never accepted
-        log::info(logcat, "transaction version 0 is invalid");
-        tvc.m_verifivation_failed = true;
-        return false;
-    }
-
     // we do not accept transactions that timed out before, unless they're
     // kept_by_block
     if (!opts.kept_by_block &&

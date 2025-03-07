@@ -855,9 +855,9 @@ public:
   bool operator()(const oxen_blockchain_addable<cryptonote::block> &entry) const
   {
     log_event("oxen_blockchain_addable<cryptonote::block>");
-    cryptonote::block const &block             = entry.data;
+    cryptonote::block const& block = entry.data;
     cryptonote::block_verification_context bvc = {};
-    std::string bd                    = t_serializable_object_to_blob(block);
+    std::string bd = t_serializable_object_to_blob(block);
     std::vector<cryptonote::block> pblocks;
     if (m_c.prepare_handle_incoming_blocks(std::vector<cryptonote::block_complete_entry>(1, {bd, {}, {}}), pblocks))
     {
@@ -868,9 +868,17 @@ public:
       bvc.m_verifivation_failed = true;
 
     bool added = !bvc.m_verifivation_failed;
+
+    // NOTE: We have tests that intentionally construct invalid blocks, i.e.
+    // blocks without a miner TX but they should have one. We handle those kind
+    // of blocks gracefully here.
+    uint64_t height = (block.major_version >= cryptonote::feature::ETH_BLS ||
+                       (block.miner_tx && block.miner_tx->is_miner_tx()))
+                            ? block.get_height()
+                            : 0;
+
     if (!add_to_blockchain_was_valid(
-                fmt::format(
-                        "block {} hf{}", block.get_height(), static_cast<size_t>(block.major_version)),
+                fmt::format("block {} hf{}", height, static_cast<size_t>(block.major_version)),
                 entry.can_be_added_to_blockchain,
                 added,
                 entry.fail_msg)) {

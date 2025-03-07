@@ -1536,47 +1536,39 @@ bool test_generator::construct_block_manually(
   uint64_t already_generated_coins = get_already_generated_coins(prev_block);
   std::vector<uint64_t> block_weights;
   get_last_n_block_weights(block_weights, get_block_hash(prev_block), cryptonote::REWARD_BLOCKS_WINDOW);
-  if (blk.major_version >= hf::hf21_eth)
-  {
+  if (blk.major_version >= hf::hf21_eth) {
       blk.miner_tx = std::nullopt;
-  }
-  else if (actual_params & bf_miner_tx)
-  {
-    blk.miner_tx = miner_tx.value_or(cryptonote::transaction{});
-  }
-  else
-  {
-    // TODO: This will work, until size of constructed block is less then BLOCK_GRANTED_FULL_REWARD_ZONE
-    cryptonote::oxen_miner_tx_context miner_tx_context = {};
-    miner_tx_context.nettype                           = cryptonote::network_type::FAKECHAIN;
-    manual_calc_batched_governance(*this, prev_id, miner_tx_context, m_hf_version, height);
+  } else if (actual_params & bf_miner_tx) {
+      blk.miner_tx = miner_tx.value_or(cryptonote::transaction{});
+  } else {
+      // TODO: This will work, until size of constructed block is less then
+      // BLOCK_GRANTED_FULL_REWARD_ZONE
+      cryptonote::oxen_miner_tx_context miner_tx_context = {};
+      miner_tx_context.nettype = cryptonote::network_type::FAKECHAIN;
+      manual_calc_batched_governance(*this, prev_id, miner_tx_context, m_hf_version, height);
 
-    blk.miner_tx.emplace();
-    size_t current_block_weight = txs_weight + get_transaction_weight(blk.miner_tx);
-    auto [r, block_rewards] = construct_miner_tx(
-            height,
-            tools::median(block_weights.begin(), block_weights.end()),
-            already_generated_coins,
-            current_block_weight,
-            miner_fee,
-            *blk.miner_tx,
-            cryptonote::oxen_miner_tx_context::miner_block(
-                    cryptonote::network_type::FAKECHAIN, miner_acc.get_keys().m_account_address),
-            {},
-            std::string(),
-            m_hf_version);
-    blk.reward = block_rewards;
-    if (!r)
-      return false;
+      blk.miner_tx.emplace();
+      size_t current_block_weight = txs_weight + get_transaction_weight(blk.miner_tx);
+      auto [r, block_rewards] = construct_miner_tx(
+              height,
+              tools::median(block_weights.begin(), block_weights.end()),
+              already_generated_coins,
+              current_block_weight,
+              miner_fee,
+              *blk.miner_tx,
+              cryptonote::oxen_miner_tx_context::miner_block(
+                      cryptonote::network_type::FAKECHAIN, miner_acc.get_keys().m_account_address),
+              {},
+              std::string(),
+              m_hf_version);
+      blk.reward = block_rewards;
+      if (!r)
+          return false;
   }
-
-  //blk.tree_root_hash = get_tx_tree_hash(blk);
 
   cryptonote::difficulty_type a_diffic = actual_params & bf_diffic ? diffic : TEST_DEFAULT_DIFFICULTY;
   fill_nonce_with_test_generator(this, blk, a_diffic, height);
-
   add_block(blk, txs_weight, block_weights, already_generated_coins);
-
   return true;
 }
 

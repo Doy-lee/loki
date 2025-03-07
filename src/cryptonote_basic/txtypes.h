@@ -11,9 +11,7 @@ namespace cryptonote {
 using namespace std::literals;
 
 enum class txversion : uint16_t {
-    v0 = 0,
-    v1,
-    v2_ringct,
+    v2_ringct = 2,
     v3_per_output_unlock_times,
     v4_tx_types,
     _count,
@@ -42,7 +40,6 @@ inline constexpr bool is_l2_event_tx(txtype type) {
 
 inline constexpr std::string_view to_string(txversion v) {
     switch (v) {
-        case txversion::v1: return "1"sv;
         case txversion::v2_ringct: return "2_ringct"sv;
         case txversion::v3_per_output_unlock_times: return "3_per_output_unlock_times"sv;
         case txversion::v4_tx_types: return "4_tx_types"sv;
