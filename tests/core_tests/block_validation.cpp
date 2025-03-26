@@ -31,168 +31,252 @@
 #include "chaingen.h"
 #include "block_validation.h"
 #include "common/util.h"
-#include "cryptonote_core/uptime_proof.h"
 
 using namespace cryptonote;
 
-namespace
-{
-  bool lift_up_difficulty(std::vector<test_event_entry>& events, std::vector<uint64_t>& timestamps,
-                          std::vector<difficulty_type>& cummulative_difficulties, test_generator& generator,
-                          size_t new_block_count, const block &blk_last, const account_base& miner_account)
-  {
-    difficulty_type cummulative_diffic = cummulative_difficulties.empty() ? 0 : cummulative_difficulties.back();
-    block blk_prev = blk_last;
-    for (size_t i = 0; i < new_block_count; ++i)
-    {
-      block blk_next;
-      difficulty_type diffic = next_difficulty_v2(timestamps, cummulative_difficulties,tools::to_seconds(get_config(cryptonote::network_type::FAKECHAIN).TARGET_BLOCK_TIME), cryptonote::difficulty_calc_mode::normal);
-      if (!generator.construct_block_manually(blk_next, blk_prev, miner_account,
-        test_generator::bf_timestamp | test_generator::bf_diffic, hf::none, 0, blk_prev.timestamp, crypto::hash(), diffic))
-        return false;
+static bool lift_up_difficulty(
+        std::vector<test_event_entry>& events,
+        std::vector<uint64_t>& timestamps,
+        std::vector<difficulty_type>& cummulative_difficulties,
+        oxen_chain_generator& gen,
+        size_t block_count) {
 
-      cummulative_diffic += diffic;
-      if (timestamps.size() == old::DIFFICULTY_WINDOW)
-      {
-        timestamps.erase(timestamps.begin());
-        cummulative_difficulties.erase(cummulative_difficulties.begin());
-      }
-      timestamps.push_back(blk_next.timestamp);
-      cummulative_difficulties.push_back(cummulative_diffic);
+    difficulty_type cummulative_diffic =
+            cummulative_difficulties.empty() ? 0 : cummulative_difficulties.back();
+    for (size_t i = 0; i < block_count; ++i) {
 
-      events.push_back(blk_next);
-      blk_prev = blk_next;
+        // NOTE: Calc difficulty
+        difficulty_type difficulty = next_difficulty_v2(
+                timestamps,
+                cummulative_difficulties,
+                tools::to_seconds(
+                        get_config(cryptonote::network_type::FAKECHAIN).TARGET_BLOCK_TIME),
+                cryptonote::difficulty_calc_mode::normal);
+
+        // NOTE: Construct block with custom difficulty
+        oxen_create_block_params params = gen.next_block_params();
+        params.timestamp = gen.blocks().back().block.timestamp;
+
+        oxen_blockchain_entry entry = {};
+        gen.block_begin(entry, params, /*tx_list*/ {});
+        fill_nonce_with_oxen_generator(&gen, entry.block, difficulty, entry.block.get_height());
+        gen.block_end(entry, params);
+        gen.add_block(entry, /*can_be_added_to_blockchain*/ true);
+
+        // NOTE: Append to timestamps and difficulty to window
+        cummulative_diffic += difficulty;
+        if (timestamps.size() == old::DIFFICULTY_WINDOW) {
+            timestamps.erase(timestamps.begin());
+            cummulative_difficulties.erase(cummulative_difficulties.begin());
+        }
+        timestamps.push_back(entry.block.timestamp);
+        cummulative_difficulties.push_back(cummulative_diffic);
     }
 
     return true;
-  }
 }
-
-#define BLOCK_VALIDATION_INIT_GENERATE()                                                \
-  GENERATE_ACCOUNT(miner_account);                                                      \
-  MAKE_GENESIS_BLOCK(events, blk_0, miner_account, 1338224400);
-
-//----------------------------------------------------------------------------------------------------------------------
-// Tests
 
 bool gen_block_big_major_version::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
+  oxen_chain_generator gen(events, oxen_generate_hard_fork_table());
+  uint64_t last_good_height = gen.chain_height();
 
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_major_ver, cryptonote::hf::_next);
-  events.push_back(blk_1);
+  oxen_create_block_params params = gen.next_block_params();
+  params.hf_version = cryptonote::hf::_next;
 
-  DO_CALLBACK(events, "check_block_purged");
+  oxen_blockchain_entry entry = {};
+  gen.create_block(entry, params, /*tx_list*/ {});
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false, "Block with OOB major version cannot be accepted");
+
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_not_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
 
   return true;
 }
 
 bool gen_block_big_minor_version::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
+  oxen_chain_generator gen(events, oxen_generate_hard_fork_table());
 
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_minor_ver, hf::none, 255);
-  events.push_back(blk_1);
+  oxen_create_block_params params = gen.next_block_params();
+  oxen_blockchain_entry entry = {};
+  gen.create_block(entry, params, /*tx_list*/ {});
 
-  DO_CALLBACK(events, "check_block_accepted");
+  entry.block.minor_version = 255;
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ true);
+  uint64_t last_good_height = gen.chain_height();
+
+  oxen_register_callback(
+          events,
+          "check_block_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
+
 
   return true;
 }
 
 bool gen_block_ts_not_checked::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
-  REWIND_BLOCKS_N(events, blk_0r, blk_0, miner_account, BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW - 2);
+  oxen_chain_generator gen(events, oxen_generate_hard_fork_table());
+  gen.add_n_blocks(BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW - 2);
 
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0r, miner_account, test_generator::bf_timestamp, hf::none, 0, blk_0.timestamp - 60 * 60);
-  events.push_back(blk_1);
+  oxen_create_block_params params = gen.next_block_params();
+  params.timestamp = gen.blocks().front().block.timestamp - 60 * 60;
 
-  DO_CALLBACK(events, "check_block_accepted");
+  oxen_blockchain_entry entry = {};
+  gen.create_block(entry, params, /*tx_list*/ {});
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ true);
+  uint64_t last_good_height = gen.chain_height();
+
+  oxen_register_callback(
+          events,
+          "check_block_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
 
   return true;
 }
 
 bool gen_block_ts_in_past::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
-  REWIND_BLOCKS_N(events, blk_0r, blk_0, miner_account, BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW - 1);
+  // NOTE: Setup
+  oxen_chain_generator gen(events, oxen_generate_hard_fork_table());
+  gen.add_n_blocks(BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW - 1);
+  uint64_t last_good_height = gen.chain_height();
 
-  uint64_t ts_below_median = var::get<block>(events[BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW / 2 - 1]).timestamp;
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0r, miner_account, test_generator::bf_timestamp, hf::none, 0, ts_below_median);
-  events.push_back(blk_1);
+  // NOTE: Construct block
+  uint64_t ts_below_median = gen.blocks()[BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW / 2 - 1].block.timestamp;
+  oxen_create_block_params params = gen.next_block_params();
+  params.timestamp = ts_below_median;
 
-  DO_CALLBACK(events, "check_block_purged");
+  oxen_blockchain_entry entry = {};
+  gen.create_block(entry, params, /*tx_list*/ {});
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false);
 
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
   return true;
 }
 
 bool gen_block_ts_in_future::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
+  // NOTE: Setup
+  oxen_chain_generator gen(events, oxen_generate_hard_fork_table());
+  gen.add_n_blocks(BLOCKCHAIN_TIMESTAMP_CHECK_WINDOW - 1);
+  uint64_t last_good_height = gen.chain_height();
 
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_timestamp, hf::none, 0, time(NULL) + 60*60 + old::BLOCK_FUTURE_TIME_LIMIT_V2);
-  events.push_back(blk_1);
+  // NOTE: Construct block
+  oxen_create_block_params params = gen.next_block_params();
+  params.timestamp = time(nullptr) + (60 * 60) + old::BLOCK_FUTURE_TIME_LIMIT_V2;
 
-  DO_CALLBACK(events, "check_block_purged");
+  oxen_blockchain_entry entry = {};
+  gen.create_block(entry, params, /*tx_list*/ {});
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false);
+
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_not_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
 
   return true;
 }
 
 bool gen_block_invalid_prev_id::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
+  // NOTE: Setup
+  oxen_chain_generator gen(events, oxen_generate_hard_fork_table());
+  uint64_t last_good_height = gen.chain_height();
 
-  block blk_1;
-  crypto::hash prev_id = get_block_hash(blk_0);
-  reinterpret_cast<char &>(prev_id) ^= 1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_prev_id, hf::none, 0, 0, prev_id);
-  events.push_back(blk_1);
+  // NOTE: Construct block
+  oxen_create_block_params params = gen.next_block_params();
 
-  DO_CALLBACK(events, "check_block_purged");
+  oxen_blockchain_entry entry = {};
+  gen.create_block(entry, params, /*tx_list*/ {});
+  entry.block.prev_id[0] ^= 1;
+
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false);
+
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_not_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
 
   return true;
 }
 
-bool gen_block_invalid_prev_id::check_block_verification_context(const cryptonote::block_verification_context& bvc, size_t event_idx, const cryptonote::block& /*blk*/)
-{
-  if (1 == event_idx)
-    return bvc.m_marked_as_orphaned && !bvc.m_added_to_main_chain && !bvc.m_verifivation_failed;
-  else
-    return !bvc.m_marked_as_orphaned && bvc.m_added_to_main_chain && !bvc.m_verifivation_failed;
-}
-
 bool gen_block_invalid_nonce::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
-
-  std::vector<uint64_t> timestamps;
-  std::vector<difficulty_type> cummulative_difficulties;
-  if (!lift_up_difficulty(events, timestamps, cummulative_difficulties, generator, 4, blk_0, miner_account))
+  // NOTE: Setup
+  oxen_chain_generator gen(events, oxen_generate_hard_fork_table());
+  std::vector<uint64_t> timestamp_window;
+  std::vector<difficulty_type> difficulty_window;
+  if (!lift_up_difficulty(events, timestamp_window, difficulty_window, gen, 4))
     return false;
+  uint64_t last_good_height = gen.chain_height();
 
-  // Create invalid nonce
-  difficulty_type diffic = next_difficulty_v2(timestamps, cummulative_difficulties,tools::to_seconds(get_config(cryptonote::network_type::FAKECHAIN).TARGET_BLOCK_TIME), cryptonote::difficulty_calc_mode::normal);
-  assert(1 < diffic);
-  const block& blk_last = var::get<block>(events.back());
-  uint64_t timestamp = blk_last.timestamp;
-  block blk_3;
-  blk_3.miner_tx.emplace();
-  do
-  {
-    ++timestamp;
-    blk_3.miner_tx.value().set_null();
-    if (!generator.construct_block_manually(blk_3, blk_last, miner_account,
-      test_generator::bf_diffic | test_generator::bf_timestamp, hf::none, 0, timestamp, crypto::hash(), diffic))
-      return false;
-  }
-  while (0 == blk_3.nonce);
-  --blk_3.nonce;
-  events.push_back(blk_3);
+  // NOTE: Construct the last block with the raised difficulty, and keep looking for a PoW solution
+  // until the nonce is non-zero. Once we get that, we subtract 1 from the nonce to make it
+  // insufficient.
+  oxen_create_block_params params = gen.next_block_params();
+  params.timestamp = gen.blocks().back().block.timestamp;
+
+  difficulty_type difficulty = next_difficulty_v2(
+          timestamp_window,
+          difficulty_window,
+          tools::to_seconds(get_config(cryptonote::network_type::FAKECHAIN).TARGET_BLOCK_TIME),
+          cryptonote::difficulty_calc_mode::normal);
+  assert(difficulty > 1);
+
+  oxen_blockchain_entry entry = {};
+  gen.block_begin(entry, params, /*tx_list*/ {});
+  do {
+      entry.block.timestamp++;
+      fill_nonce_with_oxen_generator(&gen, entry.block, difficulty, entry.block.get_height());
+  } while (entry.block.nonce == 0);
+  entry.block.nonce--;
+  gen.block_end(entry, params);
+
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false);
+
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_not_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
 
   return true;
 }
@@ -201,224 +285,334 @@ bool gen_block_no_miner_tx::generate(std::vector<test_event_entry>& events) cons
 {
   auto hard_forks = oxen_generate_hard_fork_table();
   oxen_chain_generator gen(events, hard_forks);
+  uint64_t last_good_height = gen.chain_height();
 
   oxen_blockchain_entry entry = {};
   oxen_create_block_params params = gen.next_block_params();
   gen.create_block(entry, params, /*tx_list*/ {});
   entry.block.miner_tx = std::nullopt;
   gen.add_block(entry, /*can_be_added_to_blockchain*/ false, "Block without a miner TX cannot be added prior to HF21");
+
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_not_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
+
   return true;
 }
 
-#define MAKE_MINER_TX_MANUALLY(TX, BLK)                                                                                \
-  transaction TX;                                                                                                      \
-  auto [r, block_rewards] = construct_miner_tx(BLK.get_height() + 1,                                                   \
-                          0,                                                                                           \
-                          generator.get_already_generated_coins(BLK),                                                  \
-                          0,                                                                                           \
-                          0,                                                                                           \
-                          TX,                                                                                          \
-                          cryptonote::oxen_miner_tx_context::miner_block(cryptonote::network_type::FAKECHAIN, miner_account.get_keys().m_account_address), \
-                          {},                                                                                          \
-                          {},                                                                                          \
-                          cryptonote::hf::none);                                                                       \
-  if (!r)                                                                                                              \
-    return false;
-
 bool gen_block_unlock_time_is_low::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
+  auto hard_forks = oxen_generate_hard_fork_table();
+  oxen_chain_generator gen(events, hard_forks);
+  uint64_t last_good_height = gen.chain_height();
 
-  MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
-  --miner_tx.unlock_time;
+  oxen_blockchain_entry entry = {};
+  oxen_create_block_params params = gen.next_block_params();
+  gen.create_block(entry, params, /*tx_list*/ {});
+  entry.block.miner_tx->unlock_time--;
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false, "Block with too low unlock time");
 
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_miner_tx, hf::none, 0, 0, crypto::hash(), 0, miner_tx);
-  events.push_back(blk_1);
-
-  DO_CALLBACK(events, "check_block_purged");
-
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_not_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
   return true;
 }
 
 bool gen_block_unlock_time_is_high::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
+  auto hard_forks = oxen_generate_hard_fork_table();
+  oxen_chain_generator gen(events, hard_forks);
+  uint64_t last_good_height = gen.chain_height();
 
-  MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
-  ++miner_tx.unlock_time;
+  oxen_blockchain_entry entry = {};
+  oxen_create_block_params params = gen.next_block_params();
+  gen.create_block(entry, params, /*tx_list*/ {});
+  entry.block.miner_tx->unlock_time++;
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false, "Block has unlock time too high");
 
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_miner_tx, hf::none, 0, 0, crypto::hash(), 0, miner_tx);
-  events.push_back(blk_1);
-
-  DO_CALLBACK(events, "check_block_purged");
-
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_not_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
   return true;
 }
 
 bool gen_block_unlock_time_is_timestamp_in_past::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
+  auto hard_forks = oxen_generate_hard_fork_table();
+  oxen_chain_generator gen(events, hard_forks);
+  uint64_t last_good_height = gen.chain_height();
 
-  MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
-  miner_tx.unlock_time = blk_0.timestamp - 10 * 60;
+  oxen_blockchain_entry entry = {};
+  oxen_create_block_params params = gen.next_block_params();
+  gen.create_block(entry, params, /*tx_list*/ {});
+  entry.block.miner_tx->unlock_time = gen.blocks().front().block.timestamp - 10 * 60;
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false, "Block has unlock timestamp in the past");
 
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_miner_tx, hf::none, 0, 0, crypto::hash(), 0, miner_tx);
-  events.push_back(blk_1);
-
-  DO_CALLBACK(events, "check_block_purged");
-
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_not_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
   return true;
 }
 
 bool gen_block_unlock_time_is_timestamp_in_future::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
+  auto hard_forks = oxen_generate_hard_fork_table();
+  oxen_chain_generator gen(events, hard_forks);
+  uint64_t last_good_height = gen.chain_height();
 
-  MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
-  miner_tx.unlock_time = blk_0.timestamp + 3 * MINED_MONEY_UNLOCK_WINDOW * tools::to_seconds(get_config(cryptonote::network_type::FAKECHAIN).TARGET_BLOCK_TIME);
+  oxen_blockchain_entry entry = {};
+  oxen_create_block_params params = gen.next_block_params();
+  gen.create_block(entry, params, /*tx_list*/ {});
+  entry.block.miner_tx->unlock_time = gen.blocks().front().block.timestamp + 3 * MINED_MONEY_UNLOCK_WINDOW * tools::to_seconds(get_config(cryptonote::network_type::FAKECHAIN).TARGET_BLOCK_TIME);
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false, "Block has unlock timestamp in the future");
 
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_miner_tx, hf::none, 0, 0, crypto::hash(), 0, miner_tx);
-  events.push_back(blk_1);
-
-  DO_CALLBACK(events, "check_block_purged");
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_not_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
 
   return true;
 }
 
 bool gen_block_height_is_low::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
+  auto hard_forks = oxen_generate_hard_fork_table();
+  oxen_chain_generator gen(events, hard_forks);
+  uint64_t last_good_height = gen.chain_height();
 
-  MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
-  var::get<txin_gen>(miner_tx.vin[0]).height--;
+  oxen_blockchain_entry entry = {};
+  oxen_create_block_params params = gen.next_block_params();
+  gen.create_block(entry, params, /*tx_list*/ {});
+  var::get<txin_gen>(entry.block.miner_tx->vin[0]).height--;
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false, "Block has bad height");
 
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_miner_tx, hf::none, 0, 0, crypto::hash(), 0, miner_tx);
-  events.push_back(blk_1);
-
-  DO_CALLBACK(events, "check_block_purged");
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_not_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
 
   return true;
 }
 
 bool gen_block_height_is_high::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
+  auto hard_forks = oxen_generate_hard_fork_table();
+  oxen_chain_generator gen(events, hard_forks);
+  uint64_t last_good_height = gen.chain_height();
 
-  MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
-  var::get<txin_gen>(miner_tx.vin[0]).height++;
+  oxen_blockchain_entry entry = {};
+  oxen_create_block_params params = gen.next_block_params();
+  gen.create_block(entry, params, /*tx_list*/ {});
+  var::get<txin_gen>(entry.block.miner_tx->vin[0]).height++;
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false, "Block has bad height");
 
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_miner_tx, hf::none, 0, 0, crypto::hash(), 0, miner_tx);
-  events.push_back(blk_1);
-
-  DO_CALLBACK(events, "check_block_purged");
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_not_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
 
   return true;
 }
 
 bool gen_block_miner_tx_has_2_tx_gen_in::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
+  auto hard_forks = oxen_generate_hard_fork_table();
+  oxen_chain_generator gen(events, hard_forks);
+  uint64_t last_good_height = gen.chain_height();
 
-  MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
+  oxen_blockchain_entry entry = {};
+  oxen_create_block_params params = gen.next_block_params();
+  gen.create_block(entry, params, /*tx_list*/ {});
 
   txin_gen in;
-  in.height = blk_0.get_height() + 1;
-  miner_tx.vin.push_back(in);
+  in.height = gen.blocks().front().block.get_height() + 1;
+  entry.block.miner_tx->vin.push_back(in);
 
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_miner_tx, hf::none, 0, 0, crypto::hash(), 0, miner_tx);
-  events.push_back(blk_1);
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false, "Block has 2 txin gen which is not allowed");
 
-  DO_CALLBACK(events, "check_block_purged");
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_not_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
 
   return true;
 }
 
 bool gen_block_miner_tx_has_2_in::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
-  REWIND_BLOCKS_N(events, blk_0a, blk_0, miner_account, 10);
-  REWIND_BLOCKS(events, blk_0r, blk_0a, miner_account);
+  auto hard_forks = oxen_generate_hard_fork_table();
+  oxen_chain_generator gen(events, hard_forks);
+  gen.add_n_blocks(10);
+  gen.add_mined_money_unlock_blocks();
+  uint64_t last_good_height = gen.chain_height();
+
+  const cryptonote::block& blk_0 = gen.blocks().front().block;
+  cryptonote::account_base miner = gen.first_miner();
 
   transaction tmp_tx;
+  if (!oxen_tx_builder(
+               events,
+               tmp_tx,
+               gen.blocks().back().block,
+               miner,
+               miner.get_keys().m_account_address,
+               blk_0.miner_tx.value().vout[0].amount,
+               cryptonote::hf::hf7)
+               .build())
+      return false;
 
-  if (!oxen_tx_builder(events, tmp_tx, blk_0r, miner_account, miner_account.get_keys().m_account_address, blk_0.miner_tx.value().vout[0].amount, cryptonote::hf::hf7).build())
-    return false;
+  oxen_blockchain_entry entry = {};
+  oxen_create_block_params params = gen.next_block_params();
+  gen.create_block(entry, params, /*tx_list*/ {});
+  entry.block.miner_tx->vin.push_back(tmp_tx.vin[0]);
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false, "Block has 2 txin which is not allowed");
 
-  MAKE_MINER_TX_MANUALLY(miner_tx, blk_0r);
-  miner_tx.vin.push_back(tmp_tx.vin[0]);
-
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0r, miner_account, test_generator::bf_miner_tx, hf::none, 0, 0, crypto::hash(), 0, miner_tx);
-  events.push_back(blk_1);
-
-  DO_CALLBACK(events, "check_block_purged");
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_not_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
 
   return true;
 }
 
 bool gen_block_miner_tx_with_txin_to_key::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
+  auto hard_forks = oxen_generate_hard_fork_table();
+  oxen_chain_generator gen(events, hard_forks);
+  gen.add_n_blocks(10);
+  gen.add_mined_money_unlock_blocks();
+  uint64_t last_good_height = gen.chain_height();
 
-  // This block has only one output
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_none);
-  events.push_back(blk_1);
-
-  REWIND_BLOCKS(events, blk_1r, blk_1, miner_account);
+  const cryptonote::block& blk_0 = gen.blocks().front().block;
+  cryptonote::account_base miner = gen.first_miner();
 
   transaction tmp_tx;
-  if (!oxen_tx_builder(events, tmp_tx, blk_1r, miner_account, miner_account.get_keys().m_account_address, blk_1.miner_tx.value().vout[0].amount, cryptonote::hf::hf7).build())
-    return false;
+  if (!oxen_tx_builder(
+               events,
+               tmp_tx,
+               gen.blocks().back().block,
+               miner,
+               miner.get_keys().m_account_address,
+               blk_0.miner_tx.value().vout[0].amount,
+               cryptonote::hf::hf7)
+               .build())
+      return false;
 
-  MAKE_MINER_TX_MANUALLY(miner_tx, blk_1);
-  miner_tx.vin[0] = tmp_tx.vin[0];
+  oxen_blockchain_entry entry = {};
+  oxen_create_block_params params = gen.next_block_params();
+  gen.create_block(entry, params, /*tx_list*/ {});
+  entry.block.miner_tx->vin[0] = tmp_tx.vin[0];
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false, "Block has account to account transfer as the miner tx input");
 
-  block blk_2;
-  generator.construct_block_manually(blk_2, blk_1r, miner_account, test_generator::bf_miner_tx, hf::none, 0, 0, crypto::hash(), 0, miner_tx);
-  events.push_back(blk_2);
-
-  DO_CALLBACK(events, "check_block_purged");
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_not_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
 
   return true;
 }
 
 bool gen_block_miner_tx_out_is_big::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
+  auto hard_forks = oxen_generate_hard_fork_table();
+  oxen_chain_generator gen(events, hard_forks);
+  uint64_t last_good_height = gen.chain_height();
 
-  MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
-  miner_tx.vout[0].amount *= 2;
+  oxen_blockchain_entry entry = {};
+  oxen_create_block_params params = gen.next_block_params();
+  gen.create_block(entry, params, /*tx_list*/ {});
+  entry.block.miner_tx->vout[0].amount *= 2;
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false, "Block has bad amount");
 
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_miner_tx, hf::none, 0, 0, crypto::hash(), 0, miner_tx);
-  events.push_back(blk_1);
-
-  DO_CALLBACK(events, "check_block_purged");
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_not_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
 
   return true;
 }
 
 bool gen_block_miner_tx_has_no_out::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
+  auto hard_forks = oxen_generate_hard_fork_table();
+  oxen_chain_generator gen(events, hard_forks);
+  uint64_t last_good_height = gen.chain_height();
 
-  MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
-  miner_tx.vout.clear();
-  miner_tx.version = txversion::v2_ringct;
+  oxen_blockchain_entry entry = {};
+  oxen_create_block_params params = gen.next_block_params();
+  gen.create_block(entry, params, /*tx_list*/ {});
+  entry.block.miner_tx->vout.clear();
+  entry.block.miner_tx->version = txversion::v2_ringct;
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false, "Block has bad amount");
 
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_miner_tx, hf::none, 0, 0, crypto::hash(), 0, miner_tx);
-  events.push_back(blk_1);
-
-  DO_CALLBACK(events, "check_block_purged");
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_not_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
 
   return true;
 }
@@ -501,82 +695,119 @@ static bool construct_miner_tx_with_extra_output(cryptonote::transaction& tx,
 
 bool gen_block_miner_tx_has_out_to_alice::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
+  auto hard_forks = oxen_generate_hard_fork_table(hf::hf7);
+  oxen_chain_generator gen(events, hard_forks);
 
-  GENERATE_ACCOUNT(alice);
+  cryptonote::account_base alice = gen.add_account();
 
-  transaction miner_tx;
+  oxen_blockchain_entry entry = {};
+  oxen_create_block_params params = gen.next_block_params();
+  gen.block_begin(entry, params, /*tx_list*/ {});
+  {
+      // NOTE: Get miner tx and halve the amount
+      cryptonote::transaction& miner_tx = *entry.block.miner_tx;
+      miner_tx.vin.clear();
+      miner_tx.vout.clear();
 
-  const auto height = blk_0.get_height();
-  const auto coins = generator.get_already_generated_coins(blk_0);
-  const auto& miner_address = miner_account.get_keys().m_account_address;
-  const auto& alice_address = alice.get_keys().m_account_address;
+      construct_miner_tx_with_extra_output(
+              miner_tx,
+              gen.first_miner().get_keys().m_account_address,
+              gen.chain_height(),
+              params.prev.already_generated_coins,
+              alice.get_keys().m_account_address);
+      fill_nonce_with_oxen_generator(
+              &gen, entry.block, TEST_DEFAULT_DIFFICULTY, params.prev.block.get_height() + 1);
+  }
+  gen.block_end(entry, params);
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ true);
+  uint64_t last_good_height = gen.chain_height();
 
-  construct_miner_tx_with_extra_output(miner_tx, miner_address, height+1, coins, alice_address);
-
-  block blk_1;
-  generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_miner_tx, hf::none, 0, 0, crypto::hash(), 0, miner_tx);
-  events.push_back(blk_1);
-
-  DO_CALLBACK(events, "check_block_accepted");
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
 
   return true;
 }
 
 bool gen_block_has_invalid_tx::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
+  auto hard_forks = oxen_generate_hard_fork_table();
+  oxen_chain_generator gen(events, hard_forks);
+  uint64_t last_good_height = gen.chain_height();
 
-  std::vector<crypto::hash> tx_hashes;
-  tx_hashes.push_back(crypto::hash());
+  oxen_blockchain_entry entry = {};
+  oxen_create_block_params params = gen.next_block_params();
+  gen.create_block(entry, params, /*tx_list*/ {});
+  entry.block.tx_hashes.push_back({});
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false, "Block has invalid TX hash");
 
-  block blk_1;
-  generator.construct_block_manually_tx(blk_1, blk_0, miner_account, tx_hashes, 0);
-  events.push_back(blk_1);
-
-  DO_CALLBACK(events, "check_block_purged");
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_not_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
 
   return true;
 }
 
 bool gen_block_is_too_big::generate(std::vector<test_event_entry>& events) const
 {
-  BLOCK_VALIDATION_INIT_GENERATE();
+  auto hard_forks = oxen_generate_hard_fork_table(hf::hf9_service_nodes);
+  oxen_chain_generator gen(events, hard_forks);
+  uint64_t last_good_height = gen.chain_height();
 
-  // Creating a huge miner_tx, it will have a lot of outs
-  MAKE_MINER_TX_MANUALLY(miner_tx, blk_0);
-  miner_tx.version = txversion::v2_ringct;
-  static const size_t tx_out_count = BLOCK_GRANTED_FULL_REWARD_ZONE_V1 / 2;
-
-  uint64_t amount = get_outs_money_amount(miner_tx);
-  uint64_t portion = amount / tx_out_count;
-  uint64_t remainder = amount % tx_out_count;
-  txout_target_v target = miner_tx.vout[0].target;
-  miner_tx.vout.clear();
-  for (size_t i = 0; i < tx_out_count; ++i)
+  oxen_blockchain_entry entry = {};
+  oxen_create_block_params params = gen.next_block_params();
+  gen.block_begin(entry, params, /*tx_list*/ {});
   {
-    tx_out o;
-    o.amount = portion;
-    o.target = target;
-    miner_tx.vout.push_back(o);
-  }
-  if (0 < remainder)
-  {
-    tx_out o;
-    o.amount = remainder;
-    o.target = target;
-    miner_tx.vout.push_back(o);
-  }
+      // Creating a huge miner_tx, it will have a lot of outs
+      cryptonote::transaction& miner_tx = *entry.block.miner_tx;
+      miner_tx.version = txversion::v2_ringct;
+      static const size_t tx_out_count = BLOCK_GRANTED_FULL_REWARD_ZONE_V1 / 2;
+      uint64_t amount = miner_tx.vout[0].amount;
+      uint64_t portion = amount / tx_out_count;
+      uint64_t remainder = amount % tx_out_count;
+      txout_target_v target = miner_tx.vout[0].target;
+      miner_tx.vout.erase(miner_tx.vout.begin());
+      for (size_t i = 0; i < tx_out_count; ++i) {
+          tx_out o;
+          o.amount = portion;
+          o.target = target;
+          miner_tx.vout.insert(miner_tx.vout.begin(), o);
+      }
+      if (0 < remainder) {
+          tx_out o;
+          o.amount = remainder;
+          o.target = target;
+          miner_tx.vout.insert(miner_tx.vout.begin(), o);
+      }
 
+      fill_nonce_with_oxen_generator(&gen, entry.block, TEST_DEFAULT_DIFFICULTY, entry.block.get_height());
+  }
   // Block reward will be incorrect, as it must be reduced if cumulative block size is very big,
   // but in this test it doesn't matter
-  block blk_1;
-  if (!generator.construct_block_manually(blk_1, blk_0, miner_account, test_generator::bf_miner_tx, hf::none, 0, 0, crypto::hash(), 0, miner_tx))
-    return false;
+  gen.block_end(entry, params);
+  gen.add_block(entry, /*can_be_added_to_blockchain*/ false, "Block has invalid TX hash");
 
-  events.push_back(blk_1);
-
-  DO_CALLBACK(events, "check_block_purged");
+  // NOTE: Verify block
+  oxen_register_callback(
+          events,
+          "check_block_not_accepted",
+          [=]([[maybe_unused]] cryptonote::core& c, [[maybe_unused]] size_t ev_index) {
+              DEFINE_TESTS_ERROR_CONTEXT("check_block_not_accepted");
+              CHECK_TEST_CONDITION(c.blockchain.get_current_blockchain_height() == last_good_height);
+              return true;
+          });
 
   return true;
 }
@@ -631,6 +862,10 @@ bool gen_block_invalid_binary_format::generate(std::vector<test_event_entry>& ev
 
   // TODO(oxen): I don't know why difficulty has to be high for this test? Just generate some blocks and randomize the bytes???
 #else
+#define BLOCK_VALIDATION_INIT_GENERATE()                                                \
+  GENERATE_ACCOUNT(miner_account);                                                      \
+  MAKE_GENESIS_BLOCK(events, blk_0, miner_account, 1338224400);
+
   BLOCK_VALIDATION_INIT_GENERATE();
 
   std::vector<uint64_t> timestamps;

@@ -886,7 +886,7 @@ void fill_nonce_with_oxen_generator(oxen_chain_generator const *generator, crypt
     return true;
   };
 
-  while (!cryptonote::miner::find_nonce_for_given_block(get_block_hash, blk, TEST_DEFAULT_DIFFICULTY, height))
+  while (!cryptonote::miner::find_nonce_for_given_block(get_block_hash, blk, diffic, height))
     blk.timestamp++;
 }
 

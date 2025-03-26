@@ -838,7 +838,7 @@ public:
     else
       bvc.m_verifivation_failed = true;
 
-    bool added = !bvc.m_verifivation_failed;
+    bool added = !bvc.m_verifivation_failed && !bvc.m_marked_as_orphaned;
     if (!add_to_blockchain_was_valid(
                 fmt::format(
                         "block {} hf{} w/ checkpoint",
@@ -867,7 +867,7 @@ public:
     else
       bvc.m_verifivation_failed = true;
 
-    bool added = !bvc.m_verifivation_failed;
+    bool added = !bvc.m_verifivation_failed && !bvc.m_marked_as_orphaned;
 
     // NOTE: We have tests that intentionally construct invalid blocks, i.e.
     // blocks without a miner TX but they should have one. We handle those kind
@@ -901,7 +901,7 @@ public:
     else
       bvc.m_verifivation_failed = true;
 
-    bool added = !bvc.m_verifivation_failed;
+    bool added = !bvc.m_verifivation_failed && !bvc.m_marked_as_orphaned;
     if (!add_to_blockchain_was_valid(
                 "serialized block", entry.can_be_added_to_blockchain, added, entry.fail_msg)) {
         return false;
